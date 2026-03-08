@@ -104,15 +104,18 @@ Hard rules:
 PASS signal:
 - The report reads like a real referee report: specific, traceable, and actionable.
 
-### E) Idea shortlist (`output/IDEA_SHORTLIST.md`)
+### E) Idea ideation stack (`output/IDEA_POOL.md` + `output/IDEA_SCREENING_TABLE.md` + `output/IDEA_SHORTLIST.md` + `output/IDEA_TOP3_REPORT.md`)
 
 Hard rules:
 - Must respect the locked brief in `output/IDEA_BRIEF.md` (no silent scope drift).
-- Must contain two layers:
-  - **Idea Pool (Brainstorm)**: large expansion pool
+- Must contain four layers:
+  - **Idea Pool**: large expansion pool
+  - **Idea Screening Table**: table-based convergence
   - **Final Shortlist**: small, research-grade, executable set
+  - **Top-3 Report**: proposal-like expansion of the strongest ideas
 
 Pool PASS requirements:
+- File: `output/IDEA_POOL.md`
 - Size: 60-90 ideas (hard min 60).
 - Diversity: covers >=6/8 operator families (counterfactual, failure-mode-first, eval swap, component swap, explicit-combination, cross-domain analogy, negative-result, system constraints).
 - Each pool idea is a short card and includes:
@@ -121,12 +124,22 @@ Pool PASS requirements:
   - 1-sentence falsification path
   - Tier-1/2 includes at least one `paper_id` pointer from `papers/core_set.csv`.
 
+Screening PASS requirements:
+- File: `output/IDEA_SCREENING_TABLE.md`
+- Contains a scored comparison table with keep/maybe/drop decisions.
+- Scores must map back to the brief rubric dimensions.
+
 Shortlist PASS requirements:
+- File: `output/IDEA_SHORTLIST.md`
 - Size: 5-7 (default 7).
 - Each shortlisted idea includes:
   - closest-3 prior work pointers (from `papers/core_set.csv`)
   - delta + non-delta
-  - 1-week minimal validation plan (task/metric/baseline/resources/expected signal)
+  - why now
+  - concrete testbed
+  - minimal artifact
+  - strong positive signal
+  - interesting negative result
   - failure criteria
   - risks/failure modes (>=2)
   - evidence anchors (>=3 pointers)
@@ -135,8 +148,12 @@ Shortlist PASS requirements:
   - covers >=2 idea types
   - at most 1 item may be labeled "needs verification".
 
+Top-3 PASS requirements:
+- File: `output/IDEA_TOP3_REPORT.md`
+- Expands exactly 3 shortlisted ideas into more proposal-like mini-briefs.
+
 PASS signal:
-- The shortlist reads like a "research plan shortlist" (doable + falsifiable + anchored), not inspirational slogans.
+- The ideation stack reads like a real convergence workflow: evidence -> opportunities -> screened pool -> shortlist -> top-3 proposals.
 
 ## Report format (must follow)
 

@@ -309,6 +309,8 @@ def _check_keyword_expansion(workspace: Path) -> list[QualityIssue]:
 
 
 def check_unit_outputs(*, skill: str, workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    if skill == "idea-brief":
+        return _check_idea_brief(workspace, outputs)
     if skill == "literature-engineer":
         return _check_literature_engineer(workspace, outputs)
     if skill == "arxiv-search":
@@ -390,6 +392,438 @@ def check_unit_outputs(*, skill: str, workspace: Path, outputs: list[str]) -> li
         return _check_protocol(workspace, outputs)
     if skill == "tutorial-spec":
         return _check_tutorial_spec(workspace, outputs)
+    if skill == "idea-opportunity-mapper":
+        return _check_idea_opportunity_table(workspace, outputs)
+    if skill == "idea-pool-expander":
+        return _check_idea_pool(workspace, outputs)
+    if skill == "idea-screener":
+        return _check_idea_screening_table(workspace, outputs)
+    if skill == "idea-shortlist-curator":
+        return _check_idea_shortlist(workspace, outputs)
+    if skill == "idea-top3-expander":
+        return _check_idea_top3_report(workspace, outputs)
+    if skill == "deliverable-selfloop":
+        return _check_deliverable_selfloop_report(workspace, outputs)
+    return []
+
+
+def _check_idea_brief(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    brief_rel = next((p for p in outputs if p.endswith("IDEA_BRIEF.md")), "output/IDEA_BRIEF.md")
+    path = workspace / brief_rel
+    if not path.exists() or path.stat().st_size == 0:
+        return [QualityIssue(code="missing_idea_brief", message=f"`{brief_rel}` is missing or empty.")]
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    required = [
+        "## Goal",
+        "## Scope",
+        "## Constraints",
+        "## Exclusions",
+        "## Rubric",
+        "## Targets",
+        "## Query Buckets",
+        "## Table Policy",
+    ]
+    missing = [h for h in required if h not in text]
+    if missing:
+        return [QualityIssue(code="idea_brief_missing_sections", message=f"`{brief_rel}` is missing required sections: {', '.join(missing)}")]
+    queries_path = workspace / "queries.md"
+    if not queries_path.exists() or queries_path.stat().st_size == 0:
+        return [QualityIssue(code="idea_brief_missing_queries", message="`queries.md` is missing after `idea-brief`.")]
+    q = queries_path.read_text(encoding="utf-8", errors="ignore")
+    if "draft_profile: \"idea_finder\"" not in q and "draft_profile: 'idea_finder'" not in q and "draft_profile: idea_finder" not in q:
+        return [QualityIssue(code="idea_brief_missing_draft_profile", message="`queries.md` should set `draft_profile: idea_finder`.")]
+    kw_n = 0
+    in_keywords = False
+    for raw in q.splitlines():
+        line = raw.rstrip()
+        stripped = line.strip()
+        if stripped.startswith('- keywords:'):
+            in_keywords = True
+            continue
+        if stripped.startswith('- ') and not line.startswith('  - '):
+            if in_keywords:
+                break
+        if in_keywords and line.startswith('  - ') and stripped[4:].strip():
+            kw_n += 1
+    if kw_n < 3:
+        return [QualityIssue(code="idea_brief_too_few_query_buckets", message="`queries.md` should contain at least 3 keyword buckets for ideation retrieval.")]
+    return []
+
+
+
+def _sidecar_output_rel(outputs: list[str], *, filename: str) -> str:
+    return next((p for p in outputs if p.endswith(filename)), f"output/{filename}")
+
+
+
+def _markdown_table_data_rows(text: str, *, header_token: str) -> list[str]:
+    data_rows: list[str] = []
+    for ln in (text or "").splitlines():
+        stripped = ln.strip()
+        if not stripped.startswith("|"):
+            continue
+        cols = [c.strip() for c in stripped.strip("|").split("|")]
+        if cols and cols[0].lower() == header_token.lower():
+            continue
+        is_separator = bool(cols) and all(re.fullmatch(r":?-{3,}:?", c.replace(" ", "")) for c in cols)
+        if is_separator:
+            continue
+        data_rows.append(ln)
+    return data_rows
+
+
+
+def _missing_structured_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value) == 0
+    return False
+
+
+
+def _load_jsonl_dict_records(workspace: Path, *, sidecar_rel: str, code_prefix: str) -> tuple[list[dict[str, Any]], list[QualityIssue]]:
+    from tooling.common import read_jsonl
+
+    sidecar_path = workspace / sidecar_rel
+    if not sidecar_path.exists() or sidecar_path.stat().st_size == 0:
+        return [], [QualityIssue(code=f"missing_{code_prefix}_jsonl", message=f"`{sidecar_rel}` is missing or empty.")]
+    try:
+        records = [r for r in read_jsonl(sidecar_path) if isinstance(r, dict)]
+    except Exception as exc:
+        return [], [
+            QualityIssue(
+                code=f"invalid_{code_prefix}_jsonl",
+                message=f"`{sidecar_rel}` could not be parsed as JSONL ({type(exc).__name__}: {exc}).",
+            )
+        ]
+    if not records:
+        return [], [QualityIssue(code=f"empty_{code_prefix}_jsonl", message=f"`{sidecar_rel}` has no JSON objects.")]
+    return records, []
+
+
+
+def _audit_sidecar_records(
+    *,
+    records: Sequence[dict[str, Any]],
+    sidecar_rel: str,
+    code_prefix: str,
+    required_fields: Sequence[str],
+    expected_rows: int | None = None,
+    id_key: str | None = None,
+) -> list[QualityIssue]:
+    issues: list[QualityIssue] = []
+    if expected_rows is not None and len(records) != int(expected_rows):
+        issues.append(
+            QualityIssue(
+                code=f"{code_prefix}_row_mismatch",
+                message=f"`{sidecar_rel}` row count ({len(records)}) should match the Markdown table row count ({expected_rows}).",
+            )
+        )
+
+    bad_records = 0
+    missing_fields: set[str] = set()
+    for rec in records:
+        missing = [field for field in required_fields if _missing_structured_value(rec.get(field))]
+        if missing:
+            bad_records += 1
+            missing_fields.update(missing)
+    if bad_records:
+        issues.append(
+            QualityIssue(
+                code=f"{code_prefix}_missing_fields",
+                message=(
+                    f"`{sidecar_rel}` has {bad_records} record(s) missing required fields "
+                    f"({', '.join(sorted(missing_fields))})."
+                ),
+            )
+        )
+
+    if id_key:
+        ids = [str(rec.get(id_key) or "").strip() for rec in records if str(rec.get(id_key) or "").strip()]
+        dupes = len(ids) - len(set(ids))
+        if dupes:
+            issues.append(
+                QualityIssue(
+                    code=f"{code_prefix}_duplicate_ids",
+                    message=f"`{sidecar_rel}` contains duplicate `{id_key}` values ({dupes}).",
+                )
+            )
+    return issues
+
+
+
+def _check_idea_opportunity_table(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    out_rel = next((p for p in outputs if p.endswith("IDEA_OPPORTUNITY_TABLE.md")), "output/IDEA_OPPORTUNITY_TABLE.md")
+    path = workspace / out_rel
+    if not path.exists() or path.stat().st_size == 0:
+        return [QualityIssue(code="missing_idea_opportunity_table", message=f"`{out_rel}` is missing or empty.")]
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    if _check_placeholder_markers(text) or "…" in text:
+        return [QualityIssue(code="idea_opportunity_table_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
+    header_alts = [
+        ["Opportunity ID", "Cluster", "Gap Type", "Unresolved Gap", "Evidence Signal", "Candidate Wedge", "Paper IDs"],
+        ["Opportunity ID", "Cluster", "Gap", "Why now", "Candidate wedge", "Evidence pointers"],
+    ]
+    if not any(all(h.lower() in text.lower() for h in alt) for alt in header_alts):
+        return [QualityIssue(code="idea_opportunity_table_missing_columns", message=f"`{out_rel}` should expose a table with columns for opportunity id / cluster / gap / why now / candidate wedge / evidence pointers.")]
+    data_rows = _markdown_table_data_rows(text, header_token="Opportunity ID")
+    min_rows = _query_int(workspace, keys={"idea_opportunity_min", "opportunity_table_min", "opportunity_rows_min"}, default=8)
+    if len(data_rows) < min_rows:
+        return [QualityIssue(code="idea_opportunity_table_too_small", message=f"`{out_rel}` should contain at least {min_rows} evidence-grounded opportunity rows (found {len(data_rows)}).")]
+    if not re.search(r"\bP\d{4}\b", text):
+        return [QualityIssue(code="idea_opportunity_table_missing_paper_ids", message=f"`{out_rel}` should include `paper_id` pointers such as `P0001`.")]
+
+    sidecar_rel = _sidecar_output_rel(outputs, filename="IDEA_OPPORTUNITY_TABLE.jsonl")
+    records, issues = _load_jsonl_dict_records(workspace, sidecar_rel=sidecar_rel, code_prefix="idea_opportunity_table")
+    if issues:
+        return issues
+    issues.extend(
+        _audit_sidecar_records(
+            records=records,
+            sidecar_rel=sidecar_rel,
+            code_prefix="idea_opportunity_table",
+            required_fields=["opportunity_id", "cluster", "gap_type", "unresolved_gap", "evidence_signal", "why_now", "candidate_wedge", "paper_ids"],
+            expected_rows=len(data_rows),
+            id_key="opportunity_id",
+        )
+    )
+    bad_paper_ids = 0
+    for rec in records:
+        paper_ids = rec.get("paper_ids")
+        valid = [pid for pid in (paper_ids or []) if re.fullmatch(r"P\d{4}", str(pid).strip())]
+        if not isinstance(paper_ids, list) or not valid:
+            bad_paper_ids += 1
+    if bad_paper_ids:
+        issues.append(
+            QualityIssue(
+                code="idea_opportunity_table_bad_paper_ids",
+                message=f"`{sidecar_rel}` has {bad_paper_ids} record(s) without valid `paper_ids` lists.",
+            )
+        )
+    return issues
+
+
+
+def _check_idea_pool(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    out_rel = next((p for p in outputs if p.endswith("IDEA_POOL.md")), "output/IDEA_POOL.md")
+    path = workspace / out_rel
+    if not path.exists() or path.stat().st_size == 0:
+        return [QualityIssue(code="missing_idea_pool", message=f"`{out_rel}` is missing or empty.")]
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    if _check_placeholder_markers(text) or "…" in text:
+        return [QualityIssue(code="idea_pool_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
+    needed = ["Idea ID", "Tier", "Operator", "Cluster", "Idea Type", "Problem", "Key Assumption", "How to Falsify", "Paper IDs"]
+    if not all(h.lower() in text.lower() for h in needed):
+        return [QualityIssue(code="idea_pool_missing_columns", message=f"`{out_rel}` should expose a pool table with idea id / tier / operator / cluster / problem / assumption / falsification / paper ids columns.")]
+    data_rows = _markdown_table_data_rows(text, header_token="Idea ID")
+    pool_min = _query_int(workspace, keys={"idea_pool_min"}, default=60)
+    pool_max = _query_int(workspace, keys={"idea_pool_max"}, default=90)
+    if len(data_rows) < pool_min or len(data_rows) > max(pool_max, pool_min):
+        return [QualityIssue(code="idea_pool_size_out_of_range", message=f"`{out_rel}` should contain {pool_min}-{pool_max} pool rows (found {len(data_rows)}).")]
+    if not re.search(r"\bP\d{4}\b", text):
+        return [QualityIssue(code="idea_pool_missing_evidence_pointers", message=f"`{out_rel}` should include `paper_id` pointers.")]
+
+    sidecar_rel = _sidecar_output_rel(outputs, filename="IDEA_POOL.jsonl")
+    records, issues = _load_jsonl_dict_records(workspace, sidecar_rel=sidecar_rel, code_prefix="idea_pool")
+    if issues:
+        return issues
+    issues.extend(
+        _audit_sidecar_records(
+            records=records,
+            sidecar_rel=sidecar_rel,
+            code_prefix="idea_pool",
+            required_fields=["idea_id", "tier", "operator", "cluster", "idea_type", "problem", "key_assumption", "falsification", "paper_ids"],
+            expected_rows=len(data_rows),
+            id_key="idea_id",
+        )
+    )
+    operator_hits = {str(rec.get("operator") or "").strip() for rec in records if str(rec.get("operator") or "").strip()}
+    if len(operator_hits) < 6:
+        issues.append(QualityIssue(code="idea_pool_low_operator_diversity", message=f"`{out_rel}` covers only {len(operator_hits)}/8 operator families; target >=6."))
+    bad_paper_ids = 0
+    for rec in records:
+        paper_ids = rec.get("paper_ids")
+        valid = [pid for pid in (paper_ids or []) if re.fullmatch(r"P\d{4}", str(pid).strip())]
+        if not isinstance(paper_ids, list) or not valid:
+            bad_paper_ids += 1
+    if bad_paper_ids:
+        issues.append(QualityIssue(code="idea_pool_bad_paper_ids", message=f"`{sidecar_rel}` has {bad_paper_ids} record(s) without valid `paper_ids` lists."))
+    return issues
+
+
+
+def _check_idea_screening_table(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    out_rel = next((p for p in outputs if p.endswith("IDEA_SCREENING_TABLE.md")), "output/IDEA_SCREENING_TABLE.md")
+    path = workspace / out_rel
+    if not path.exists() or path.stat().st_size == 0:
+        return [QualityIssue(code="missing_idea_screening_table", message=f"`{out_rel}` is missing or empty.")]
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    if _check_placeholder_markers(text) or "…" in text:
+        return [QualityIssue(code="idea_screening_table_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
+    needed = ["Idea ID", "Cluster", "Idea Type", "Operator", "Total", "Feasibility", "Novelty", "Evidence", "Eval Clarity", "Writeability", "Keep?", "Rationale"]
+    if not all(h.lower() in text.lower() for h in needed):
+        return [QualityIssue(code="idea_screening_table_missing_columns", message=f"`{out_rel}` should expose a scored screening table with the expected columns.")]
+    data_rows = _markdown_table_data_rows(text, header_token="Idea ID")
+    min_rows = _query_int(workspace, keys={"idea_screen_min", "idea_screened_min", "screening_min"}, default=10)
+    if len(data_rows) < min_rows:
+        return [QualityIssue(code="idea_screening_table_too_small", message=f"`{out_rel}` should contain at least {min_rows} screened candidates (found {len(data_rows)}).")]
+
+    sidecar_rel = _sidecar_output_rel(outputs, filename="IDEA_SCREENING_TABLE.jsonl")
+    records, issues = _load_jsonl_dict_records(workspace, sidecar_rel=sidecar_rel, code_prefix="idea_screening_table")
+    if issues:
+        return issues
+    issues.extend(
+        _audit_sidecar_records(
+            records=records,
+            sidecar_rel=sidecar_rel,
+            code_prefix="idea_screening_table",
+            required_fields=["idea_id", "cluster", "idea_type", "operator", "total_score", "feasibility", "novelty_delta", "evidence_traceability", "evaluation_clarity", "writeability", "why_now", "keep", "rationale"],
+            expected_rows=len(data_rows),
+            id_key="idea_id",
+        )
+    )
+    bad_scores = 0
+    for rec in records:
+        try:
+            float(rec.get("total_score"))
+        except Exception:
+            bad_scores += 1
+    if bad_scores:
+        issues.append(QualityIssue(code="idea_screening_table_bad_scores", message=f"`{sidecar_rel}` has {bad_scores} record(s) with non-numeric `total_score`."))
+    decisions = [str(rec.get("keep") or "").strip().lower() for rec in records]
+    bad_decisions = sorted({d for d in decisions if d not in {"keep", "maybe", "drop"}})
+    if bad_decisions:
+        issues.append(QualityIssue(code="idea_screening_table_bad_decisions", message=f"`{sidecar_rel}` contains unsupported `keep` values: {', '.join(bad_decisions)}."))
+    keep_count = sum(1 for d in decisions if d == "keep")
+    if keep_count < 5:
+        issues.append(QualityIssue(code="idea_screening_table_too_few_kept", message=f"`{sidecar_rel}` should mark at least 5 candidates as `keep` for downstream shortlist curation (found {keep_count})."))
+    return issues
+
+
+
+def _check_idea_shortlist(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    out_rel = next((p for p in outputs if p.endswith("IDEA_SHORTLIST.md")), "output/IDEA_SHORTLIST.md")
+    path = workspace / out_rel
+    if not path.exists() or path.stat().st_size == 0:
+        return [QualityIssue(code="missing_idea_shortlist", message=f"`{out_rel}` is missing or empty.")]
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    if _check_placeholder_markers(text) or "…" in text:
+        return [QualityIssue(code="idea_shortlist_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
+    ideas = len(re.findall(r"(?m)^###\s+Idea\s+\d+\.", text))
+    if ideas < 5 or ideas > 7:
+        return [QualityIssue(code="idea_shortlist_size_out_of_range", message=f"`{out_rel}` should contain 5-7 shortlisted ideas (found {ideas}).")]
+    required_labels = [
+        "Problem:",
+        "Why now:",
+        "Sharp gap:",
+        "Closest-3:",
+        "Delta:",
+        "Non-Delta:",
+        "Concrete testbed:",
+        "Minimal artifact:",
+        "Strong positive signal:",
+        "Interesting negative result:",
+        "Main confound:",
+        "Evidence anchors:",
+    ]
+    missing = [lab for lab in required_labels if lab not in text]
+    if "Kill criterion:" not in text and "Kill criteria:" not in text:
+        missing.append("Kill criterion/criteria")
+    if missing:
+        return [QualityIssue(code="idea_shortlist_missing_fields", message=f"`{out_rel}` is missing required shortlist fields: {', '.join(missing)}")]
+    if len(re.findall(r"\bP\d{4}\b", text)) < ideas * 6:
+        return [QualityIssue(code="idea_shortlist_thin_evidence", message=f"`{out_rel}` looks thin on `paper_id` anchors relative to shortlist size.")]
+
+    sidecar_rel = _sidecar_output_rel(outputs, filename="IDEA_SHORTLIST.jsonl")
+    records, issues = _load_jsonl_dict_records(workspace, sidecar_rel=sidecar_rel, code_prefix="idea_shortlist")
+    if issues:
+        return issues
+    issues.extend(
+        _audit_sidecar_records(
+            records=records,
+            sidecar_rel=sidecar_rel,
+            code_prefix="idea_shortlist",
+            required_fields=["rank", "title", "idea_id", "cluster", "idea_type", "problem", "sharp_gap", "closest_3", "delta", "non_delta", "why_now", "concrete_testbed", "minimal_artifact", "strong_positive_signal", "interesting_negative_result", "main_confound", "kill_criterion", "evidence_anchors"],
+            expected_rows=ideas,
+            id_key="idea_id",
+        )
+    )
+    ranks: list[int] = []
+    bad_ranks = 0
+    for rec in records:
+        try:
+            ranks.append(int(rec.get("rank")))
+        except Exception:
+            bad_ranks += 1
+    if bad_ranks:
+        issues.append(QualityIssue(code="idea_shortlist_bad_ranks", message=f"`{sidecar_rel}` has {bad_ranks} record(s) with non-integer `rank`."))
+    elif sorted(ranks) != list(range(1, len(records) + 1)):
+        issues.append(QualityIssue(code="idea_shortlist_noncontiguous_ranks", message=f"`{sidecar_rel}` should rank shortlisted ideas contiguously from 1 to {len(records)}."))
+    weak_anchors = 0
+    for rec in records:
+        anchors = rec.get("evidence_anchors")
+        valid = [pid for pid in (anchors or []) if re.fullmatch(r"P\d{4}", str(pid).strip())]
+        if not isinstance(anchors, list) or len(valid) < 3:
+            weak_anchors += 1
+    if weak_anchors:
+        issues.append(QualityIssue(code="idea_shortlist_weak_anchors", message=f"`{sidecar_rel}` has {weak_anchors} record(s) with fewer than 3 valid `evidence_anchors`."))
+    clusters = {str(rec.get("cluster") or "").strip() for rec in records if str(rec.get("cluster") or "").strip()}
+    if len(clusters) < 2:
+        issues.append(QualityIssue(code="idea_shortlist_low_cluster_diversity", message=f"`{sidecar_rel}` should cover at least 2 clusters (found {len(clusters)})."))
+    idea_types = {str(rec.get("idea_type") or "").strip() for rec in records if str(rec.get("idea_type") or "").strip()}
+    if len(idea_types) < 2:
+        issues.append(QualityIssue(code="idea_shortlist_low_type_diversity", message=f"`{sidecar_rel}` should cover at least 2 idea types (found {len(idea_types)})."))
+    return issues
+
+
+
+def _check_idea_top3_report(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    out_rel = next((p for p in outputs if p.endswith("IDEA_TOP3_REPORT.md")), "output/IDEA_TOP3_REPORT.md")
+    path = workspace / out_rel
+    if not path.exists() or path.stat().st_size == 0:
+        return [QualityIssue(code="missing_idea_top3_report", message=f"`{out_rel}` is missing or empty.")]
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    if _check_placeholder_markers(text) or "…" in text:
+        return [QualityIssue(code="idea_top3_report_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
+    tops = len(re.findall(r"(?m)^##\s+Top\s+\d+\.", text))
+    if tops != 3:
+        return [QualityIssue(code="idea_top3_report_wrong_count", message=f"`{out_rel}` should contain exactly 3 expanded top ideas (found {tops}).")]
+    required = ["Cross-Idea Comparison", "Why now", "Hypothesis", "Concrete testbed", "Minimal artifact", "Strong positive signal", "Interesting negative result", "Main confound", "Kill criteria"]
+    missing = [lab for lab in required if lab not in text]
+    if missing:
+        return [QualityIssue(code="idea_top3_report_missing_fields", message=f"`{out_rel}` is missing required top-3 report fields: {', '.join(missing)}")]
+
+    if "## Cross-Idea Comparison" in text:
+        section = text.split("## Cross-Idea Comparison", 1)[1]
+        compare_rows = _markdown_table_data_rows(section, header_token="Rank")
+        if len(compare_rows) < 3:
+            return [QualityIssue(code="idea_top3_report_thin_comparison_table", message=f"`{out_rel}` should include a cross-idea comparison table with at least 3 rows.")]
+
+    shortlist_path = workspace / "output" / "IDEA_SHORTLIST.jsonl"
+    if shortlist_path.exists() and shortlist_path.stat().st_size > 0:
+        from tooling.common import read_jsonl
+
+        shortlist = [r for r in read_jsonl(shortlist_path) if isinstance(r, dict)]
+        expected_titles = [str(r.get("title") or "").strip() for r in shortlist[:3] if str(r.get("title") or "").strip()]
+        actual_titles = [m.strip() for m in re.findall(r"(?m)^##\s+Top\s+\d+\.\s+(.+)$", text)]
+        if len(expected_titles) == 3 and actual_titles[:3] != expected_titles:
+            return [QualityIssue(code="idea_top3_report_shortlist_mismatch", message=f"`{out_rel}` should expand the top-3 titles from `output/IDEA_SHORTLIST.jsonl` in rank order.")]
+    return []
+
+
+def _check_deliverable_selfloop_report(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    report_rel = next((p for p in outputs if p.endswith("DELIVERABLE_SELFLOOP_TODO.md")), "output/DELIVERABLE_SELFLOOP_TODO.md")
+    report_path = workspace / report_rel
+    if not report_path.exists() or report_path.stat().st_size == 0:
+        return [QualityIssue(code="missing_deliverable_selfloop_report", message=f"`{report_rel}` is missing or empty.")]
+    text = report_path.read_text(encoding="utf-8", errors="ignore")
+    if _check_placeholder_markers(text) or "…" in text:
+        return [QualityIssue(code="deliverable_selfloop_placeholders", message=f"`{report_rel}` contains placeholders/ellipsis.")]
+    if "- Status: PASS" not in text:
+        return [QualityIssue(code="deliverable_selfloop_not_pass", message=f"`{report_rel}` is not PASS.")]
     return []
 
 

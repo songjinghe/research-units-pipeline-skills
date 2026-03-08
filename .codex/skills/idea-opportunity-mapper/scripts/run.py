@@ -1,0 +1,40 @@
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--workspace", required=True)
+    parser.add_argument("--unit-id", default="")
+    parser.add_argument("--inputs", default="")
+    parser.add_argument("--outputs", default="")
+    parser.add_argument("--checkpoint", default="")
+    args = parser.parse_args()
+
+    repo_root = Path(__file__).resolve().parents[4]
+    sys.path.insert(0, str(repo_root))
+
+    from tooling.common import parse_semicolon_list
+    from tooling.ideation import build_opportunity_rows, map_notes_to_clusters, opportunity_table_markdown, write_jsonl, write_markdown
+
+    workspace = Path(args.workspace).resolve()
+    outputs = parse_semicolon_list(args.outputs) or ["output/IDEA_OPPORTUNITY_TABLE.md"]
+    out_rel = outputs[0] if outputs else "output/IDEA_OPPORTUNITY_TABLE.md"
+    out_path = workspace / out_rel
+    jsonl_path = out_path.with_suffix('.jsonl')
+
+    clustered = map_notes_to_clusters(workspace / 'outline' / 'taxonomy.yml', workspace / 'papers' / 'paper_notes.jsonl')
+    rows = []
+    for cluster, notes in clustered.items():
+        rows.extend(build_opportunity_rows(cluster=cluster, notes=notes))
+
+    write_markdown(out_path, opportunity_table_markdown(rows))
+    write_jsonl(jsonl_path, rows)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

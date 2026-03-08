@@ -19,6 +19,13 @@ This skill does **not** retrieve papers. It only locks:
 - multi-query buckets (how we will search),
 into `output/IDEA_BRIEF.md` and `queries.md`.
 
+The brief should also define the **artifact stack** for later ideation:
+- opportunity table
+- idea pool
+- screening table
+- shortlist
+- top-3 expansion report
+
 ## Role cards (prompt-level guidance)
 
 - **Ideation PM**

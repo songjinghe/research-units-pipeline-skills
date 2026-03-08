@@ -17,14 +17,14 @@ Goal: turn a large Idea Pool into a **small, research-grade** shortlist that is:
 - falsifiable (clear failure criteria),
 - portfolio-diverse.
 
-This skill rewrites `output/IDEA_SHORTLIST.md` by:
-- keeping the Pool section,
-- adding/replacing the "Final Shortlist" section.
+This skill produces the shortlist layer after upstream expansion + screening.
+It should read `output/IDEA_POOL.md` and `output/IDEA_SCREENING_TABLE.md`, then write `output/IDEA_SHORTLIST.md`.
 
 ## Inputs
 
 - `output/IDEA_BRIEF.md`
-- `output/IDEA_SHORTLIST.md` (must contain the Idea Pool)
+- `output/IDEA_POOL.md`
+- `output/IDEA_SCREENING_TABLE.md`
 - `outline/taxonomy.yml`
 - `papers/paper_notes.jsonl`
 - `papers/core_set.csv`
@@ -32,6 +32,7 @@ This skill rewrites `output/IDEA_SHORTLIST.md` by:
 ## Outputs
 
 - `output/IDEA_SHORTLIST.md`
+- optional sidecar: `output/IDEA_SHORTLIST.jsonl`
 
 ## Rubric (weights come from the brief)
 
@@ -65,7 +66,7 @@ Portfolio constraints:
 1) Read constraints + rubric weights from `output/IDEA_BRIEF.md`
 - If constraints are missing, add a blocking question to `DECISIONS.md` (do not pretend).
 
-2) Parse the Idea Pool from `output/IDEA_SHORTLIST.md`
+2) Parse the Idea Pool from `output/IDEA_POOL.md`
 - Discard candidates that violate exclusions.
 - De-duplicate near-identical ideas (keep the best phrasing).
 
@@ -81,7 +82,7 @@ Portfolio constraints:
 5) Select the best composition and fuse overlaps
 - If two shortlisted ideas overlap, keep one and merge the strongest parts.
 
-6) Write "Final Shortlist" into `output/IDEA_SHORTLIST.md`
+6) Write `output/IDEA_SHORTLIST.md`
 - Size default: 7 (or follow `idea_shortlist_size` in the brief)
 - For each idea, write the full card contract (closest-3/delta/validation/failure/risks/anchors).
 
@@ -92,6 +93,7 @@ Portfolio constraints:
 ## Acceptance
 
 - `output/IDEA_SHORTLIST.md` contains a Final Shortlist (5-7; default 7).
+- Each card should be thicker than a screening row: include `Why now`, `Concrete testbed`, `Minimal artifact`, `Strong positive signal`, `Interesting negative result`, and `Kill criterion`.
 - Every shortlisted idea satisfies the card contract and points to `papers/core_set.csv` paper_ids.
 - Portfolio constraints are satisfied (>=2-3 clusters; >=2 idea types).
 

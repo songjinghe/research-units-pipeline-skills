@@ -1,7 +1,7 @@
 ---
 name: idea-pool-expander
 description: |
-  Generate a large, structured brainstorm pool (60-90) for ideation and write it into `output/IDEA_SHORTLIST.md`.
+  Generate a large, structured brainstorm pool (60-90) for ideation and write it into `output/IDEA_POOL.md`.
   **Trigger**: idea pool, brainstorm pool, expand ideas, 发散, 头脑风暴, idea candidates.
   **Use when**: you have a core set + taxonomy map and want to expand thinking before curating a shortlist.
   **Skip if**: you only want a small, feasibility-first shortlist (use `idea-shortlist-curator` directly).
@@ -13,8 +13,8 @@ description: |
 
 Goal: create a **big pool** of idea candidates that genuinely expands thinking, but remains controllable and auditable.
 
-This skill writes the **Idea Pool** section of `output/IDEA_SHORTLIST.md`.
-The final shortlist is handled by `idea-shortlist-curator`.
+This skill writes the expansion artifact `output/IDEA_POOL.md`.
+The final shortlist is handled later by `idea-shortlist-curator`, and table-based convergence should happen via `idea-screener`.
 
 ## Inputs
 
@@ -25,7 +25,8 @@ The final shortlist is handled by `idea-shortlist-curator`.
 
 ## Outputs
 
-- `output/IDEA_SHORTLIST.md`
+- `output/IDEA_POOL.md`
+- optional sidecar: `output/IDEA_POOL.jsonl`
 
 ## Operators (use explicitly)
 
@@ -56,7 +57,7 @@ Use these operator families to force diversity. Target >=6/8 families represente
 - For each operator family, generate 2-3 alternative mini-sets.
 - Choose the best mini-set by: novelty, clarity, falsifiability.
 
-5) Write the Idea Pool into `output/IDEA_SHORTLIST.md`
+5) Write the Idea Pool into `output/IDEA_POOL.md`
 - Pool size: 60-90 (hard min 60)
 - Each idea is a short card (3-6 lines):
   - Tier label (Tier-0 Wild / Tier-1 Plausible / Tier-2 Ready)
@@ -75,7 +76,7 @@ Use these operator families to force diversity. Target >=6/8 families represente
 
 ## Acceptance
 
-- `output/IDEA_SHORTLIST.md` contains an "Idea Pool" section with 60-90 ideas.
+- `output/IDEA_POOL.md` contains a large idea pool table with 60-90 ideas.
 - Operator coverage >=6/8.
 - Every Tier-1/2 idea includes at least one pointer to `papers/core_set.csv` (paper_id).
 - Cards are short; no long paragraphs.

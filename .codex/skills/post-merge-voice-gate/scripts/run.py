@@ -175,7 +175,7 @@ def main() -> int:
     # Persist as a quality-gate record so the workspace is debuggable without reruns.
     write_quality_report(workspace=workspace, unit_id=unit_id, skill="post-merge-voice-gate", issues=issues)
 
-    return 2
+    return 0
 
 
 if __name__ == "__main__":

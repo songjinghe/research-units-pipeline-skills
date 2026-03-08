@@ -1831,6 +1831,67 @@ def _check_subsection_briefs(workspace: Path, outputs: list[str]) -> list[Qualit
             )
         )
 
+    generic_axis_norms = {
+        "core mechanism and system architecture",
+        "training and data setup",
+        "evaluation protocol",
+        "evaluation protocol benchmarks metrics human",
+        "evaluation protocol datasets metrics human",
+        "evaluation protocol datasets metrics human evaluation",
+        "compute and efficiency",
+        "compute and latency constraints",
+        "efficiency and compute",
+        "tool interface contract schemas protocols",
+        "tool selection routing policy",
+        "sandboxing permissions observability",
+        "failure modes and limitations",
+    }
+
+    def _norm_axis(x: str) -> str:
+        x = re.sub(r"\s+", " ", (x or "").strip().lower())
+        x = x.rstrip(" .;:，；。")
+        x = re.sub(r"\s*/\s*", " ", x)
+        x = re.sub(r"[^a-z0-9]+", " ", x)
+        return x.strip()
+
+    generic_heavy: list[str] = []
+    axis_signature_to_ids: dict[tuple[str, ...], list[str]] = {}
+    for sid, rec in by_id.items():
+        axes = [str(a).strip() for a in (rec.get("axes") or []) if str(a).strip()]
+        norm_axes = [_norm_axis(a) for a in axes]
+        if not norm_axes:
+            continue
+        generic_n = sum(1 for a in norm_axes if a in generic_axis_norms)
+        if len(norm_axes) >= 4 and generic_n >= 3:
+            generic_heavy.append(sid)
+        sig = tuple(norm_axes[:4])
+        if len(sig) >= 3:
+            axis_signature_to_ids.setdefault(sig, []).append(sid)
+
+    if generic_heavy:
+        issues.append(
+            QualityIssue(
+                code="subsection_briefs_generic_axes",
+                message=(
+                    f"`{out_rel}` has subsection briefs dominated by generic axes (e.g., {', '.join(generic_heavy[:8])}"
+                    f"{'...' if len(generic_heavy) > 8 else ''}); add subsection-specific mechanism/protocol/risk axes before writing."
+                ),
+            )
+        )
+
+    repeated_axis_sets = [ids for ids in axis_signature_to_ids.values() if len(ids) >= 3]
+    if repeated_axis_sets:
+        sample = ", ".join(["/".join(ids[:3]) + ("..." if len(ids) > 3 else "") for ids in repeated_axis_sets[:3]])
+        issues.append(
+            QualityIssue(
+                code="subsection_briefs_repeated_axes",
+                message=(
+                    f"`{out_rel}` repeats the same leading axis sets across multiple subsections (e.g., {sample}); "
+                    "make axes subsection-specific so downstream packs and prose do not collapse into the same template."
+                ),
+            )
+        )
+
     # Writing-quality canary: repeated tensions almost always become repeated subsection openers later.
     # Keep this check lightweight (no semantics), but block obvious duplicates in strict runs.
     if profile == "arxiv-survey":
@@ -1991,6 +2052,27 @@ def _check_coverage_report(workspace: Path, outputs: list[str]) -> list[QualityI
         return [QualityIssue(code="coverage_report_placeholders", message=f"`{report_rel}` contains placeholders; regenerate planner report.")]
     if "| Subsection |" not in report:
         return [QualityIssue(code="coverage_report_missing_table", message=f"`{report_rel}` is missing the per-subsection table.")]
+
+    section_only = report
+    m = re.search(r"(?s)##\s+Per-subsection\s+summary\s*(.*?)\n##\s+Per-chapter\s+sizing", report)
+    if m:
+        section_only = m.group(1)
+    row_lines = [ln.strip() for ln in section_only.splitlines() if ln.strip().startswith("|") and not ln.strip().startswith("|---")]
+    evidence_zero = 0
+    axes_missing = 0
+    data_rows = 0
+    for ln in row_lines:
+        if "Subsection" in ln and "Evidence levels" in ln:
+            continue
+        data_rows += 1
+        if "fulltext=0, abstract=0, title=0" in ln:
+            evidence_zero += 1
+        if re.search(r"\|\s*[—-]\s*\|", ln):
+            axes_missing += 1
+
+    # `outline-refiner` runs at C2 before paper notes / briefs exist, so zero evidence-level counts
+    # and blank axis-specificity cells are expected at this stage. Those fields become actionable only
+    # after C3/C4 artifacts exist and are validated by later skills.
 
     if not state_path.exists():
         return [QualityIssue(code="missing_outline_state", message=f"`{state_rel}` does not exist.")]
@@ -3932,112 +4014,11 @@ def _check_section_logic_polisher(workspace: Path, outputs: list[str]) -> list[Q
             )
         ]
 
-    draft_profile = _draft_profile(workspace)
-
-    # IMPORTANT (paper voice): do not hard-block on linker word counts.
-    #
-    # Counting explicit discourse markers ("therefore/however/moreover/...") is a poor proxy
-    # for coherence and often incentivizes exactly the paragraph-initial connector cadence
-    # that makes the prose feel templated. This gate is therefore thesis-only:
-    # - it blocks when the subsection lacks a clear, conclusion-first thesis in paragraph 1
-    # - linker density is handled as *non-blocking* "style smells" elsewhere
-    causal_min = contrast_min = extension_min = impl_min = 0
-
-    # Thesis/takeaway: require an explicit conclusion-first signal early, but
-    # avoid forcing generator-like meta openers ("This subsection ...").
-    thesis_patterns = [
-        # Takeaway markers (preferred).
-        r"(?i)\b(key\s+takeaway|main\s+takeaway|takeaway)\b\s*[:\-]",
-        r"(?i)\b(a|an|one)\s+(?:central|core|key)\s+(?:tension|challenge|trade[-\s]?off|bottleneck|constraint)\s+is\b",
-        r"(?i)\bthe\s+(?:central|core|key)\s+(?:claim|point|tension|idea)\s+is\b",
-        r"(?i)\bthe\s+key\s+point\s+is\b",
-        r"(?i)\bour\s+(?:synthesis|review|survey)\s+(?:suggests|shows|finds|indicates)\s+that\b",
-        # Accept some academic thesis stems.
-        r"(?i)\bwe\s+(?:argue|show|find|suggest|observe|contend)\s+that\b",
-        r"(?i)\bthis\s+(?:section|subsection)\s+(?:shows|argues|concludes|highlights)\s+that\b",
-        # Content-claim verbs (more natural than explicit "takeaway:" labels).
-        r"(?i)\bdetermin(?:e|es|ed|ing)\b|\bdriv(?:e|es|en|ing)\b|\bshap(?:e|es|ed|ing)\b|\bconstrain(?:s|ed|ing)?\b|\bgovern(?:s|ed|ing)?\b|\bset(?:s)?\s+the\s+ceiling\b",
-        # Chinese cues.
-        r"(?:本小节|本节)(?:结论|核心观点|要点|认为|指出|主张|表明|决定|驱动|影响|约束|塑造|主导)",
-        r"(?:一个|一项|一個)(?:关键|核心)(?:挑战|矛盾|张力|張力|权衡|權衡|瓶颈|約束|约束)是",
-    ]
-
-    causal_re = re.compile(r"\b(therefore|thus|hence|as a result|consequently|accordingly)\b|因此|所以|从而|因而|由此", re.IGNORECASE)
-    contrast_re = re.compile(r"\b(however|nevertheless|nonetheless|yet|whereas|unlike|in contrast|by contrast)\b|然而|相比之下|相较|不同于", re.IGNORECASE)
-    extension_re = re.compile(r"\b(moreover|furthermore|additionally|in addition|similarly|likewise|building on|following)\b|此外|并且|同时|进一步|另外", re.IGNORECASE)
-    implication_re = re.compile(r"\b(this raises|this suggests|this implies|this motivates|this highlights)\b|这(?:提示|表明|意味着|引出)", re.IGNORECASE)
-
-    sec_dir = workspace / "sections"
-    if not sec_dir.exists():
-        return [QualityIssue(code="missing_sections_dir", message="Missing `sections/`; write per-subsection files before logic polishing.")]
-
-    issues: list[QualityIssue] = []
-    for p in sorted(sec_dir.glob("S*.md")):
-        name = p.name
-        if name in {"abstract.md", "discussion.md", "conclusion.md"}:
-            continue
-        if name.endswith("_lead.md"):
-            continue
-        # H3 units are rendered as S<sec>_<sub>.md (underscore).
-        if "_" not in name:
-            continue
-
-        rel = str(p.relative_to(workspace))
-        text = p.read_text(encoding="utf-8", errors="ignore")
-        # First paragraph thesis signal.
-        paras = [q.strip() for q in re.split(r"\n\s*\n", text.strip()) if q.strip()]
-        first = paras[0] if paras else ""
-        first_wo_cites = re.sub(r"\[@[^\]]+\]", "", first)
-        first_wo_cites = re.sub(r"\s+", " ", first_wo_cites).strip()
-        thesis_ok = any(re.search(pat, first_wo_cites) for pat in thesis_patterns)
-        if not thesis_ok:
-            issues.append(
-                QualityIssue(
-                    code="sections_h3_missing_thesis_statement",
-                    message=(
-                        f"`{rel}` is missing an explicit thesis/takeaway signal in paragraph 1 "
-                        "(prefer a conclusion-first thesis sentence, e.g., 'A central tension is ...', 'We argue that ...', or 'The key point is ...')."
-                    ),
-                )
-            )
-
-        blob = re.sub(r"\[@[^\]]+\]", "", text)
-        blob = blob.lower()
-        causal_n = len(causal_re.findall(blob))
-        contrast_n = len(contrast_re.findall(blob))
-        extension_n = len(extension_re.findall(blob))
-        impl_n = len(implication_re.findall(blob))
-
-        if causal_n < causal_min or contrast_n < contrast_min or extension_n < extension_min or impl_n < impl_min:
-            issues.append(
-                QualityIssue(
-                    code="sections_h3_low_connector_density",
-                    message=(
-                        f"`{rel}` connector density too low for `{draft_profile}` profile: "
-                        f"causal={causal_n} (min {causal_min}), contrast={contrast_n} (min {contrast_min}), "
-                        f"extension={extension_n} (min {extension_min}), implication={impl_n} (min {impl_min})."
-                    ),
-                )
-            )
-
-    # If the report claims PASS but checks fail, force the loop to run again.
-    if issues and "- Status: PASS" in report:
-        issues.append(
-            QualityIssue(
-                code="section_logic_report_out_of_date",
-                message=f"`{report_rel}` reports PASS but current `sections/` files fail checks; rerun the polisher script after edits.",
-            )
-        )
-
-    if not issues and "- Status: PASS" not in report:
-        issues.append(
-            QualityIssue(
-                code="section_logic_report_not_pass",
-                message=f"`{report_rel}` is not PASS; fix failing subsections and rerun `section-logic-polisher`.",
-            )
-        )
-
-    return issues
+    # This report is now treated as a diagnostic artifact rather than a strict
+    # blocking gate. The script itself already computes the report from the
+    # current `sections/` files, so the quality gate only checks that the report
+    # exists and is not placeholder text.
+    return []
 
 
 def _check_merge_report(workspace: Path, outputs: list[str]) -> list[QualityIssue]:

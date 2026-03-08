@@ -13,9 +13,9 @@ description: |
 
 Purpose: produce a small, low-risk “transition map” so adjacent subsections do not read like islands.
 
-This skill is intentionally **LLM-first**:
-- you write `outline/transitions.md` as paper-voice content sentences
-- the helper script is **validation-only** (it never generates prose)
+This skill is intentionally **low-risk and deterministic**:
+- the script writes `outline/transitions.md` from adjacent subsection titles + brief bridge handles
+- the generated transitions stay paper-safe and avoid adding new facts or citations
 
 Transitions should answer:
 - what the previous unit established
@@ -127,9 +127,9 @@ Do:
 Avoid:
 - Smuggling new facts into transitions.
 
-## Script (optional; validation only)
+## Script (generator + validation)
 
-You usually do not run this manually; it exists so a pipeline runner can deterministically validate the artifact.
+You usually do not run this manually; it exists so a pipeline runner can deterministically generate and validate the artifact.
 
 ### Quick Start
 

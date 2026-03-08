@@ -143,7 +143,7 @@ If you cannot fill a row without guessing:
 - remove the row (prefer fewer, solid rows), and
 - route upstream: strengthen `evidence-draft` / `anchor-sheet` for that area.
 
-## Script (validator-only)
+## Script (generator + validator)
 
 ### Quick Start
 
@@ -169,5 +169,5 @@ If you cannot fill a row without guessing:
   `python .codex/skills/appendix-table-writer/scripts/run.py --workspace workspaces/<ws> --outputs outline/tables_appendix.md`
 
 Notes:
-- This script does not write table content. It only validates that `outline/tables_appendix.md` is Appendix-ready.
+- This script writes `outline/tables_appendix.md` from the existing evidence artifacts and then validates the result.
 - It always writes a short report to `output/TABLES_APPENDIX_REPORT.md`.

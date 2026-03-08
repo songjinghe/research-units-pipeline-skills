@@ -475,6 +475,10 @@ def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outlin
     )
 
     if is_agent_domain:
+        if any(t in title_low for t in ["agent loop", "action space", "action spaces", "closed-loop", "controller"]):
+            add("action representation (tool call / environment operation)")
+            add("state update and observation fidelity")
+            add("termination and recovery policy")
         if any(t in title_low for t in ["plan", "planning", "reason", "reasoning", "deliberation", "search", "tree", "thought"]):
             add("control loop design (planner / executor, search)")
             add("deliberation method (CoT / ToT / MCTS)")
@@ -483,6 +487,7 @@ def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outlin
             add("tool interface (function calling, schemas, protocols)")
             add("tool selection / routing policy")
             add("sandboxing / permissions / observability")
+            add("execution contract and error handling")
         if any(t in title_low for t in ["memory", "retrieval", "rag", "cache", "long-horizon"]):
             add("memory type (episodic / semantic / scratchpad)")
             add("retrieval source + index (docs / web / logs)")
@@ -495,14 +500,17 @@ def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outlin
             add("training signal (SFT / preference / RL)")
             add("data synthesis + evaluator / reward")
             add("generalization + regression control")
+            add("update trigger and feedback source")
         if any(t in title_low for t in ["evaluation", "benchmark", "suite", "deploy", "deployment"]):
             add("task suites (web / code / embodied / tools)")
             add("metrics (success, cost, reliability, safety)")
             add("contamination + reproducibility controls")
+            add("budget + tool-access reporting")
         if any(t in title_low for t in ["safety", "security", "attack", "guardrail", "defense", "vulnerab"]):
             add("threat model (prompt/tool injection, exfiltration)")
             add("defense surface (policy, sandbox, monitoring)")
             add("security evaluation protocol")
+            add("auditability and governance boundary")
 
     # Existing T2I-specific heuristics (kept for backward compatibility).
     if any(t in title_low for t in ["representation", "latent", "token", "pixel", "tokenizer", "codebook"]):
@@ -535,9 +543,13 @@ def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outlin
         "evaluation protocol",
         "evaluation protocol (benchmarks / metrics / human)",
         "evaluation protocol (datasets / metrics / human)",
+        "evaluation protocol (datasets, metrics, human evaluation)",
         "compute and efficiency",
+        "compute and latency constraints",
         "efficiency and compute",
-        "failure modes and limitations",
+        "tool interface contract (schemas / protocols)",
+        "tool selection / routing policy",
+        "sandboxing / permissions / observability",
         "failure modes and limitations",
         "failure modes and limitations.",
     }

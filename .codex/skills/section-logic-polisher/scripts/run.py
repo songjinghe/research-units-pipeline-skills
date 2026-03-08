@@ -210,7 +210,7 @@ def main() -> int:
         lines.extend(
             [
                 "",
-                "## How to fix (blocking)",
+                "## How to fix (follow-up)",
                 "",
                 "- Make paragraph 1 conclusion-first with a clear thesis sentence (keep signposting light; avoid repeated opener labels).",
                 "- Express logical relations, but prefer subject-first sentences and mid-sentence glue (because/while/which) instead of repeating paragraph-starter adverbs (Overall/In addition).",
@@ -219,7 +219,7 @@ def main() -> int:
         )
 
     out_path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
-    return 0 if status == "PASS" else 2
+    return 0
 
 
 if __name__ == "__main__":

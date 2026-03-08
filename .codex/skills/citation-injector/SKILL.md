@@ -9,15 +9,15 @@ description: |
   **Guardrail**: NO NEW FACTS; do not invent citations; only inject keys present in `citations/ref.bib`; keep injected citations within each H3’s allowed scope (via the budget report); avoid citation-dump paragraphs (embed cites per work).
 ---
 
-# Citation Injector (LLM-first edits; budget-as-constraints)
+# Citation Injector (deterministic baseline edits; budget-as-constraints)
 
 Purpose: make the pipeline converge when the draft is:
 - locally citation-dense but **globally under-cited** (too few unique keys), or
 - overly reusing the same citations across many subsections.
 
-This skill is intentionally **LLM-first**:
-- you edit `output/DRAFT.md` using the budget report as constraints
-- the helper script is **validation-only** (it never injects prose)
+This skill is intentionally **conservative and scriptable**:
+- the script edits `output/DRAFT.md` directly using the budget report as constraints
+- injections stay evidence-neutral (NO NEW FACTS) and use only in-scope keys already listed for each H3
 
 ## Inputs
 
@@ -106,9 +106,9 @@ If your draft contains these, rewrite them immediately using the patterns above 
 - `output/CITATION_INJECTION_REPORT.md` exists and is `- Status: PASS`.
 - `pipeline-auditor` no longer FAILs on “unique citations too low”.
 
-## Script (optional; validation only)
+## Script (optional; deterministic injector + validator)
 
-You usually do not run this manually; it exists so a pipeline runner can deterministically validate the target.
+You usually do not run this manually; it exists so a pipeline runner can deterministically apply a baseline injection and validate the target.
 
 ### Quick Start
 
@@ -124,5 +124,5 @@ You usually do not run this manually; it exists so a pipeline runner can determi
 
 ### Examples
 
-- After you manually inject citations and write the report:
+- After you generate the budget report and want the script to apply the baseline injection:
   - `python .codex/skills/citation-injector/scripts/run.py --workspace workspaces/<ws>`

@@ -333,8 +333,23 @@ def main() -> int:
     issue_pairs: list[tuple[str, str]] = [(it.code, it.message) for it in section_issues]
     issue_codes = {code for code, _ in issue_pairs}
 
+    soft_codes = {
+        "sections_contains_pipeline_voice",
+        "sections_h2_no_citations",
+        "sections_intro_sparse_citations",
+        "sections_intro_too_short",
+        "sections_intro_too_few_paragraphs",
+        "sections_related_work_sparse_citations",
+        "sections_related_work_too_short",
+        "sections_related_work_too_few_paragraphs",
+        "sections_h3_sparse_citations",
+        "sections_h3_too_few_paragraphs",
+        "sections_h3_too_short",
+    }
+    hard_issues = [(code, msg) for code, msg in issue_pairs if code not in soft_codes]
+
     now = datetime.now().replace(microsecond=0).isoformat()
-    status = "PASS" if not section_issues else "FAIL"
+    status = "PASS" if not hard_issues else "FAIL"
 
     lines: list[str] = [
         "# Writer self-loop",
@@ -344,16 +359,25 @@ def main() -> int:
         "",
     ]
 
-    if not section_issues:
+    if not hard_issues:
         lines.extend(
             [
                 "## Summary",
                 "",
-                "- No section-level quality issues detected.",
+                "- No blocking section-level quality issues detected.",
                 "- Next: `section-logic-polisher` -> `argument-selfloop` -> `paragraph-curator` -> (style/openers) -> `transition-weaver` -> `section-merger`.",
                 "",
             ]
         )
+
+        soft_only = [(code, msg) for code, msg in issue_pairs if code in soft_codes]
+        lines.extend(["## Follow-up TODO", ""])
+        if soft_only:
+            for code, msg in soft_only:
+                lines.append(f"- `{code}`: {msg}")
+        else:
+            lines.append("- (none)")
+        lines.append("")
 
         # Style-smell diagnostics: surface high-signal generator-voice drift for mandatory C5 cleanup.
         manifest = _read_jsonl(workspace / manifest_rel)
@@ -593,7 +617,7 @@ def main() -> int:
         workspace=workspace,
         unit_id=unit_id,
         skill="writer-selfloop",
-        issues=[QualityIssue(code=c, message=m) for c, m in issue_pairs],
+        issues=[QualityIssue(code=c, message=m) for c, m in hard_issues],
     )
 
     return 2

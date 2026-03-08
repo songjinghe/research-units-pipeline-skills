@@ -172,10 +172,10 @@ Keep it "writer-facing": no reader signposting, no “in this section we…”.
 - This skill is for argument continuity and premise hygiene, not for adding new facts.
 
 
-## Script (validator-only)
+## Script (generator + validator)
 
 This skill includes a validator script so the pipeline can block on missing ledgers.
-It does not write prose; it only checks that the required artifacts exist and that the ledger covers all H3s.
+It does not write paper prose, but it does generate the required ledger artifacts from existing `sections/*.md` files and then validates coverage/consistency.
 
 ### Quick Start
 

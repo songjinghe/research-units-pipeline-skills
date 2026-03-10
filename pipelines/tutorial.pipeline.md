@@ -1,6 +1,7 @@
 ---
 name: tutorial
 version: 2.3
+profile: tutorial
 target_artifacts:
   - STATUS.md
   - UNITS.csv

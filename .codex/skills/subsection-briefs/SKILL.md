@@ -21,16 +21,19 @@ Compatibility mode is active: this skill keeps the current `outline/subsection_b
 - Keep the output NO PROSE: subsection-scoped plans, axes, clusters, and bridge handles only.
 - Preserve current downstream compatibility for `transition-weaver`, `writer-context-pack`, and `subsection-writer`.
 
-## Load Only What You Need
+## Load Order
 
-- Start with `references/overview.md`.
+Always read:
+- `references/overview.md`
+
+Read by task:
 - If `thesis` feels repetitive or copyable, read `references/thesis_patterns.md`.
 - If `tension_statement` is too generic, read `references/tension_patterns.md`.
 - If axes are weak or domain-biased, read `references/axis_catalog_generic.md` and `references/axis_catalog_llm_agents.md`.
 - If transition handles feel bland, read `references/bridge_terms.md`.
 - For calibration, read `references/examples_good.md`.
 
-## Machine-Readable Packs
+Machine-readable assets:
 
 - `assets/phrase_packs/thesis_patterns.json`
 - `assets/phrase_packs/bridge_contrast.json`

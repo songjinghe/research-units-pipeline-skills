@@ -87,6 +87,7 @@ def main() -> int:
         max_results=int(args.max_results),
         year_from=year_from,
         year_to=year_to,
+        workspace=workspace,
     )
     if not records:
         raise SystemExit("No results returned (network blocked or query too narrow)")
@@ -386,8 +387,9 @@ def _search_arxiv_paged(
     max_results: int,
     year_from: int | None,
     year_to: int | None,
+    workspace: Path | None = None,
 ) -> list[dict[str, Any]]:
-    q = _build_arxiv_query(queries)
+    q = _build_arxiv_query(queries, workspace=workspace)
     if not q:
         return []
     target = max(1, int(max_results))
@@ -490,14 +492,19 @@ def _search_arxiv_once(
     return (records, raw_count)
 
 
-def _build_arxiv_query(queries: list[str]) -> str:
+def _build_arxiv_query(queries: list[str], workspace: Path | None = None) -> str:
     queries = [q.strip() for q in (queries or []) if q and q.strip()]
     if not queries:
         return ""
 
-    # Special-case: LLM-agent topics benefit from an AND-constrained query to reduce noise.
-    if _looks_like_llm_agent_topic(queries):
-        return _llm_agent_query(queries)
+    # Domain-pack detection: when a pack matches the workspace context,
+    # rewrite the query using its core/signal clauses instead of raw ORs.
+    if workspace is not None:
+        pack = _load_domain_pack(workspace)
+        if _domain_pack_matches(queries, pack):
+            rewritten = _domain_pack_query(queries, pack)  # type: ignore[arg-type]
+            if rewritten:
+                return rewritten
 
     parts: list[str] = []
     for q in queries:
@@ -521,34 +528,82 @@ def _build_arxiv_query(queries: list[str]) -> str:
     return "(" + " OR ".join(parts) + ")"
 
 
-def _looks_like_llm_agent_topic(queries: list[str]) -> bool:
-    low = " ".join(queries).lower()
-    return ("agent" in low or "agents" in low) and ("llm" in low or "language model" in low)
+def _load_domain_pack(workspace: Path) -> dict | None:
+    """Load the first matching domain pack for this workspace.
+
+    Globs ``assets/domain_packs/*.json`` from the skill package root.  For
+    each pack, checks ``topic_triggers.trigger_group_a`` **and**
+    ``trigger_group_b`` against the combined text of the workspace's
+    ``GOAL.md`` and ``queries.md``.  A pack matches when **at least one**
+    trigger from group_a **and** at least one from group_b appear in the
+    text.  Returns the first matching pack dict, or ``None``.
+    """
+    skill_root = Path(__file__).resolve().parents[1]  # .../arxiv-search/
+    pack_dir = skill_root / "assets" / "domain_packs"
+    if not pack_dir.is_dir():
+        return None
+
+    # Build the haystack from workspace context files.
+    haystack_parts: list[str] = []
+    for name in ("GOAL.md", "queries.md"):
+        ctx = workspace / name
+        if ctx.exists():
+            haystack_parts.append(ctx.read_text(encoding="utf-8"))
+    haystack = " ".join(haystack_parts).lower()
+    if not haystack.strip():
+        return None
+
+    for pack_path in sorted(pack_dir.glob("*.json")):
+        try:
+            pack = json.loads(pack_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        triggers = pack.get("topic_triggers") or {}
+        group_a = [t.lower() for t in (triggers.get("trigger_group_a") or [])]
+        group_b = [t.lower() for t in (triggers.get("trigger_group_b") or [])]
+        if not group_a or not group_b:
+            continue
+        if any(t in haystack for t in group_a) and any(t in haystack for t in group_b):
+            return pack
+    return None
 
 
-def _llm_agent_query(queries: list[str]) -> str:
-    core = '((all:agent OR all:agents) AND (all:llm OR all:"large language model" OR all:"language model"))'
-    signals = (
-        '(all:tool OR all:tools OR all:"tool use" OR all:"function calling" OR all:planning OR all:reasoning OR all:acting)'
-    )
-    names = []
+def _domain_pack_matches(queries: list[str], pack: dict | None) -> bool:
+    """Return True when *pack* is non-None (i.e. a domain pack matched)."""
+    return pack is not None
+
+
+def _domain_pack_query(queries: list[str], pack: dict) -> str:
+    """Build an AND-constrained arXiv query from a matched domain pack."""
+    qr = pack.get("query_rewrite") or {}
+    core = qr.get("core_clause", "")
+    signals = qr.get("signal_clause", "")
+
+    triggers = pack.get("topic_triggers") or {}
+    name_triggers = [n.lower() for n in (triggers.get("name_triggers") or [])]
+
+    names: list[str] = []
     for q in queries:
         qlow = q.lower()
-        if any(n in qlow for n in ("react", "reflexion", "autogpt", "toolformer", "voyager", "tree of thoughts", "mrkl")):
+        if any(n in qlow for n in name_triggers):
             names.append(q.strip())
     names_clause = ""
     if names:
-        parts = []
+        parts: list[str] = []
         for n in names[:12]:
             if " " in n:
                 parts.append(f'all:"{n}"')
             else:
                 parts.append(f"all:{n}")
         names_clause = "(" + " OR ".join(parts) + ")"
+
+    if not core:
+        # Degenerate pack without query_rewrite — fall through to default.
+        return ""
     if names_clause:
-        # Important: allow named classics through even if they don't mention "agent(s)" explicitly.
-        return f"(({core} AND {signals}) OR {names_clause})"
-    return f"({core} AND {signals})"
+        # Important: allow named classics through even if they don't match the core clause.
+        return f"(({core} AND {signals}) OR {names_clause})" if signals else f"({core} OR {names_clause})"
+    return f"({core} AND {signals})" if signals else core
 
 
 def _parse_year(value: str) -> int | None:
@@ -593,7 +648,7 @@ def _default_pdf_url(arxiv_id: str) -> str:
     arxiv_id = (arxiv_id or "").strip()
     if not arxiv_id:
         return ""
-    return f"http://arxiv.org/pdf/{arxiv_id}.pdf"
+    return f"https://arxiv.org/pdf/{arxiv_id}.pdf"
 
 
 def _extract_pdf_url(entry: ET.Element, *, ns: dict[str, str]) -> str:

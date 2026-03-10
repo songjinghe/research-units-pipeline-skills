@@ -21,3 +21,22 @@ This skill should favor:
 - academically meaningful tensions,
 - low-template cards,
 - and lightweight first probes.
+
+## Script
+
+### Quick Start
+
+- `python .codex/skills/idea-direction-generator/scripts/run.py --workspace workspaces/<ws>`
+
+### All Options
+
+- `--workspace <dir>` (required)
+- `--unit-id <U###>`
+- `--inputs <semicolon-separated>`
+- `--outputs <semicolon-separated>`
+- `--checkpoint <C#>`
+
+### Examples
+
+- Generate a direction pool for a brainstorm workspace:
+  - `python .codex/skills/idea-direction-generator/scripts/run.py --workspace workspaces/brainstorm-llm-agents`

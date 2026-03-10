@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -153,14 +154,20 @@ def main() -> int:
 
         # Ensure some agent survey/review papers are included (for paper-like Related Work positioning).
         min_surveys = 0
-        if _looks_like_llm_agent_topic(workspace):
-            min_surveys = min(8, max(4, core_size // 40))
+        pack = _load_domain_pack(workspace)
+        if pack is not None:
+            sd = pack.get("survey_detection") or {}
+            floor = int(sd.get("min_surveys_floor") or 4)
+            cap = int(sd.get("min_surveys_cap") or 8)
+            ratio = float(sd.get("min_surveys_ratio") or 0.025)
+            min_surveys = min(cap, max(floor, int(core_size * ratio)))
         surveys_picked = 0
         if min_surveys:
+            sd = (pack or {}).get("survey_detection") or {}
             for score, _, _, record in scored:
                 if surveys_picked >= min_surveys or len(picked) >= core_size:
                     break
-                if not _is_agent_survey_record(record):
+                if not _is_agent_survey_record(record, sd):
                     continue
                 key = str(record.get("dedup_key") or "")
                 if key and key in picked_keys:
@@ -300,19 +307,12 @@ def _core_size_from_queries(path: Path) -> int:
 
 
 def _default_core_size_for_workspace(workspace: Path) -> int:
-    lock_path = workspace / "PIPELINE.lock.md"
-    if lock_path.exists():
-        try:
-            for raw in lock_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-                line = raw.strip()
-                if not line.startswith("pipeline:"):
-                    continue
-                pipeline = line.split(":", 1)[1].strip().lower()
-                if "arxiv-survey" in pipeline:
-                    return 150
-                break
-        except Exception:
-            pass
+    repo_root = Path(__file__).resolve().parents[4]
+    import sys; sys.path.insert(0, str(repo_root))
+    from tooling.common import pipeline_profile
+    profile = pipeline_profile(workspace)
+    if profile == "arxiv-survey":
+        return 150
     return 50
 
 
@@ -334,20 +334,58 @@ def _parse_queries_md(path: Path) -> list[str]:
     return keywords
 
 
+_DOMAIN_PACK_CACHE: dict[str, dict[str, Any] | None] = {}
+
+
+def _load_domain_pack(workspace: Path) -> dict[str, Any] | None:
+    """Return the first matching domain-pack dict for *workspace*, or None."""
+    cache_key = str(workspace)
+    if cache_key in _DOMAIN_PACK_CACHE:
+        return _DOMAIN_PACK_CACHE[cache_key]
+
+    skill_root = Path(__file__).resolve().parents[1]
+    pack_files = sorted(skill_root.glob("assets/domain_packs/*.json"))
+    if not pack_files:
+        _DOMAIN_PACK_CACHE[cache_key] = None
+        return None
+
+    # Build a lowercase corpus from the workspace's goal and queries files.
+    corpus = ""
+    for name in ("GOAL.md", "queries.md"):
+        p = workspace / name
+        if p.exists():
+            corpus += "\n" + p.read_text(encoding="utf-8", errors="ignore")
+    corpus_low = corpus.lower()
+
+    for pf in pack_files:
+        try:
+            pack = json.loads(pf.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        triggers = pack.get("topic_triggers") or {}
+        group_a = triggers.get("trigger_group_a") or []
+        group_b = triggers.get("trigger_group_b") or []
+        name_triggers = triggers.get("name_triggers") or []
+
+        # Match if (any group_a AND any group_b) OR any name_trigger.
+        a_hit = any(t in corpus_low for t in group_a)
+        b_hit = any(t in corpus_low for t in group_b)
+        name_hit = any(t in corpus_low for t in name_triggers)
+        if (a_hit and b_hit) or name_hit:
+            _DOMAIN_PACK_CACHE[cache_key] = pack
+            return pack
+
+    _DOMAIN_PACK_CACHE[cache_key] = None
+    return None
+
+
 def _looks_like_llm_agent_topic(workspace: Path) -> bool:
-    queries_path = workspace / "queries.md"
-    goal_path = workspace / "GOAL.md"
-    text = ""
-    if queries_path.exists():
-        text += "\n" + queries_path.read_text(encoding="utf-8", errors="ignore")
-    if goal_path.exists():
-        text += "\n" + goal_path.read_text(encoding="utf-8", errors="ignore")
-    low = text.lower()
-    return ("agent" in low or "agents" in low) and ("llm" in low or "language model" in low)
+    return _load_domain_pack(workspace) is not None
 
 
 def _pinned_records(workspace: Path, deduped: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if not _looks_like_llm_agent_topic(workspace):
+    pack = _load_domain_pack(workspace)
+    if pack is None:
         return []
 
     def _norm_arxiv_id(value: str) -> str:
@@ -360,16 +398,12 @@ def _pinned_records(workspace: Path, deduped: list[dict[str, Any]]) -> list[dict
             return base.strip()
         return value
 
-    # Keep a small set of canonical LLM-agent "classics" even if they are older / lower-scoring.
-    #
-    # IMPORTANT: avoid ambiguous title-term pinning (e.g., "ReAct" in OOD detection vs
-    # "ReAct: Synergizing Reasoning and Acting in Language Models"). Prefer stable IDs.
+    # Read pinned IDs from the domain pack's pinned_classics list.
+    pinned_classics = pack.get("pinned_classics") or []
     pinned_arxiv_ids = [
-        "2210.03629",  # ReAct (reasoning + acting in LMs)
-        "2302.04761",  # Toolformer
-        "2303.11366",  # Reflexion
-        "2305.10601",  # Tree of Thoughts
-        "2305.16291",  # Voyager
+        str(entry.get("arxiv_id") or "").strip()
+        for entry in pinned_classics
+        if str(entry.get("arxiv_id") or "").strip()
     ]
 
     by_arxiv: dict[str, dict[str, Any]] = {}
@@ -406,16 +440,20 @@ def _pinned_records(workspace: Path, deduped: list[dict[str, Any]]) -> list[dict
 
 
 
-def _is_agent_survey_record(record: dict[str, Any]) -> bool:
+def _is_agent_survey_record(record: dict[str, Any], survey_detection: dict[str, Any]) -> bool:
     title = str(record.get("title") or "").strip().lower()
     if not title:
         return False
-    if "survey" not in title and "review" not in title:
+
+    title_kws = survey_detection.get("title_keywords") or []
+    agent_kws = survey_detection.get("agent_keywords") or []
+
+    if not any(kw in title for kw in title_kws):
         return False
-    if any(tok in title for tok in ("agent", "agents", "agentic", "multi-agent", "multi agent")):
+    if any(kw in title for kw in agent_kws):
         return True
     abstract = str(record.get("abstract") or "").strip().lower()
-    if "agent" not in abstract:
+    if not any(kw in abstract for kw in agent_kws):
         return False
     return ("llm" in abstract) or ("language model" in abstract)
 

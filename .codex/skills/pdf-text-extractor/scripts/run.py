@@ -282,7 +282,7 @@ def _resolve_pdf_url(row: dict[str, str]) -> str:
 
     arxiv_id = str(row.get("arxiv_id") or "").strip()
     if arxiv_id:
-        return f"http://arxiv.org/pdf/{arxiv_id}.pdf"
+        return f"https://arxiv.org/pdf/{arxiv_id}.pdf"
 
     url = str(row.get("url") or "").strip()
     if not url:
@@ -292,7 +292,7 @@ def _resolve_pdf_url(row: dict[str, str]) -> str:
         return ""
     arxiv_id = m.group(1).replace(".pdf", "")
     arxiv_id = re.sub(r"v\d+$", "", arxiv_id)
-    return f"http://arxiv.org/pdf/{arxiv_id}.pdf"
+    return f"https://arxiv.org/pdf/{arxiv_id}.pdf"
 
 
 def _download_pdf(url: str, path: Path) -> None:

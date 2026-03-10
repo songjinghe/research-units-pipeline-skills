@@ -15,6 +15,26 @@ Turn a broad retrieved set into a smaller **core set** for taxonomy/outline buil
 
 This is a deterministic “curation” step: it should be stable and repeatable.
 
+## Load Order
+
+Always read:
+- `references/domain_pack_overview.md` — how domain packs drive topic-specific behavior
+
+Domain packs (loaded by topic match):
+- `assets/domain_packs/llm_agents.json` — pinned classics, survey detection, ranking signals for LLM agent topics
+
+## Script Boundary
+
+Use `scripts/run.py` only for:
+- title normalization and deduplication logic
+- relevance scoring from query tokens
+- core set CSV generation with stable paper_id values
+
+Do not treat `run.py` as the place for:
+- hardcoded pinned paper IDs (use domain packs)
+- hardcoded survey detection rules (use domain packs)
+- domain-specific topic detection logic (use domain packs)
+
 ## Input
 
 - `papers/papers_raw.jsonl`

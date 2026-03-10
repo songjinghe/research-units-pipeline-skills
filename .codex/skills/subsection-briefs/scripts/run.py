@@ -1019,7 +1019,7 @@ def _paragraph_plan(
         {
             "para": 2,
             "argument_role": "mechanism_cluster_A",
-            "intent": "Explain cluster A: core mechanism and system architecture and what decision it makes in the agent loop.",
+            "intent": "Explain cluster A: core mechanism and system architecture and the core approach it takes.",
             "focus": [f"cluster: {c1}", "core mechanism and system architecture", "assumptions"],
             "connector_to_prev": "grounding",
             "connector_phrase": f"baseline route ({c1})",
@@ -1028,10 +1028,10 @@ def _paragraph_plan(
         {
             "para": 3,
             "argument_role": "implementation_cluster_A",
-            "intent": "Cluster A implementation details: training and data signals and interface contract (tools/memory) that constrain behavior.",
-            "focus": [f"cluster: {c1}", "training and data setup", "interface contract", f"axes: {axes_hint}"],
+            "intent": "Cluster A implementation details: methodology and data signals and design trade-offs that constrain behavior.",
+            "focus": [f"cluster: {c1}", "methodology and design", "design trade-offs", f"axes: {axes_hint}"],
             "connector_to_prev": "elaboration",
-            "connector_phrase": "implementation assumptions (interface + training)",
+            "connector_phrase": "implementation details (design + methodology)",
             "use_clusters": [c1] if c1 else [],
         },
         {
@@ -1055,10 +1055,10 @@ def _paragraph_plan(
         {
             "para": 6,
             "argument_role": "implementation_cluster_B",
-            "intent": "Cluster B implementation details: training and data and interface assumptions (mirror A for comparability).",
-            "focus": [f"cluster: {c2}", "training and data setup", "interface contract", f"axes: {axes_hint}"],
+            "intent": "Cluster B implementation details: methodology and data and design assumptions (mirror A for comparability).",
+            "focus": [f"cluster: {c2}", "methodology and design", "design trade-offs", f"axes: {axes_hint}"],
             "connector_to_prev": "elaboration",
-            "connector_phrase": "contrast implementation assumptions (B)",
+            "connector_phrase": "contrast implementation details (B)",
             "use_clusters": [c2] if c2 else ([c1] if c1 else []),
         },
         {

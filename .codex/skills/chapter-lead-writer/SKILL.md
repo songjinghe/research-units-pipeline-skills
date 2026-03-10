@@ -49,35 +49,20 @@ Keep these file-shape rules stable:
 - each lead file stays within the chapter's existing citation scope
 - each lead file adds no new facts that are not supported later in the chapter
 
-## References to load
+## Load Order
 
-Read these files explicitly when applying this skill:
+Always read:
+- `references/overview.md`
+- `references/lead_block_archetypes.md`
 
-1. `references/overview.md`
-- always read first
-- defines the role split, output contract, and compatibility-mode boundary
+Read by task:
+- `references/throughline_patterns.md` — when chapter briefs are thin or hard to convert into a throughline
+- `references/bridge_examples.md` — when the lead needs stronger H3 transitions without slide narration
+- `references/bad_narration_examples.md` — when removing table-of-contents narration, planner talk, count-based openers
 
-2. `references/lead_block_archetypes.md`
-- read before drafting or revising a lead block
-- use it to choose a lead shape such as lens-first, contrast-first, or calibration-first
-
-3. `references/throughline_patterns.md`
-- read when `outline/chapter_briefs.jsonl` is thin, uneven, or hard to convert into one chapter-level throughline
-
-4. `references/bridge_examples.md`
-- read when the lead needs stronger transitions between H3 subsections without sounding like slide narration
-
-5. `references/bad_narration_examples.md`
-- read when removing table-of-contents narration, planner talk, count-based opener slots, or title narration
-
-## Assets to reuse
-
-- `assets/lead_block_contract.json`
-  - machine-readable schema for the intended lead-block contract
-  - use it as the stable package contract during later thinning / validation work
-- `assets/lead_block_compatibility_defaults.json`
-  - compatibility-mode source of truth for fallback phrasing, item limits, joiners, and sentence cadence
-  - patch this asset before changing Python when the issue is fixed fallback wording or lead cadence
+Machine-readable assets:
+- `assets/lead_block_contract.json` — stable package contract for lead-block shape
+- `assets/lead_block_compatibility_defaults.json` — fallback phrasing, item limits, joiners, sentence cadence
 
 ## Routing rules
 

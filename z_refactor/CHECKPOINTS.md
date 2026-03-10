@@ -56,11 +56,20 @@ Criteria:
 ## C8 - P1/P2 next batch
 Criteria:
 - [x] `outline-builder` migrated to reference-first structure
-- [ ] `evidence-draft` migrated to reference-first structure
-- [ ] `paper-notes` migrated to reference-first structure
-- [ ] `survey-visuals` migrated to reference-first structure
-- [ ] `idea-memo-writer` migrated to reference-first structure
-- [ ] retrieval/ranking domain logic externalized into explicit packs
+- [x] `evidence-draft` migrated to reference-first structure
+- [x] `paper-notes` migrated to reference-first structure
+- [x] `survey-visuals` migrated to reference-first structure
+- [x] `idea-memo-writer` migrated to reference-first structure
+- [x] retrieval/ranking domain logic externalized into explicit packs
+
+## C9 - Phase 4 system regression and standards finalization
+Criteria:
+- [x] audit baseline recorded (`docs/SKILLS_P4_AUDIT_BASELINE.md`)
+- [x] `validate_repo.py` reports 0 errors, 0 warnings
+- [x] `audit_skills.py` `script_heavy_without_references` = 0
+- [x] all skills with `scripts/run.py` have Script sections (Quick Start / All Options / Examples)
+- [x] `idea-shortlist-curator` migrated to reference-first structure
+- [x] final validation PASS (`docs/SKILLS_P4_FINAL_VALIDATION.md`)
 
 ## C4R - Ideation content-thickening pass
 Criteria:

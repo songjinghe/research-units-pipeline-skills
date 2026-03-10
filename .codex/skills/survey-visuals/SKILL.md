@@ -15,6 +15,29 @@ This skill creates non-prose artifacts that make the writing stage less template
 - timeline / evolution bullets
 - figure specs (what to draw, why it matters, what papers support it)
 
+## Load Order
+
+Always read:
+- `references/overview.md`
+- `references/figure_archetypes.md`
+
+Read by task:
+- `references/timeline_patterns.md` when building timeline milestones
+
+Machine-readable assets:
+- `assets/figure_templates.yaml` — figure archetype specifications (extensible without code changes)
+
+## Script Boundary
+
+Use `scripts/run.py` only for:
+- deterministic assembly of timeline bullets from paper_notes + bibkeys
+- table generation from outline + mapping
+- figure spec skeleton generation using `assets/figure_templates.yaml`
+
+Do not treat `run.py` as the place for:
+- hardcoded figure descriptions or narratives
+- milestone selection heuristics that should be inspectable from references
+
 Tables are handled by dedicated table skills:
 - `table-schema` -> `outline/table_schema.md`
 - `table-filler` -> `outline/tables_index.md` (internal index)

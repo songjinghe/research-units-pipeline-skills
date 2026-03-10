@@ -1,6 +1,7 @@
 ---
 name: arxiv-survey
 version: 3.7
+profile: arxiv-survey
 target_artifacts:
   - STATUS.md
   - UNITS.csv

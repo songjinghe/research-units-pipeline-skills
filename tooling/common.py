@@ -522,20 +522,7 @@ def seed_queries_from_topic(queries_path: Path, topic: str) -> None:
     has_core_size = _has_nonempty_scalar("core_size")
 
     def _pipeline_profile_from_workspace(workspace: Path) -> str:
-        lock_path = workspace / "PIPELINE.lock.md"
-        if not lock_path.exists():
-            return "default"
-        try:
-            for raw in lock_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-                line = raw.strip()
-                if not line.startswith("pipeline:"):
-                    continue
-                pipeline = line.split(":", 1)[1].strip().lower()
-                if "arxiv-survey" in pipeline:
-                    return "arxiv-survey"
-                return "default"
-        except Exception:
-            return "default"
+        return pipeline_profile(workspace)
 
     profile = _pipeline_profile_from_workspace(queries_path.parent)
 
@@ -657,3 +644,84 @@ def _dedupe_preserve_order(items: list[str]) -> list[str]:
         seen.add(item)
         out.append(item)
     return out
+
+
+def find_repo_root(start: Path | None = None) -> Path:
+    """Walk up from *start* (default: this file) looking for AGENTS.md."""
+    candidate = (start or Path(__file__)).resolve()
+    for _ in range(10):
+        if (candidate / "AGENTS.md").exists():
+            return candidate
+        parent = candidate.parent
+        if parent == candidate:
+            break
+        candidate = parent
+    raise FileNotFoundError("Could not find repo root (AGENTS.md marker)")
+
+
+def pipeline_profile(workspace: Path) -> str:
+    """Return the pipeline profile for a workspace.
+
+    Reads PIPELINE.lock.md to get the pipeline name, then loads the
+    pipeline spec file and reads its ``profile`` frontmatter field.
+    Falls back to ``"default"`` if anything is missing.
+    """
+    lock_path = workspace / "PIPELINE.lock.md"
+    if not lock_path.exists():
+        return "default"
+
+    pipeline_name: str = ""
+    try:
+        for raw in lock_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw.strip()
+            if line.startswith("pipeline:"):
+                pipeline_name = line.split(":", 1)[1].strip()
+                break
+    except Exception:
+        return "default"
+
+    if not pipeline_name:
+        return "default"
+
+    # Walk up from workspace to find repo root (look for AGENTS.md marker).
+    repo_root: Path | None = None
+    candidate = workspace
+    for _ in range(10):
+        if (candidate / "AGENTS.md").exists():
+            repo_root = candidate
+            break
+        parent = candidate.parent
+        if parent == candidate:
+            break
+        candidate = parent
+
+    if repo_root is None:
+        return "default"
+
+    # Try exact spec match, then glob for partial match.
+    spec_path: Path | None = None
+    exact = repo_root / "pipelines" / f"{pipeline_name}.pipeline.md"
+    if exact.exists():
+        spec_path = exact
+    else:
+        for p in sorted((repo_root / "pipelines").glob("*.pipeline.md")):
+            if pipeline_name in p.stem:
+                spec_path = p
+                break
+
+    if spec_path is None:
+        return "default"
+
+    try:
+        text = spec_path.read_text(encoding="utf-8", errors="ignore")
+        if not text.startswith("---"):
+            return "default"
+        end = text.find("---", 3)
+        if end < 0:
+            return "default"
+        frontmatter = yaml.safe_load(text[3:end])
+        if isinstance(frontmatter, dict):
+            return str(frontmatter.get("profile") or "default").strip()
+    except Exception:
+        pass
+    return "default"

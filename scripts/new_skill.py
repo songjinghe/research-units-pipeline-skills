@@ -228,9 +228,16 @@ def main() -> int:
     parser.add_argument('--strict', action='store_true')
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
-    sys.path.insert(0, str(repo_root))
-    from tooling.common import ensure_dir, parse_semicolon_list
+    # Bootstrap: find repo root so we can import tooling.common
+    _candidate = Path(__file__).resolve()
+    for _ in range(10):
+        if (_candidate / "AGENTS.md").exists():
+            break
+        _candidate = _candidate.parent
+    sys.path.insert(0, str(_candidate))
+    from tooling.common import find_repo_root, ensure_dir, parse_semicolon_list
+
+    repo_root = find_repo_root(Path(__file__))
 
     workspace = Path(args.workspace).resolve()
     inputs = parse_semicolon_list(args.inputs) or {ins}

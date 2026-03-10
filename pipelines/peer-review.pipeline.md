@@ -1,6 +1,7 @@
 ---
 name: peer-review
 version: 2.3
+profile: peer-review
 target_artifacts:
   - STATUS.md
   - UNITS.csv

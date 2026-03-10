@@ -4,10 +4,11 @@
 - repo-wide skills refactor: reference-first / script-thin migration
 
 ## Current checkpoint
-- `C8`
+- `C9` (Phase 4 complete)
 
 ## Next units
-- continue C8 reference-first migration: `evidence-draft`, then `paper-notes`, `survey-visuals`, `idea-memo-writer`, `arxiv-search`, `literature-engineer`, `dedupe-rank`
+- All phases complete (Phase 0–4). Refactor closed.
+- Future skill migrations should follow `_template_reference_first` and pass `audit_skills.py` + `validate_repo.py` before merge.
 
 ## Run log
 - 2026-03-08: started destructive refactor of the ideation pipeline toward a discussion-ready brainstorm memo end state.
@@ -33,3 +34,11 @@
 - 2026-03-09: completed U027 (`P0 drift audit`); recorded reconciled drift, intentional compatibility deviations, and open follow-up debt in `docs/SKILLS_C7R_P0_DRIFT_AUDIT.md`.
 - 2026-03-09: completed U028 (`ideation alias remediation`); centralized the legacy `idea-finder` shim, documented it in `docs/SKILLS_C7R_IDEATION_ALIAS_REVIEW.md`, and returned the active checkpoint to `C8`.
 - 2026-03-10: started U018 (`evidence-draft` migration) with multi-agent review before modifying the evidence-pack generator.
+- 2026-03-10: completed U018–U022 (all remaining C8 migrations): evidence-draft verified complete; paper-notes, survey-visuals, idea-memo-writer migrated to reference-first with refs/assets/SKILL.md updates; arxiv-search + literature-engineer + dedupe-rank externalized LLM-agent domain logic into shared `assets/domain_packs/llm_agents.json`.
+- 2026-03-10: started Phase 4 (system regression). Created U029–U034 in UNITS.csv.
+- 2026-03-10: completed U029 (audit baseline recorded in `docs/SKILLS_P4_AUDIT_BASELINE.md`).
+- 2026-03-10: completed U030 (deliverable-selfloop input references fixed; validate_repo 0 errors).
+- 2026-03-10: completed U031 (Script sections added to 8 skills; validate_repo 0 warnings).
+- 2026-03-10: completed U032 (idea-shortlist-curator migrated to reference-first; audit_skills script_heavy_without_references=0).
+- 2026-03-10: completed U033 (final validation PASS; `docs/SKILLS_P4_FINAL_VALIDATION.md`).
+- 2026-03-10: completed U034 (Phase 4 closed; STATUS updated to C9).

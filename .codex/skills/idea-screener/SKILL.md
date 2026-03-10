@@ -18,3 +18,22 @@ The screener should reward:
 - distinct contribution shapes,
 - concrete prior-work grounding,
 and penalize same-template directions that only swap nouns.
+
+## Script
+
+### Quick Start
+
+- `python .codex/skills/idea-screener/scripts/run.py --workspace workspaces/<ws>`
+
+### All Options
+
+- `--workspace <dir>` (required)
+- `--unit-id <U###>`
+- `--inputs <semicolon-separated>`
+- `--outputs <semicolon-separated>`
+- `--checkpoint <C#>`
+
+### Examples
+
+- Screen a direction pool for a brainstorm workspace:
+  - `python .codex/skills/idea-screener/scripts/run.py --workspace workspaces/brainstorm-llm-agents`

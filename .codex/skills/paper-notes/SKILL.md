@@ -15,6 +15,32 @@ Produce consistent, searchable paper notes that later steps (claims, visuals, wr
 
 This is still **NO PROSE**: keep notes as bullets / short fields, not narrative paragraphs.
 
+## Load Order
+
+Always read:
+- `references/overview.md`
+- `references/note_schema.md`
+
+Read by task:
+- `references/limitation_taxonomy.md` when writing or reviewing limitations (avoid boilerplate)
+- `references/result_extraction_examples.md` when extracting key_results (good vs bad examples)
+
+Machine-readable assets:
+- `assets/note_schema.json` — JSONL record schema for validation
+- `assets/evidence_tags.json` — evidence bank tagging categories (extensible without code changes)
+
+## Script Boundary
+
+Use `scripts/run.py` only for:
+- deterministic scaffold generation from core_set + metadata
+- priority selection based on mapping coverage
+- evidence bank construction from structured note fields
+
+Do not treat `run.py` as the place for:
+- paper-specific limitation prose (use `references/limitation_taxonomy.md` for guidance)
+- domain-specific evaluation heuristics hidden in code
+- reader-facing narrative text
+
 ## Role cards (prompt-level guidance)
 
 - **Close Reader**

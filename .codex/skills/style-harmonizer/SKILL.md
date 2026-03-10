@@ -145,3 +145,22 @@ Mini example (paraphrase only):
 - [ ] The same slot phrase does not repeat across multiple H3s (especially count-based openers).
 - [ ] No citation keys were added/removed/moved.
 - [ ] `writer-selfloop` still reports PASS, and Style Smells shrinks.
+
+## Script
+
+### Quick Start
+
+- `python .codex/skills/style-harmonizer/scripts/run.py --workspace workspaces/<ws>`
+
+### All Options
+
+- `--workspace <dir>` (required)
+- `--unit-id <U###>`
+- `--inputs <semicolon-separated>`
+- `--outputs <semicolon-separated>`
+- `--checkpoint <C#>`
+
+### Examples
+
+- Harmonize style in a survey workspace:
+  - `python .codex/skills/style-harmonizer/scripts/run.py --workspace workspaces/survey-llm-agents`

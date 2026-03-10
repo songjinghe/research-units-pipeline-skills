@@ -1,6 +1,7 @@
 ---
 name: idea-brainstorm
 version: 4.0
+profile: idea-brainstorm
 target_artifacts:
   - STATUS.md
   - UNITS.csv

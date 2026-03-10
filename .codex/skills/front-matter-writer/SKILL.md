@@ -13,7 +13,7 @@ description: |
 
 Purpose: produce the paper-level shell while preserving the current output contract and approval gate.
 
-## Read order
+## Load Order
 
 Always read:
 - `references/overview.md`

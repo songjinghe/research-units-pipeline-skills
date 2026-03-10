@@ -458,20 +458,12 @@ def _per_subsection_from_queries(path: Path) -> int:
 
 
 def _default_per_subsection_for_workspace(workspace: Path) -> int:
-    lock_path = workspace / "PIPELINE.lock.md"
-    if lock_path.exists():
-        try:
-            for raw in lock_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-                line = raw.strip()
-                if not line.startswith("pipeline:"):
-                    continue
-                pipeline = line.split(":", 1)[1].strip().lower()
-                if "arxiv-survey" in pipeline:
-                    # Survey drafting needs high cite density to enable evidence-first writing.
-                    return 28
-                break
-        except Exception:
-            pass
+    repo_root = Path(__file__).resolve().parents[4]
+    import sys; sys.path.insert(0, str(repo_root))
+    from tooling.common import pipeline_profile
+    profile = pipeline_profile(workspace)
+    if profile == "arxiv-survey":
+        return 28
     return 3
 
 

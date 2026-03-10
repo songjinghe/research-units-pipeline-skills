@@ -106,3 +106,22 @@ Better (tension-first):
 - [ ] Paragraph 1 ends with a thesis/takeaway (same meaning).
 - [ ] Citation keys are unchanged (no adds/removes/moves).
 - [ ] `writer-selfloop` still PASSes and Style Smells shrink.
+
+## Script
+
+### Quick Start
+
+- `python .codex/skills/opener-variator/scripts/run.py --workspace workspaces/<ws>`
+
+### All Options
+
+- `--workspace <dir>` (required)
+- `--unit-id <U###>`
+- `--inputs <semicolon-separated>`
+- `--outputs <semicolon-separated>`
+- `--checkpoint <C#>`
+
+### Examples
+
+- Rewrite openers in a survey workspace:
+  - `python .codex/skills/opener-variator/scripts/run.py --workspace workspaces/survey-llm-agents`

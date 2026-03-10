@@ -93,6 +93,52 @@ def _cite_range(keys: list[str], start: int, stop: int, n: int) -> str:
     return _cites(keys[start:stop], n)
 
 
+def _detect_domain(workspace: Path) -> str | None:
+    """Return a domain id if workspace text matches a domain template, else None."""
+    package_root = Path(__file__).resolve().parents[1]
+    domain_dir = package_root / 'assets' / 'domain_templates'
+    if not domain_dir.is_dir():
+        return None
+    corpus_parts: list[str] = []
+    for name in ('GOAL.md', 'queries.md'):
+        p = workspace / name
+        if p.exists():
+            corpus_parts.append(p.read_text(encoding='utf-8', errors='ignore').lower())
+    corpus = ' '.join(corpus_parts)
+    if not corpus.strip():
+        return None
+    import glob as _glob
+    for pack_path in sorted(Path(f) for f in _glob.glob(str(domain_dir / '*.json'))):
+        pack = _load_json(pack_path)
+        triggers = pack.get('topic_triggers') or {}
+        group_a = [t.lower() for t in (triggers.get('trigger_group_a') or [])]
+        group_b = [t.lower() for t in (triggers.get('trigger_group_b') or [])]
+        if not group_a or not group_b:
+            continue
+        has_a = any(t in corpus for t in group_a)
+        has_b = any(t in corpus for t in group_b)
+        if has_a and has_b:
+            return pack.get('domain_id') or pack_path.stem
+    return None
+
+
+def _load_domain_overlay(domain_id: str) -> dict[str, Any]:
+    """Load a domain template overlay by id.  Returns {} if not found."""
+    package_root = Path(__file__).resolve().parents[1]
+    domain_path = package_root / 'assets' / 'domain_templates' / f'{domain_id}.json'
+    return _load_json(domain_path)
+
+
+def _merge_template_bank(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """Overlay domain paragraphs onto a generic base template bank."""
+    merged = dict(base)
+    for key in ('introduction_paragraphs', 'related_work_paragraphs',
+                'abstract_sentences', 'discussion_paragraphs', 'conclusion_paragraphs'):
+        if key in overlay:
+            merged[key] = overlay[key]
+    return merged
+
+
 def _template_values(*, goal: str, candidate_pool: str, evidence_note: str, time_window: str, all_keys: list[str]) -> dict[str, str]:
     return {
         'goal': goal,
@@ -234,6 +280,12 @@ def main() -> int:
     template_bank = _load_json(template_asset_path)
     if not template_bank:
         raise SystemExit(f'Missing or invalid front-matter template asset: {template_asset_path}')
+
+    domain_id = _detect_domain(workspace)
+    if domain_id:
+        overlay = _load_domain_overlay(domain_id)
+        if overlay:
+            template_bank = _merge_template_bank(template_bank, overlay)
 
     values = _template_values(
         goal=goal,

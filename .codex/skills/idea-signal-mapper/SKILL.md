@@ -18,3 +18,22 @@ Goal: create a reusable, table-first artifact that answers:
 - where the tension lies,
 - what is still missing,
 - which academically meaningful axis might be worth deeper discussion.
+
+## Script
+
+### Quick Start
+
+- `python .codex/skills/idea-signal-mapper/scripts/run.py --workspace workspaces/<ws>`
+
+### All Options
+
+- `--workspace <dir>` (required)
+- `--unit-id <U###>`
+- `--inputs <semicolon-separated>`
+- `--outputs <semicolon-separated>`
+- `--checkpoint <C#>`
+
+### Examples
+
+- Map signals for a brainstorm workspace:
+  - `python .codex/skills/idea-signal-mapper/scripts/run.py --workspace workspaces/brainstorm-llm-agents`

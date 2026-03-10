@@ -2,113 +2,102 @@
   "name": "generic",
   "fallback_axes": [
     "core mechanism and system architecture",
-    "training and data setup",
+    "methodology and design",
     "evaluation protocol",
-    "compute and efficiency",
+    "efficiency and scalability",
     "failure modes and limitations"
   ],
   "generic_axes": [
     "core mechanism and system architecture",
-    "training and data setup",
+    "methodology and design",
+    "theoretical foundations",
     "evaluation protocol",
     "evaluation protocol (benchmarks / metrics / human)",
     "evaluation protocol (datasets / metrics / human)",
     "evaluation protocol (datasets, metrics, human evaluation)",
-    "compute and efficiency",
-    "compute and latency constraints",
-    "efficiency and compute",
-    "tool interface contract (schemas / protocols)",
-    "tool selection / routing policy",
-    "sandboxing / permissions / observability",
+    "efficiency and scalability",
+    "resource and computational constraints",
+    "implementation and engineering trade-offs",
     "failure modes and limitations",
     "failure modes and limitations."
   ],
   "tension_rules": [
     {
       "match_any": [
-        "safety",
-        "security",
-        "attack",
-        "threat",
-        "guardrail",
-        "sandbox",
-        "injection",
-        "governance"
+        "accuracy",
+        "performance",
+        "quality",
+        "effectiveness",
+        "capability",
+        "generalization"
       ],
-      "template": "In {title}, a key tension is capability versus safety: stronger agent actions increase utility but widen the attack surface and raise containment requirements."
+      "template": "In {title}, a key tension is effectiveness versus generality: methods that achieve strong results on targeted tasks often sacrifice broad applicability across diverse settings."
     },
     {
       "match_any": [
-        "benchmark",
-        "benchmarks",
-        "evaluation",
-        "metric",
-        "metrics",
-        "dataset",
-        "datasets"
+        "speed",
+        "latency",
+        "throughput",
+        "fast",
+        "runtime",
+        "overhead"
       ],
-      "template": "In {title}, a recurring tension is coverage versus comparability: broader suites capture more behaviors but make head-to-head comparison fragile when protocols and constraints differ."
+      "template": "In {title}, a core trade-off is efficiency versus quality: faster or cheaper methods tend to sacrifice output fidelity, while high-quality approaches incur greater computational or time costs."
     },
     {
       "match_any": [
-        "self-improvement",
-        "self improvement",
-        "adaptation",
-        "self-play",
-        "self play",
-        "reflection",
-        "fine-tune",
-        "finetune"
+        "survey",
+        "review",
+        "scope",
+        "breadth",
+        "comprehensiv",
+        "taxonomy"
       ],
-      "template": "In {title}, the core trade-off is adaptability versus stability: systems that change themselves can improve over time but risk drifting, overfitting, or becoming harder to evaluate and control."
+      "template": "In {title}, a recurring tension is coverage versus depth: broader surveys capture more of the landscape but risk shallow treatment of individual methods, while focused analyses miss the wider context."
     },
     {
       "match_any": [
-        "multi-agent",
-        "multi agent",
-        "coordination",
-        "debate",
-        "swarm",
-        "collaboration"
+        "novel",
+        "novelty",
+        "new",
+        "original",
+        "creative",
+        "innovation"
       ],
-      "template": "In {title}, the central trade-off is specialization versus coordination: dividing labor can boost performance but adds communication overhead and stability risks."
+      "template": "In {title}, a persistent tension is novelty versus reproducibility: innovative methods push the frontier but are often harder to replicate and validate independently."
     },
     {
       "match_any": [
-        "plan",
-        "planning",
-        "reason",
-        "search",
-        "tree",
-        "deliberation"
+        "scale",
+        "scalab",
+        "large",
+        "distributed",
+        "parallel",
+        "massive"
       ],
-      "template": "In {title}, a recurring tension is deliberation depth versus cost: more planning can improve reliability but increases latency and budget sensitivity."
+      "template": "In {title}, a practical trade-off is scalability versus precision: approaches that scale to larger problems frequently sacrifice fine-grained accuracy or require approximations that erode guarantees."
     },
     {
       "match_any": [
-        "memory",
-        "retrieval",
-        "rag",
-        "cache",
-        "long-horizon",
-        "long horizon"
+        "automat",
+        "pipeline",
+        "end-to-end",
+        "end to end",
+        "autonomous",
+        "self-"
       ],
-      "template": "In {title}, the core tension is persistence versus freshness: retaining more context helps long-horizon tasks but raises staleness, contamination, and verification challenges."
+      "template": "In {title}, a recurring trade-off is automation versus interpretability: fully automated systems reduce human effort but make it harder to diagnose failures, verify outputs, and maintain trust."
     },
     {
       "match_any": [
-        "tool",
-        "tools",
-        "function",
-        "api",
-        "schema",
-        "mcp",
-        "interface",
-        "orchestration",
-        "routing",
-        "router"
+        "simple",
+        "minimal",
+        "compact",
+        "expressive",
+        "complex",
+        "representation"
       ],
-      "template": "In {title}, a practical tension is expressivity versus control: richer interfaces expand capability but make behavior harder to constrain and verify."
+      "template": "In {title}, a central trade-off is simplicity versus expressiveness: simpler formulations are easier to analyze and implement but may lack the capacity to capture the phenomena under study."
     }
   ],
   "tension_fallback": "A central tension in {title} is the trade-off between {axes_hint} and what can be evaluated reliably under realistic constraints.",
@@ -128,20 +117,22 @@
       "match_any": [
         "compute",
         "efficien",
-        "cost"
+        "cost",
+        "resource"
       ],
       "items": [
-        "compute"
+        "computational cost"
       ]
     },
     {
       "match_any": [
-        "threat",
-        "security",
-        "attack"
+        "failure",
+        "limit",
+        "error",
+        "robustness"
       ],
       "items": [
-        "threat model"
+        "known limitations"
       ]
     }
   ],
@@ -159,14 +150,17 @@
       "match_any": [
         "compute",
         "efficien",
-        "cost"
+        "cost",
+        "resource"
       ],
       "label": "compute"
     },
     {
       "match_any": [
         "failure",
-        "limit"
+        "limit",
+        "error",
+        "robustness"
       ],
       "label": "limitations"
     }

@@ -15,7 +15,7 @@ Build `outline/outline.yml` from `outline/taxonomy.yml`.
 
 Compatibility mode is active: this migration keeps the current output contract while moving intro/related defaults, Stage A bullet templates, and domain-specific comparison framing into `references/` and `assets/`.
 
-## Read order
+## Load Order
 
 Always read:
 - `references/overview.md`

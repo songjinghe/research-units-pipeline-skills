@@ -18,7 +18,7 @@ Compatibility mode:
 - `scripts/run.py` still handles approval checks, missing-file bootstrap, and `sections/sections_manifest.jsonl`
 - writing guidance now lives in `references/` instead of being encoded primarily in the script
 
-## Read order
+## Load Order
 
 Always read:
 - `references/overview.md`

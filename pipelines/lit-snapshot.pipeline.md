@@ -1,6 +1,7 @@
 ---
 name: lit-snapshot
 version: 2.3
+profile: lit-snapshot
 target_artifacts:
   - STATUS.md
   - UNITS.csv

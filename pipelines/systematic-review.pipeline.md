@@ -1,6 +1,7 @@
 ---
 name: systematic-review
 version: 2.3
+profile: systematic-review
 target_artifacts:
   - STATUS.md
   - UNITS.csv

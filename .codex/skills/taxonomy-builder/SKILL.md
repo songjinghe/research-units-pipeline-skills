@@ -18,7 +18,7 @@ P0 compatibility note:
 - Curated domain taxonomies now live in `assets/domain_packs/*.yaml` instead of Python prose.
 - `scripts/run.py` stays a deterministic scaffold/helper: detect domain pack -> load pack when available -> otherwise fall back to the generic builder.
 
-## Read in this order
+## Load Order
 
 1. `references/overview.md`
 2. `references/taxonomy_principles.md`

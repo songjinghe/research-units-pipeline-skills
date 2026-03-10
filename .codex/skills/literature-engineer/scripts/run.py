@@ -958,7 +958,7 @@ def _semantic_scholar_request_json(url: str, *, timeout: int = 30, max_retries: 
     This helper supports both to keep retrieval robust.
     """
     headers = {
-        "User-Agent": "research-units-pipeline-skills/1.0 (+https://github.com/anthropics/skills)",
+        "User-Agent": "research-units-pipeline-skills/1.0 (+https://github.com/r-j-s/research-units-pipeline-skills)",
         "Accept": "application/json",
     }
     proxy_url = "https://r.jina.ai/" + url
@@ -1212,42 +1212,98 @@ def _parse_queries_md(path: Path) -> tuple[list[str], list[str], int | None, int
 
 
 
+def _load_domain_pack(workspace: Path) -> dict[str, Any] | None:
+    """Load the first matching domain pack for *workspace*.
+
+    Domain packs live under ``<skill_root>/assets/domain_packs/*.json``.  A pack
+    matches when the workspace corpus (``GOAL.md`` + ``queries.md``) contains at
+    least one token from *trigger_group_a* AND one from *trigger_group_b*, **or**
+    any single token from *name_triggers*.
+    """
+    skill_root = Path(__file__).resolve().parents[1]
+    pack_dir = skill_root / "assets" / "domain_packs"
+    if not pack_dir.is_dir():
+        return None
+
+    # Build a lowercase corpus from workspace goal + queries.
+    corpus_parts: list[str] = []
+    for name in ("GOAL.md", "queries.md"):
+        p = workspace / name
+        if p.exists():
+            corpus_parts.append(p.read_text(encoding="utf-8", errors="ignore"))
+    corpus = "\n".join(corpus_parts).lower()
+    if not corpus.strip():
+        return None
+
+    for pack_path in sorted(pack_dir.glob("*.json")):
+        try:
+            pack = json.loads(pack_path.read_text(encoding="utf-8", errors="ignore"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        triggers = pack.get("topic_triggers", {})
+        group_a = [t.lower() for t in triggers.get("trigger_group_a", [])]
+        group_b = [t.lower() for t in triggers.get("trigger_group_b", [])]
+        name_triggers = [t.lower() for t in triggers.get("name_triggers", [])]
+
+        has_a = any(t in corpus for t in group_a)
+        has_b = any(t in corpus for t in group_b)
+        has_name = any(t in corpus for t in name_triggers)
+
+        if (has_a and has_b) or has_name:
+            return pack
+
+    return None
+
+
 def _pinned_arxiv_ids(*, workspace: Path, keywords: list[str]) -> list[str]:
     """Return a stable arXiv-id pin list for topics that need canonical anchors.
 
-    Rationale: keyword retrieval can miss “must-cite” classics; downstream writing then becomes
+    Rationale: keyword retrieval can miss "must-cite" classics; downstream writing then becomes
     either generic or forced to delete those anchors due to missing BibTeX keys.
+
+    Pin lists are read from domain packs (``assets/domain_packs/*.json``) so that
+    adding a new domain never requires editing this function.
     """
 
+    # Also fold keywords into corpus so matching works even without GOAL.md.
     text = "\n".join([str(k or "") for k in (keywords or [])])
     goal_path = workspace / "GOAL.md"
     if goal_path.exists():
         text += "\n" + goal_path.read_text(encoding="utf-8", errors="ignore")
 
     low = text.lower()
-    llm_agent = ("agent" in low or "agents" in low) and ("llm" in low or "language model" in low or "gpt" in low)
-    has_triggers = any(t in low for t in ["react", "toolformer", "reflexion", "voyager", "tree of thoughts"])
-    if not (llm_agent or has_triggers):
+
+    pack = _load_domain_pack(workspace)
+    if pack is None:
+        # Fallback: check keywords-only corpus against all packs.
+        # Build a tiny temporary workspace-like check using just keywords text.
+        triggers = {}
+        skill_root = Path(__file__).resolve().parents[1]
+        pack_dir = skill_root / "assets" / "domain_packs"
+        if pack_dir.is_dir():
+            for pack_path in sorted(pack_dir.glob("*.json")):
+                try:
+                    candidate = json.loads(pack_path.read_text(encoding="utf-8", errors="ignore"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+                triggers = candidate.get("topic_triggers", {})
+                group_a = [t.lower() for t in triggers.get("trigger_group_a", [])]
+                group_b = [t.lower() for t in triggers.get("trigger_group_b", [])]
+                name_triggers = [t.lower() for t in triggers.get("name_triggers", [])]
+                has_a = any(t in low for t in group_a)
+                has_b = any(t in low for t in group_b)
+                has_name = any(t in low for t in name_triggers)
+                if (has_a and has_b) or has_name:
+                    pack = candidate
+                    break
+
+    if pack is None:
         return []
 
-    # Canonical LLM-agent classics (also referenced by `dedupe-rank` pinning).
-    classics = [
-        "2210.03629",  # ReAct
-        "2302.04761",  # Toolformer
-        "2303.11366",  # Reflexion
-        "2305.10601",  # Tree of Thoughts
-        "2305.16291",  # Voyager
-    ]
+    classics = [entry["arxiv_id"] for entry in pack.get("pinned_classics", []) if "arxiv_id" in entry]
+    surveys = [entry["arxiv_id"] for entry in pack.get("pinned_surveys", []) if "arxiv_id" in entry]
 
-    # A small survey/review seed set for Related Work positioning.
-    surveys = [
-        "2308.11432",  # A Survey on Large Language Model based Autonomous Agents
-        "2503.21460",  # Large Language Model Agent: A Survey on Methodology, Applications and Challenges
-        "2503.23037",  # Agentic Large Language Models, a survey
-        "2411.18279",  # Large Language Model-Brained GUI Agents: A Survey
-    ]
-
-    # Preserve order and de-dupe.
+    # Preserve order and de-dupe (classics first, then surveys).
     out: list[str] = []
     for aid in classics + surveys:
         if aid not in out:
@@ -1451,7 +1507,7 @@ def _search_arxiv_once(
     year_from: int | None,
     year_to: int | None,
 ) -> tuple[list[dict[str, Any]], int]:
-    headers = {"User-Agent": "research-units-pipeline-skills/1.0 (+https://github.com/anthropics/skills)"}
+    headers = {"User-Agent": "research-units-pipeline-skills/1.0 (+https://github.com/r-j-s/research-units-pipeline-skills)"}
     req = urllib.request.Request(url, headers=headers, method="GET")
 
     content = b""

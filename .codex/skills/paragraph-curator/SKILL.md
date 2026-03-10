@@ -130,3 +130,22 @@ Rules that keep the pipeline stable:
 - [ ] No citation keys were added/removed; citation shape is reader-facing (no adjacent blocks, no dup keys).
 - [ ] `output/PARAGRAPH_CURATION_REPORT.md` exists and is understandable.
 - [ ] `sections/paragraphs_curated.refined.ok` exists.
+
+## Script
+
+### Quick Start
+
+- `python .codex/skills/paragraph-curator/scripts/run.py --workspace workspaces/<ws>`
+
+### All Options
+
+- `--workspace <dir>` (required)
+- `--unit-id <U###>`
+- `--inputs <semicolon-separated>`
+- `--outputs <semicolon-separated>`
+- `--checkpoint <C#>`
+
+### Examples
+
+- Curate paragraphs in a survey workspace:
+  - `python .codex/skills/paragraph-curator/scripts/run.py --workspace workspaces/survey-llm-agents`

@@ -15,6 +15,25 @@ Collect an initial paper set with enough metadata to support downstream ranking,
 
 When online, prefer rich arXiv metadata (categories, arxiv_id, pdf_url, published/updated, etc.). When offline, accept an export and convert it cleanly.
 
+## Load Order
+
+Always read:
+- `references/domain_pack_overview.md` — how domain packs drive topic-specific behavior
+
+Domain packs (loaded by topic match):
+- `assets/domain_packs/llm_agents.json` — pinned IDs, query rewrite rules for LLM agent topics
+
+## Script Boundary
+
+Use `scripts/run.py` only for:
+- arXiv API retrieval and XML parsing
+- offline export conversion (CSV/JSON/JSONL normalization)
+- metadata enrichment via `id_list` backfill
+
+Do not treat `run.py` as the place for:
+- hardcoded topic detection or query rewriting (use domain packs)
+- domain-specific pinned paper lists (externalize to `assets/domain_packs/`)
+
 ## Input
 
 - `queries.md` (keywords, excludes, time window)

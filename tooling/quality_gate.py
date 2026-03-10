@@ -15,20 +15,8 @@ class QualityIssue:
 
 
 def _pipeline_profile(workspace: Path) -> str:
-    lock_path = workspace / "PIPELINE.lock.md"
-    if not lock_path.exists():
-        return "default"
-    try:
-        for raw in lock_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-            line = raw.strip()
-            if not line.startswith("pipeline:"):
-                continue
-            pipeline = line.split(":", 1)[1].strip().lower()
-            if "arxiv-survey" in pipeline:
-                return "arxiv-survey"
-            return "default"
-    except Exception:
-        return "default"
+    from tooling.common import pipeline_profile
+    return pipeline_profile(workspace)
 
 
 def _draft_profile(workspace: Path) -> str:

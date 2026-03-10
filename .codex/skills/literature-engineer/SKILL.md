@@ -16,6 +16,26 @@ Goal: build a **large, verifiable candidate pool** for downstream dedupe/rank, m
 
 This skill is intentionally **evidence-first**: if you can't reach the target size with verifiable IDs/provenance, the correct behavior is to **block** and ask for more exports / enable network, not to fabricate.
 
+## Load Order
+
+Always read:
+- `references/domain_pack_overview.md` — how domain packs drive topic-specific behavior
+
+Domain packs (loaded by topic match):
+- `assets/domain_packs/llm_agents.json` — pinned classic/survey arXiv IDs for LLM agent topics
+
+## Script Boundary
+
+Use `scripts/run.py` only for:
+- multi-route offline import, normalization, and provenance tagging
+- online arXiv/Semantic Scholar API retrieval
+- snowball expansion and deduplication
+- retrieval report generation
+
+Do not treat `run.py` as the place for:
+- hardcoded pinned arXiv ID lists (use domain packs)
+- hardcoded topic detection logic (use domain packs)
+
 ## Inputs
 
 - `queries.md`

@@ -1,0 +1,179 @@
+{
+  "name": "generic",
+  "fallback_axes": [
+    "core mechanism and system architecture",
+    "training and data setup",
+    "evaluation protocol",
+    "compute and efficiency",
+    "failure modes and limitations"
+  ],
+  "generic_axes": [
+    "core mechanism and system architecture",
+    "training and data setup",
+    "evaluation protocol",
+    "evaluation protocol (benchmarks / metrics / human)",
+    "evaluation protocol (datasets / metrics / human)",
+    "evaluation protocol (datasets, metrics, human evaluation)",
+    "compute and efficiency",
+    "compute and latency constraints",
+    "efficiency and compute",
+    "tool interface contract (schemas / protocols)",
+    "tool selection / routing policy",
+    "sandboxing / permissions / observability",
+    "failure modes and limitations",
+    "failure modes and limitations."
+  ],
+  "tension_rules": [
+    {
+      "match_any": [
+        "safety",
+        "security",
+        "attack",
+        "threat",
+        "guardrail",
+        "sandbox",
+        "injection",
+        "governance"
+      ],
+      "template": "In {title}, a key tension is capability versus safety: stronger agent actions increase utility but widen the attack surface and raise containment requirements."
+    },
+    {
+      "match_any": [
+        "benchmark",
+        "benchmarks",
+        "evaluation",
+        "metric",
+        "metrics",
+        "dataset",
+        "datasets"
+      ],
+      "template": "In {title}, a recurring tension is coverage versus comparability: broader suites capture more behaviors but make head-to-head comparison fragile when protocols and constraints differ."
+    },
+    {
+      "match_any": [
+        "self-improvement",
+        "self improvement",
+        "adaptation",
+        "self-play",
+        "self play",
+        "reflection",
+        "fine-tune",
+        "finetune"
+      ],
+      "template": "In {title}, the core trade-off is adaptability versus stability: systems that change themselves can improve over time but risk drifting, overfitting, or becoming harder to evaluate and control."
+    },
+    {
+      "match_any": [
+        "multi-agent",
+        "multi agent",
+        "coordination",
+        "debate",
+        "swarm",
+        "collaboration"
+      ],
+      "template": "In {title}, the central trade-off is specialization versus coordination: dividing labor can boost performance but adds communication overhead and stability risks."
+    },
+    {
+      "match_any": [
+        "plan",
+        "planning",
+        "reason",
+        "search",
+        "tree",
+        "deliberation"
+      ],
+      "template": "In {title}, a recurring tension is deliberation depth versus cost: more planning can improve reliability but increases latency and budget sensitivity."
+    },
+    {
+      "match_any": [
+        "memory",
+        "retrieval",
+        "rag",
+        "cache",
+        "long-horizon",
+        "long horizon"
+      ],
+      "template": "In {title}, the core tension is persistence versus freshness: retaining more context helps long-horizon tasks but raises staleness, contamination, and verification challenges."
+    },
+    {
+      "match_any": [
+        "tool",
+        "tools",
+        "function",
+        "api",
+        "schema",
+        "mcp",
+        "interface",
+        "orchestration",
+        "routing",
+        "router"
+      ],
+      "template": "In {title}, a practical tension is expressivity versus control: richer interfaces expand capability but make behavior harder to constrain and verify."
+    }
+  ],
+  "tension_fallback": "A central tension in {title} is the trade-off between {axes_hint} and what can be evaluated reliably under realistic constraints.",
+  "bridge_axis_rules": [
+    {
+      "match_any": [
+        "benchmark",
+        "metric",
+        "dataset",
+        "evaluation"
+      ],
+      "items": [
+        "benchmarks/metrics"
+      ]
+    },
+    {
+      "match_any": [
+        "compute",
+        "efficien",
+        "cost"
+      ],
+      "items": [
+        "compute"
+      ]
+    },
+    {
+      "match_any": [
+        "threat",
+        "security",
+        "attack"
+      ],
+      "items": [
+        "threat model"
+      ]
+    }
+  ],
+  "contrast_axis_rules": [
+    {
+      "match_any": [
+        "benchmark",
+        "metric",
+        "dataset",
+        "evaluation"
+      ],
+      "label": "evaluation"
+    },
+    {
+      "match_any": [
+        "compute",
+        "efficien",
+        "cost"
+      ],
+      "label": "compute"
+    },
+    {
+      "match_any": [
+        "failure",
+        "limit"
+      ],
+      "label": "limitations"
+    }
+  ],
+  "bridge_fallback": [
+    "comparison axis",
+    "evaluation context"
+  ],
+  "contrast_fallback": "{first_axis}"
+}

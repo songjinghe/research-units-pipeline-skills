@@ -319,7 +319,7 @@ def _load_skill_docs(skills_dir: Path) -> dict[str, SkillDoc]:
     out: dict[str, SkillDoc] = {}
     if not skills_dir.exists():
         return out
-    for skill_dir in sorted([p for p in skills_dir.iterdir() if p.is_dir()]):
+    for skill_dir in sorted([p for p in skills_dir.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))]):
         skill_md = skill_dir / "SKILL.md"
         if not skill_md.exists():
             continue

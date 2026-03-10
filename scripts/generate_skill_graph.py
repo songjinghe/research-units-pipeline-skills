@@ -98,7 +98,7 @@ def _render_markdown(*, skills: list[SkillIO], pipelines: list[tuple[Path, dict[
 
 def _load_skill_ios(skills_dir: Path) -> list[SkillIO]:
     out: list[SkillIO] = []
-    for skill_dir in sorted([p for p in skills_dir.iterdir() if p.is_dir()]):
+    for skill_dir in sorted([p for p in skills_dir.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))]):
         skill_md = skill_dir / "SKILL.md"
         if not skill_md.exists():
             continue

@@ -9,210 +9,105 @@ description: |
   **Guardrail**: NO PROSE; do not invent papers; only reference `paper_id`/`bibkey` that exist in `papers/paper_notes.jsonl`.
 ---
 
-# Subsection Briefs (NO PROSE)
+# Subsection Briefs
 
-Purpose: convert each H3 subsection into a **writeable intent card** that the writer can execute without copying scaffold bullets.
+Build deterministic H3 brief cards from outline + mapping + paper notes.
 
-This is the bridge between:
-- a verifiable outline (what each subsection must answer, and what evidence it needs)
-- section-by-section drafting (how to write it without copying scaffold bullets)
+Compatibility mode is active: this skill keeps the current `outline/subsection_briefs.jsonl` field contract and paragraph-plan shape while moving phrase/domain logic into `references/` and `assets/`.
 
-Why this matters for writing quality:
-- If briefs are generic/repeated, C5 will regress into repeated openers ("This subsection...") and hollow contrasts.
-- Briefs must therefore be subsection-specific and non-copyable: they should constrain decisions, not provide templates.
+## Quick Use
 
+- Run `scripts/run.py` as the deterministic materializer.
+- Keep the output NO PROSE: subsection-scoped plans, axes, clusters, and bridge handles only.
+- Preserve current downstream compatibility for `transition-weaver`, `writer-context-pack`, and `subsection-writer`.
 
-## Role cards (prompt-level guidance)
+## Load Only What You Need
 
-Use these roles explicitly while drafting briefs. They guide decisions, not phrasing; avoid producing copyable prose sentences.
+- Start with `references/overview.md`.
+- If `thesis` feels repetitive or copyable, read `references/thesis_patterns.md`.
+- If `tension_statement` is too generic, read `references/tension_patterns.md`.
+- If axes are weak or domain-biased, read `references/axis_catalog_generic.md` and `references/axis_catalog_llm_agents.md`.
+- If transition handles feel bland, read `references/bridge_terms.md`.
+- For calibration, read `references/examples_good.md`.
 
-- **Argument Planner**
-  - Mission: turn one H3 into an executable comparison plan (tension, axes, clusters, paragraph jobs).
-  - Do: make trade-offs concrete; ensure each paragraph has an argument role; encode evaluation context as slots (`task/metric/constraint`).
-  - Avoid: generic axes ("mechanism/data/eval" everywhere), meta narration ("This subsection..."), and full-sentence templates the writer will copy.
+## Machine-Readable Packs
 
-- **Writer Proxy**
-  - Mission: simulate the downstream writer and ask: "Could I draft this subsection without guessing?"
-  - Do: ensure `tension_statement` can open paragraph 1; ensure clusters are contrastable; ensure `connector_phrase` is clause-level (not a reusable sentence).
-  - Avoid: connector phrases that read like slide narration ("Next, we...") or that repeat across many briefs.
+- `assets/phrase_packs/thesis_patterns.json`
+- `assets/phrase_packs/bridge_contrast.json`
+- `assets/domain_packs/generic.json`
+- `assets/domain_packs/llm_agents.json`
+- `assets/domain_packs/text_to_image.json`
 
-- **Scope Guardian**
-  - Mission: prevent scope drift by making include/exclude rules explicit.
-  - Do: state what is in/out; allow cross-scope citations only with a justification policy.
-  - Avoid: leaving scope implicit and letting the writer "fix it in prose".
-
-## Non-negotiables
-
-- NO PROSE: output is structured briefs only (no narrative paragraphs).
-- No placeholders: do not emit `…`, `TODO`, `TBD`, `(placeholder)`, or instruction-like fragments.
-- Evidence-aware: if evidence is abstract-only/title-only, the brief must encode a conservative writing strategy (provisional language / questions-to-answer).
-- Scope hygiene: each brief must state include/exclude rules to prevent scope drift.
-- Uniqueness: each H3 must have its own `tension_statement` + `thesis` (if two H3 share the same tension, the writer will also repeat it).
-- Anti-template: do not write "planner talk" that the writer will copy (e.g., "highlights a tension around X/Y/Z"); write a concrete trade-off sentence with subsection-specific nouns.
+The script loads these packs first; patch them before changing Python when the issue is phrasing, domain routing, or axis inventory.
 
 ## Inputs
 
 - `outline/outline.yml`
 - `outline/mapping.tsv`
 - `papers/paper_notes.jsonl`
-- Optional: `outline/claim_evidence_matrix.md`
 - Optional: `GOAL.md`
+- Optional: `outline/claim_evidence_matrix.md`
 
-## Outputs
+## Output
 
 - `outline/subsection_briefs.jsonl`
 
-## Output format (`outline/subsection_briefs.jsonl`)
+Required record shape remains compatibility-preserving:
 
-JSONL (one JSON object per line). Required fields per record:
+- identity: `sub_id`, `title`, `section_id`, `section_title`
+- planning core: `rq`, `thesis`, `scope_rule`, `axes`, `bridge_terms`, `contrast_hook`, `tension_statement`
+- evidence hooks: `evaluation_anchor_minimal`, `required_evidence_fields`, `clusters`
+- execution plan: `paragraph_plan`, `evidence_level_summary`, `generated_at`
 
-- `sub_id` (e.g., `"3.2"`)
-- `title`
-- `section_id`, `section_title`
-- `scope_rule` (object with `include`/`exclude`/`notes`)
-- `rq` (1–2 sentences)
-- `thesis` (1 sentence; internal intent, not reader-facing; should be executable as the first paragraph’s last sentence in C5)
-- `axes` (list of 3–5 checkable comparison dimensions; no ellipsis)
-  - Contract: each axis item is an atomic noun phrase (not a fragment like `metrics` or `and failure modes ...`).
-  - List formatting: if you encode axes in a single outline bullet (e.g., `Comparison axes:`), prefer semicolons (`;`) to separate axes.
-    Commas inside parentheses are allowed (e.g., `evaluation protocol (datasets, metrics, human evaluation)`).
-- `bridge_terms` (list of 3–6 short “handles” for transitions; NO NEW FACTS; used by `transition-weaver`)
-- `contrast_hook` (short label/phrase for what this subsection is “about” in transitions; NO NEW FACTS)
-- `tension_statement` (1 sentence; concrete trade-off that can open the subsection in C5; avoid meta phrasing like "tension around X")
-- `evaluation_anchor_minimal` (object: `{task, metric, constraint}`; values may be `unknown` as placeholders to be filled by evidence packs)
-- `required_evidence_fields` (short checklist of evidence fields the evidence packs should eventually support)
-- `clusters` (2–3 clusters; each has `label`, `rationale`, `paper_ids`, and optional `bibkeys`)
-- `paragraph_plan` (8–10 paragraphs; each item is a *unit of comparison* with explicit role + connector)
-- `evidence_level_summary` (counts by `fulltext|abstract|title`)
-- `generated_at` (ISO timestamp)
+## What `run.py` Should Do
 
-### `paragraph_plan` item schema (required)
+- Read outline, mapping, and notes.
+- Normalize subsection seeds from outline bullets.
+- Load thesis/tension/domain-axis packs from `assets/`.
+- Produce stable JSONL records with the existing contract.
 
-Each `paragraph_plan` item is an object with:
+## What `run.py` Should Not Do
 
-- `para` (int; 1-based)
-- `argument_role` (string; e.g., `setup_thesis`, `mechanism_cluster_A`, `evaluation_cluster_A`, `contrast_cluster_B`, `cross_paper_synthesis`, `decision_guidance`, `limitations_open_questions`)
-- `connector_to_prev` (string; empty for para 1; e.g., `grounding`, `elaboration`, `evaluation`, `contrast`, `synthesis`, `consequence`)
-- `connector_phrase` (string; short semantic hint for the connective move; paraphrase in prose; avoid `Next, we ...` narration; no placeholders)
-- `intent` (string; plan only, not prose)
-- `focus` (list of short checkable focus cues)
-- `use_clusters` (list of cluster labels to cite/compare in that paragraph)
+- Do not invent papers, citations, or claims.
+- Do not emit reader-facing narrative prose.
+- Do not hardcode domain-specific sentence templates when an asset pack can hold them.
 
-## Workflow
+## Block / Reroute
 
-Optional context (if present): read `GOAL.md` to pin scope and audience, and use `outline/claim_evidence_matrix.md` as an additional evidence index (do not copy placeholders).
-
-1. Read `outline/outline.yml` and extract each subsection’s Stage-A fields (Intent/RQ/Evidence needs/Expected cites/Comparison axes).
-2. Read `outline/mapping.tsv` and collect mapped `paper_id`s for each `sub_id`.
-3. Read `papers/paper_notes.jsonl` and build per-paper mini-meta: `bibkey`, `year`, `evidence_level`, key bullets/limitations.
-4. Write a **scope_rule** per subsection:
-   - What is in-scope for this subsection?
-   - What is out-of-scope?
-   - If cross-scope citations are allowed, what is the justification policy?
-5. Propose 3–5 **axes**:
-   - Prefer concrete, checkable phrases (e.g., representation, training signal, sampling/solver, compute, evaluation protocol, failure modes).
-   - Use the subsection title + mapped-paper tags to specialize axes.
-   - **CRITICAL**: For each axis, include a brief note on "why this comparison matters" (e.g., "representation choice affects memory overhead and retrieval latency", "evaluation protocol determines whether claims are reproducible"). This helps writers understand the significance of the comparison, not just the fact that papers differ.
-6. Build 2–3 **clusters** of papers (2–5 papers each) and explain why they cluster (which axis/theme).
+- If outline, mapping, or notes are missing, stop.
+- If evidence is thin, keep `thesis`/`tension_statement` conservative and let downstream evidence skills strengthen the subsection.
+- Do not “fix” thin evidence by inventing more specific axes or stronger claims.
 
 
-7a. Write a **tension_statement** (1 sentence; concrete trade-off):
-   - Must be specific enough to serve as the first paragraph frame in C5 (no generic "tension around mechanism/data").
+## Execution notes
 
-7b. Reserve a minimal **evaluation_anchor_minimal** triple (`task/metric/constraint`):
-   - Use `unknown` for any slot you cannot fill without guessing; the point is to create a fillable contract for evidence packs.
-7. Write a **thesis** (1 sentence; internal intent, not reader-facing):
-   - Write it as a **content claim**, not meta-prose (avoid `This subsection ...` / `In this subsection ...`).
-   - It should be executable as the end-of-paragraph-1 takeaway in C5 (no new facts; keep commitment conservative when evidence is abstract-level).
-8. Build an 8–10 paragraph **paragraph_plan** (plan paragraphs, not prose). Each paragraph must include a **connector contract** so the writer doesn't produce "paragraph islands":
-   - Para 1 (`setup_thesis`): setup + scope boundary + thesis/definitions.
-   - Para 2–4 (`cluster_A`): mechanism → implementation assumptions → evaluation/trade-offs (explicit eval anchor). **Include "why this matters" guidance** (e.g., "this matters because it affects cost/reliability/safety").
-   - Para 5–7 (`cluster_B`): contrast with A → implementation assumptions → evaluation/trade-offs. **Include limitation hooks** (e.g., "what failure modes does this approach expose?").
-   - Para 8 (`cross_paper_synthesis`): explicit compare A vs B (later prose: same paragraph >=2 citations).
-   - Para 9 (`decision_guidance`): decision checklist + evaluation signals + engineering constraints.
-   - Para 10 (`limitations_open_questions`): limitations + verification targets + concrete open question. **Be specific about what limitations to surface** (e.g., "benchmark dependence", "missing adversarial evaluation", "unclear generalization").
-8. Write `outline/subsection_briefs.jsonl`.
+When running in compatibility mode, `scripts/run.py` currently reads:
+- `outline/outline.yml` for section/subsection structure
+- `outline/mapping.tsv` for paper-to-subsection coverage
+- `papers/paper_notes.jsonl` for structured evidence
+- `GOAL.md` for topic/domain cues
+- `outline/claim_evidence_matrix.md` as optional supporting context when present
 
-## Uniqueness sweep (required; prevents downstream "generator voice")
-
-After you draft all briefs, do a quick global sweep (NO PROSE; diagnosis-only):
-- Find repeated `tension_statement` (exact or near-duplicate). Rewrite until each H3 has a distinct tension.
-- Find repeated "axis bundles" (e.g., `mechanism/architecture` + `data/training setup` showing up everywhere). Specialize axes to the subsection title and mapped papers.
-- Find copyable connector phrases (full sentences, ending with punctuation, or "Next, we..."). Rewrite into clause-level hints.
-
-Good vs bad tension/thesis (paraphrase; do not copy):
-- Bad tension: `a tension is expressivity versus control` (too reusable; will repeat across H3s)
-- Better tension (planning): `Long-horizon planning trades deliberation depth against latency and compounding error once tool calls are stochastic or partially observed.`
-- Better tension (tool interfaces): `Richer tool schemas expand the action space, but stricter contracts are needed to make failures attributable and evaluations comparable.`
-
-- Bad thesis: `X highlights a tension around mechanism / architecture and data / training setup...`
-- Better thesis: `Interface contracts largely determine which evaluation claims transfer across environments; comparisons without shared tool access assumptions are brittle.`
-
-## Quality checklist
-
-- [ ] Every subsection has `rq` and `scope_rule`.
-- [ ] `axes` length is 3–5 and each axis is a concrete noun phrase.
-- [ ] `bridge_terms` length is 3–6 (subsection-specific; not generic words like “evaluation” only).
-- [ ] `contrast_hook` is non-empty and short (used for transitions; NO NEW FACTS).
-- [ ] `tension_statement` is concrete (a real trade-off sentence) and not meta narration.
-- [ ] `evaluation_anchor_minimal` is present and uses explicit `unknown` slots when needed.
-- [ ] `clusters` length is 2–3; each cluster has 2–5 papers.
-- [ ] `thesis` is present (1 sentence; no placeholders).
-- [ ] `paragraph_plan` length is 8–10; each item has `argument_role` + `connector_to_prev` + `connector_phrase` (no placeholders).
-- [ ] `paragraph_plan` includes a full role mix (at least once each): `setup_thesis`, `evaluation_*`, `cross_paper_synthesis`, `decision_guidance`, `limitations_open_questions`.
-- [ ] No placeholder markers appear anywhere.
-- [ ] No two subsections share the same `tension_statement` (or the same 4-gram stem).
-- [ ] At least 2 axes per subsection are genuinely subsection-specific (not the same generic axis bundle repeated everywhere).
-
-## Helper script (bootstrap)
-
-This skill includes a deterministic bootstrap script that scaffolds briefs from existing artifacts. Treat it as a starting point and refine as needed.
-
-- Clustering note: the script groups papers using lightweight title keyword tags (e.g., agents/tool-use/planning/memory/multi-agent/security) and falls back to recency splits when tags are sparse.
-
-### Refinement marker (recommended; prevents churn)
-
-When you are satisfied with the briefs (and after the uniqueness sweep), create:
-- `outline/subsection_briefs.refined.ok`
-
-This is a small, explicit "I reviewed/refined this" signal:
-- prevents scripts from regenerating and undoing your work
-- (in strict runs) can be used as a completion signal to avoid silently accepting a bootstrap scaffold
+## Script
 
 ### Quick Start
 
-- `python .codex/skills/subsection-briefs/scripts/run.py --help`
 - `python .codex/skills/subsection-briefs/scripts/run.py --workspace <workspace_dir>`
 
 ### All Options
 
-- See `--help`.
+- `--workspace <dir>`
+- `--unit-id <id>`
+- `--inputs <a;b;...>`
+- `--outputs <a;b;...>`
+- `--checkpoint <C*>`
 
 ### Examples
 
-- Use default inputs/outputs:
-  - `python .codex/skills/subsection-briefs/scripts/run.py --workspace workspaces/<ws>`
-- Explicit IO (for custom pipelines):
-  - `python .codex/skills/subsection-briefs/scripts/run.py --workspace workspaces/<ws> --inputs "outline/outline.yml;outline/mapping.tsv;papers/paper_notes.jsonl" --outputs "outline/subsection_briefs.jsonl"`
+- `python .codex/skills/subsection-briefs/scripts/run.py --workspace workspaces/<ws>`
 
 ## Troubleshooting
 
-### Issue: briefs look generic or repeat across subsections
-
-**Symptom**: many briefs share the same axes/clusters.
-
-**Causes**:
-- Mapping coverage is weak (too few papers per subsection).
-- Paper notes are title-only / missing abstracts.
-
-**Solutions**:
-- Fix upstream: expand retrieval + increase `core_size` in `queries.md`; rerun `literature-engineer` + `dedupe-rank`.
-- Enrich evidence: set `evidence_mode: "fulltext"` and provide PDFs under `papers/pdfs/` (or enable network for `pdf-text-extractor`).
-
-### Issue: scope drift (e.g., T2I vs T2V) reappears
-
-**Symptom**: clusters include out-of-scope papers.
-
-**Solutions**:
-- Tighten `scope_rule` to explicitly allow only “bridge” citations and require justification.
-- Fix retrieval filters / exclusions upstream and rerun mapping.
+- If the wrong domain pack is selected, inspect `GOAL.md` and the asset packs before changing the script.
+- If briefs sound too generic, adjust the phrase/domain packs instead of adding more Python prose.
+- If `papers/paper_notes.jsonl` is thin, reroute to note extraction rather than inventing axes.

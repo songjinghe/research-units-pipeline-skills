@@ -11,151 +11,102 @@ description: |
 
 # Outline Builder
 
-Convert a taxonomy into a **checkable, mappable outline** (bullets only).
+Build `outline/outline.yml` from `outline/taxonomy.yml`.
 
-Bullets should describe *what the section must cover*, not draft prose.
+Compatibility mode is active: this migration keeps the current output contract while moving intro/related defaults, Stage A bullet templates, and domain-specific comparison framing into `references/` and `assets/`.
 
-## Role cards (prompt-level guidance)
+## Read order
 
-Use these roles explicitly while drafting the outline. They guide decisions, not phrasing; avoid producing copyable prose sentences.
+Always read:
+- `references/overview.md`
+- `references/stage_a_contract.md`
 
-- **Outline Architect**
-  - Mission: design a paper-like ToC (few, thick chapters) that a reader would expect.
-  - Do: budget H2/H3 counts; ensure each H3 is writeable (has a real comparison lens + evaluation angle).
-  - Avoid: H3 explosion (many tiny buckets) and generic axis lists repeated everywhere.
+Read by task:
+- `references/intro_related_patterns.md` when changing `Introduction` / `Related Work` defaults
+- `references/examples_good.md` and `references/examples_bad.md` for bullet calibration
 
-- **Writer Proxy**
-  - Mission: simulate the downstream writer and ask: “Could I draft this H3 without guessing?”
-  - Do: make each H3’s bullets encode tension + contrasts + evaluation anchors + failure modes.
-  - Avoid: bullets that sound like narration (“This subsection…”) or slide transitions (“Next, we…”).
+Machine-readable asset:
+- `assets/outline_defaults.yaml`
 
-- **Scope Guardian**
-  - Mission: prevent silent scope drift.
-  - Do: make in/out scope cues explicit in bullets (especially for boundaries like single-agent vs multi-agent, tool use vs RAG, etc.).
-  - Avoid: leaving scope implicit and hoping the writer fixes it in prose.
+## Inputs
 
-
-## When to use
-
-- You have a taxonomy and need an outline for mapping papers and building evidence.
-- You want each subsection to have concrete “coverage requirements” (axes, comparisons, evaluation).
-
-## When not to use
-
-- You already have an approved outline (don’t rewrite for style).
-
-## Input
-
+Required:
 - `outline/taxonomy.yml`
-- Optional style references (paper-like section sizing):
-  - `ref/agent-surveys/STYLE_REPORT.md`
-  - `ref/agent-surveys/text/`
+
+Optional human calibration only:
+- `ref/agent-surveys/STYLE_REPORT.md`
+- `ref/agent-surveys/text/`
 
 ## Output
 
+Keep the current output contract:
 - `outline/outline.yml`
 
-## Workflow (heuristic)
-Uses: `outline/taxonomy.yml`.
+## Compatibility mode
 
-Optional style calibration (recommended for paper-like structure):
-- Read `ref/agent-surveys/STYLE_REPORT.md` to sanity-check top-level section counts and typical subsection sizing.
-- Skim 1–2 examples under `ref/agent-surveys/text/` to imitate *structure* (not wording).
-  - Target final ToC: ~6–8 H2 sections.
-  - Note: this pipeline appends `Discussion` + `Conclusion` as global sections in C5 merge, so keep the **outline itself** <=6 H2 sections (often 5–6 including Intro+Related).
+Current mode is reference-first with script compatibility:
+- front-chapter defaults live in `assets/outline_defaults.yaml`
+- Stage A bullet defaults and comparison-axis packs live in `assets/outline_defaults.yaml`
+- examples and boundary rules live in `references/`
+- `scripts/run.py` still owns taxonomy loading, skeleton materialization, and placeholder-safe overwrite behavior
 
-1. Translate taxonomy nodes into section headings that read like a survey structure.
-2. For each H3 subsection, write bullets using the **Stage A contract** (verifiable, no prose paragraphs).
-   - Minimum required bullets (first 4):
-     - `Intent:` what the reader should learn (subsection-specific).
-     - `RQ:` the question this subsection answers (1 line).
-     - `Evidence needs:` what kinds of evidence must appear later (benchmarks/metrics/protocols/failure modes).
-     - `Expected cites:` expected cite density / cite types (avoid placeholders like TBD/TODO).
-   - Then add 2–6 subsection-specific bullets (comparisons/axes/eval anchors/failure modes).
-3. For each subsection, ensure bullets are:
-   - topic-specific (names of mechanisms, tasks, benchmarks, failure modes)
-   - checkable (someone can verify whether the subsection covered it)
-   - useful for mapping (papers can be assigned to each bullet/axis)
-4. Prefer bullets that force synthesis later:
-   - “Compare X vs Y along axes A/B/C”
-   - “What evaluation setups are standard, and what they miss”
-   - “Where methods fail (latency, tool errors, jailbreaks, reward hacking…)”
+## Script boundary
 
+Use `scripts/run.py` only for:
+- loading taxonomy input and the defaults asset
+- rendering the outline skeleton deterministically
+- preserving existing non-placeholder outlines
+- choosing comparison-axis packs from machine-readable defaults
 
-## Quality checklist
+Do not treat the script as the main place for:
+- domain framing for `Introduction` / `Related Work`
+- long bullet banks or writing exemplars
+- prompt-heavy guidance about how a good outline should read
 
-- [ ] `outline/outline.yml` exists and is bullets-only (no paragraphs).
-- [ ] Every subsection has the Stage A bullets: `Intent:` / `RQ:` / `Evidence needs:` / `Expected cites:`.
-- [ ] Every subsection has ≥3 additional non-generic bullets after the Stage A fields.
-- [ ] Bullets are not copy-pasted templates across subsections.
+## Output shape rules
 
-## Common failure modes (and fixes)
+Keep these stable:
+- `outline/outline.yml` is a YAML list
+- `Introduction` and `Related Work` remain the first two H2 sections
+- each H3 subsection contains the Stage A bullets: `Intent:` / `RQ:` / `Evidence needs:` / `Expected cites:`
+- each H3 subsection adds several topic-specific bullets after the Stage A fields
+- the helper never overwrites non-placeholder user work
 
-- **Template bullets everywhere** → replace with domain terms + evaluation axes specific to that subsection.
-- **Bullets too vague** (“Discuss limitations”) → name *which* limitations and *how to test* them.
-- **Outline too flat/too deep** → aim for a paper-like ToC (final ~6–8 H2) with fewer, thicker H3s.
-- **Too many H3 subsections** → merge adjacent H3s and write fewer, thicker subsections (paper-like default; budget depends on queries.md draft_profile: survey<=10, deep<=12).
-- **Missing Stage A fields** → add `Intent/RQ/Evidence needs/Expected cites` bullets so later mapping/evidence drafting can be audited.
-
-## Helper script (optional)
-
-### Quick Start
+## Quick Start
 
 - `python .codex/skills/outline-builder/scripts/run.py --help`
 - `python .codex/skills/outline-builder/scripts/run.py --workspace <workspace_dir>`
 
+## Execution notes
+
+When running this skill in compatibility mode, `scripts/run.py` currently reads:
+- `outline/taxonomy.yml`
+- `assets/outline_defaults.yaml`
+
+The optional style references under `ref/agent-surveys/` are for human calibration only:
+- use `ref/agent-surveys/STYLE_REPORT.md` to sanity-check chapter counts / thickness
+- skim `ref/agent-surveys/text/` only to calibrate structure rather than wording
+
+## Script
+
+### Quick Start
+
+- `python .codex/skills/outline-builder/scripts/run.py --workspace <workspace_dir>`
+
 ### All Options
 
-- See `--help` (this helper is intentionally minimal)
+- `--workspace <dir>`
+- `--unit-id <id>`
+- `--inputs <path1;path2>`
+- `--outputs <path1;path2>`
+- `--checkpoint <C*>`
 
 ### Examples
 
-- Generate a baseline bullets-only outline, then refine bullets:
-  - Run the helper once, then replace every generic bullet / `TODO` with topic-specific, checkable bullets.
-
-### Notes
-
-- The script generates a baseline bullets-only outline and never overwrites non-placeholder work.
-- Paper-like default: it inserts `Introduction` and `Related Work` as fixed H2 sections before taxonomy-driven chapters.
-- In `pipeline.py --strict` it will be blocked only if placeholder markers (TODO/TBD/FIXME/(placeholder)) remain.
-
-### Refinement marker (recommended; completion signal)
-
-When you are satisfied with the outline (and after C2 approval if applicable), create:
-- `outline/outline.refined.ok`
-
-This is an explicit "I reviewed/refined this" signal:
-- makes it harder for a scaffold-y outline to silently pass in strict runs
-- documents that bullets were rewritten into subsection-specific, checkable requirements
+- `python .codex/skills/outline-builder/scripts/run.py --workspace workspaces/<ws>`
 
 ## Troubleshooting
 
-### Common Issues
-
-#### Issue: Outline still has `TODO` / scaffold bullets
-
-**Symptom**:
-- Quality gate blocks `outline_scaffold`.
-
-**Causes**:
-- Helper script generated a scaffold; bullets were not rewritten.
-
-**Solutions**:
-- Replace every generic bullet with topic-specific, checkable bullets (axes, comparisons, evaluation setups, failure modes).
-- Keep bullets-only (no prose paragraphs).
-
-#### Issue: Outline bullets are mostly generic templates
-
-**Symptom**:
-- Quality gate blocks `outline_template_bullets`.
-
-**Causes**:
-- Too many “Define problem…/Benchmarks…/Open problems…” template bullets.
-
-**Solutions**:
-- Add concrete terms, datasets, evaluation metrics, and known failure modes per subsection.
-
-### Recovery Checklist
-
-- [ ] Every subsection has ≥3 non-template bullets.
-- [ ] No `TODO`/`(placeholder)` remains.
+- If `Related Work` still carries domain-specific framing, patch `assets/outline_defaults.yaml` before changing Python.
+- If subsection bullets feel generic, review `references/stage_a_contract.md` and `references/examples_good.md`.
+- If the outline is structurally valid but too fragmented, reroute to `outline-budgeter` rather than expanding this script.

@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "bridge_stopwords": [
+    "mechanism",
+    "data",
+    "evaluation",
+    "efficiency",
+    "limitations"
+  ],
+  "contrast_fallback_max_len": 48
+}

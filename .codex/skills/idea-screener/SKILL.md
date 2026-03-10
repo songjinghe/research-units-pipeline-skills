@@ -1,38 +1,20 @@
 ---
 name: idea-screener
 description: |
-  Score and screen brainstorm candidates into a compact comparison table before shortlist curation. Writes `output/IDEA_SCREENING_TABLE.md`.
-  **Trigger**: idea screener, screening table, score ideas, shortlist table, screening matrix, 筛题表, 评分表.
-  **Use when**: you already have an opportunity map and an idea pool, and want table-based convergence before writing the shortlist.
-  **Skip if**: `output/IDEA_SCREENING_TABLE.md` already exists and is refined.
+  Screen the direction pool with a discussion-first scoring pass, writing `output/trace/IDEA_SCREENING_TABLE.md`.
+  **Trigger**: idea screener, screening table, brainstorm screening, 方向筛选表.
+  **Use when**: you already have a direction pool and want a table-first comparison before curating the shortlist.
+  **Skip if**: the direction pool is still missing or obviously templated.
   **Network**: none.
-  **Guardrail**: do not invent evidence; scores must be traceable to current cards and brief constraints.
+  **Guardrail**: no invented papers; scoring should reflect discussion value and distinctness, not stylistic polish.
 ---
 
 # Idea Screener
 
-Goal: move convergence out of prose and into a comparison table.
+Goal: compress a direction pool into a scored comparison table that helps shortlist the most discussion-worthy directions.
 
-## Inputs
-- `output/IDEA_BRIEF.md`
-- `output/IDEA_POOL.md`
-- `output/IDEA_OPPORTUNITY_TABLE.md`
-- `outline/taxonomy.yml`
-
-## Outputs
-- `output/IDEA_SCREENING_TABLE.md`
-- optional sidecar: `output/IDEA_SCREENING_TABLE.jsonl`
-
-## Table columns
-- idea id
-- cluster
-- idea type
-- operator
-- feasibility
-- novelty delta
-- evidence traceability
-- evaluation clarity
-- writeability
-- total score
-- keep / maybe / drop
-- rationale
+The screener should reward:
+- advisor-useful rank separation,
+- distinct contribution shapes,
+- concrete prior-work grounding,
+and penalize same-template directions that only swap nouns.

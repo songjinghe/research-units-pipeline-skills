@@ -7,15 +7,7 @@ from pathlib import Path
 
 
 def _count_shortlist(md: str) -> int:
-    return len(re.findall(r'(?m)^###\s+Idea\s+\d+\.', md or ''))
-
-
-def _count_top3(md: str) -> int:
-    return len(re.findall(r'(?m)^##\s+Top\s+\d+\.', md or ''))
-
-
-def _count_pool_rows(md: str) -> int:
-    return len([ln for ln in (md or '').splitlines() if ln.strip().startswith('|')]) - 2 if '| Idea ID |' in (md or '') else 0
+    return len(re.findall(r'(?m)^###\s+Direction\s+\d+\.', md or ''))
 
 
 def main() -> int:
@@ -33,59 +25,65 @@ def main() -> int:
     from tooling.common import atomic_write_text, ensure_dir
 
     workspace = Path(args.workspace).resolve()
-    pool = workspace / 'output' / 'IDEA_POOL.md'
-    screening = workspace / 'output' / 'IDEA_SCREENING_TABLE.md'
-    shortlist = workspace / 'output' / 'IDEA_SHORTLIST.md'
-    top3 = workspace / 'output' / 'IDEA_TOP3_REPORT.md'
+    signal_table = workspace / 'output' / 'trace' / 'IDEA_SIGNAL_TABLE.md'
+    pool = workspace / 'output' / 'trace' / 'IDEA_DIRECTION_POOL.md'
+    screening = workspace / 'output' / 'trace' / 'IDEA_SCREENING_TABLE.md'
+    shortlist = workspace / 'output' / 'trace' / 'IDEA_SHORTLIST.md'
+    report_md = workspace / 'output' / 'REPORT.md'
+    appendix = workspace / 'output' / 'APPENDIX.md'
+    report_json = workspace / 'output' / 'REPORT.json'
     report = workspace / 'output' / 'DELIVERABLE_SELFLOOP_TODO.md'
     ensure_dir(report.parent)
 
     issues: list[str] = []
-    if not pool.exists() or pool.stat().st_size <= 0:
-        issues.append('Missing `output/IDEA_POOL.md`.')
-    if not screening.exists() or screening.stat().st_size <= 0:
-        issues.append('Missing `output/IDEA_SCREENING_TABLE.md`.')
-    if not shortlist.exists() or shortlist.stat().st_size <= 0:
-        issues.append('Missing `output/IDEA_SHORTLIST.md`.')
-    if not top3.exists() or top3.stat().st_size <= 0:
-        issues.append('Missing `output/IDEA_TOP3_REPORT.md`.')
+    for path in [signal_table, pool, screening, shortlist, report_md, appendix, report_json]:
+        if not path.exists() or path.stat().st_size <= 0:
+            issues.append(f'Missing `{path.relative_to(workspace)}`.')
 
-    pool_text = pool.read_text(encoding='utf-8', errors='ignore') if pool.exists() else ''
     shortlist_text = shortlist.read_text(encoding='utf-8', errors='ignore') if shortlist.exists() else ''
-    top3_text = top3.read_text(encoding='utf-8', errors='ignore') if top3.exists() else ''
+    report_text = report_md.read_text(encoding='utf-8', errors='ignore') if report_md.exists() else ''
+    appendix_text = appendix.read_text(encoding='utf-8', errors='ignore') if appendix.exists() else ''
 
-    pool_rows = _count_pool_rows(pool_text)
-    if pool_text and pool_rows < 60:
-        issues.append(f'Idea pool is too small ({pool_rows}; expected >=60).')
-    if pool_text and 'Operator' not in pool_text:
-        issues.append('Idea pool is missing the operator column.')
     shortlist_n = _count_shortlist(shortlist_text)
-    if shortlist_text and not (5 <= shortlist_n <= 7):
-        issues.append(f'Shortlist size should be 5-7 (found {shortlist_n}).')
-    if shortlist_text and 'Why now:' not in shortlist_text:
-        issues.append('Shortlist cards are too thin; missing `Why now` fields.')
-    top3_n = _count_top3(top3_text)
-    if top3_text and top3_n != 3:
-        issues.append(f'Top-3 report should contain exactly 3 expanded ideas (found {top3_n}).')
+    if shortlist_text and not (3 <= shortlist_n <= 5):
+        issues.append(f'Shortlist size should be 3-5 (found {shortlist_n}).')
+
+    required_sections = [
+        '## 1. Big-picture takeaways',
+        '## 2. Top directions at a glance',
+        '## 6. Other promising but not prioritized directions',
+        '## 7. Cross-cutting discussion questions',
+        '## 8. Uncertainty and disagreement',
+    ]
+    for section in required_sections:
+        if report_text and section not in report_text:
+            issues.append(f'`output/REPORT.md` is missing `{section}`.')
+    if report_text and '## 3. Direction 1' not in report_text:
+        issues.append('`output/REPORT.md` should expand the top directions into memo sections.')
+    if appendix_text and not all(token in appendix_text for token in ['Anchor paper', 'Why read now', 'What to extract', 'Kill signal']):
+        issues.append('`output/APPENDIX.md` should expose paper-specific reading-guide tables.')
+    for phrase in ['reports a meaningful gain', 'Sharper mechanism question;', 'read it to extract what it really attributes gains to']:
+        if phrase in report_text or phrase in appendix_text:
+            issues.append(f'Found templated memo language: `{phrase}`.')
 
     status = 'PASS' if not issues else 'FAIL'
     lines = [
         '# Deliverable self-loop',
         '',
         f'- Status: {status}',
-        '- Deliverable: ideation stack (`IDEA_POOL` -> `IDEA_SCREENING_TABLE` -> `IDEA_SHORTLIST` -> `IDEA_TOP3_REPORT`)',
+        '- Deliverable: brainstorm memo bundle (`IDEA_SIGNAL_TABLE` -> `IDEA_DIRECTION_POOL` -> `IDEA_SCREENING_TABLE` -> `IDEA_SHORTLIST` -> `REPORT`)',
         '',
         '## Summary',
-        '- The ideation deliverable is evaluated as a layered artifact stack rather than a single shortlist file.',
+        '- The ideation deliverable is evaluated as a memo bundle with a supporting trace chain, not as a symmetric top-3 proposal pack.',
         '',
         '## Changes made',
-        '- Checked pool size, screening table presence, shortlist depth, and top-3 expansion completeness.',
+        '- Checked trace presence, shortlist size, and core memo sections for the final `REPORT.md` deliverable.',
         '',
     ]
     if issues:
         lines.extend(['## Remaining blockers (if FAIL)'])
         lines.extend([f'- {it}' for it in issues])
-        lines.extend(['', '## Next step', '- Fix the missing or thin ideation artifacts and rerun this unit.'])
+        lines.extend(['', '## Next step', '- Fix the missing or thin memo artifacts and rerun this unit.'])
         atomic_write_text(report, '\n'.join(lines).rstrip() + '\n')
         return 2
     lines.extend(['## Remaining blockers (if FAIL)', '- (none)', '', '## Next step', '- Proceed to the next unit.'])

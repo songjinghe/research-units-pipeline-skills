@@ -8,6 +8,34 @@ from pathlib import Path
 from typing import Any
 
 
+_ASSET_ROOT = Path(__file__).resolve().parents[1] / 'assets'
+_BOOTSTRAP_TEMPLATES_PATH = _ASSET_ROOT / 'bootstrap_paragraph_templates.json'
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    with path.open(encoding='utf-8', errors='ignore') as handle:
+        data = json.load(handle)
+    return data if isinstance(data, dict) else {}
+
+
+_BOOTSTRAP_TEMPLATES = _load_json(_BOOTSTRAP_TEMPLATES_PATH)
+
+
+def _tmpl(group: str, key: str) -> str:
+    section = _BOOTSTRAP_TEMPLATES.get(group) or {}
+    if not isinstance(section, dict):
+        return ''
+    value = section.get(key)
+    return str(value or '').strip()
+
+
+def _render(group: str, key: str, **kwargs: str) -> str:
+    template = _tmpl(group, key)
+    if not template:
+        raise KeyError(f'missing template {group}.{key}')
+    return template.format(**kwargs)
+
+
 def _clean(text: str, *, limit: int = 220) -> str:
     s = str(text or '').strip()
     s = s.replace('\n', ' ')
@@ -55,51 +83,58 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def _item_from_comp(card: dict[str, Any], title: str) -> tuple[str, list[str]]:
-    axis = _clean(str(card.get('axis') or '').replace('/', ' and '), limit=90)
-    a_label = _clean(str(card.get('A_label') or 'one line of work').replace('/', ' and '), limit=40)
-    b_label = _clean(str(card.get('B_label') or 'another line of work').replace('/', ' and '), limit=40)
+    axis = _clean(str(card.get('axis') or '').replace('/', ' and '), limit=90) or _tmpl('fallbacks', 'comparison_axis')
+    a_label = _clean(str(card.get('A_label') or '').replace('/', ' and '), limit=40) or _tmpl('fallbacks', 'a_label')
+    b_label = _clean(str(card.get('B_label') or '').replace('/', ' and '), limit=40) or _tmpl('fallbacks', 'b_label')
     a_hls = [x for x in (card.get('A_highlights') or []) if isinstance(x, dict)]
     b_hls = [x for x in (card.get('B_highlights') or []) if isinstance(x, dict)]
-    a_excerpt = _clean((a_hls[0].get('excerpt') if a_hls else ''), limit=150)
-    b_excerpt = _clean((b_hls[0].get('excerpt') if b_hls else ''), limit=150)
+    a_excerpt = _clean((a_hls[0].get('excerpt') if a_hls else ''), limit=150) or _tmpl('fallbacks', 'a_excerpt')
+    b_excerpt = _clean((b_hls[0].get('excerpt') if b_hls else ''), limit=150) or _tmpl('fallbacks', 'b_excerpt')
     citations: list[str] = [str(x).strip() for x in (card.get('citations') or []) if str(x).strip()]
     for pool in [a_hls, b_hls]:
         for item in pool[:2]:
             for k in item.get('citations') or []:
                 citations.append(str(k).strip())
-    sentence = (
-        f"A recurring comparison in {title.lower()} concerns {axis or 'how competing designs are evaluated'}. "
-        f"{a_label} is usually supported by evidence such as {_clean(a_excerpt or 'its reported empirical profile', limit=130)} {_cites(citations[:2], max_keys=2)}, "
-        f"whereas {b_label} is tied to {_clean(b_excerpt or 'a different operational trade-off', limit=130)} {_cites(citations[2:], max_keys=2) or _cites(citations, max_keys=2)}."
+    sentence = _render(
+        'items',
+        'comparison',
+        title_lower=title.lower(),
+        axis=axis,
+        a_label=a_label,
+        b_label=b_label,
+        a_excerpt=_clean(a_excerpt, limit=130),
+        b_excerpt=_clean(b_excerpt, limit=130),
+        cite_a=_cites(citations[:2], max_keys=2),
+        cite_b=_cites(citations[2:], max_keys=2) or _cites(citations, max_keys=2),
     )
     return sentence, citations
 
 
 def _item_from_anchor(anchor: dict[str, Any], title: str) -> tuple[str, list[str]]:
-    text = _clean(anchor.get('text') or '', limit=200)
+    text = _clean(anchor.get('text') or '', limit=200) or _tmpl('fallbacks', 'anchor_text')
     citations = [str(x).strip() for x in (anchor.get('citations') or []) if str(x).strip()]
-    sentence = f"Concrete anchors matter in {title.lower()} because {text} {_cites(citations, max_keys=3)}."
+    sentence = _render('items', 'anchor', title_lower=title.lower(), text=text, cite_all=_cites(citations, max_keys=3))
     return sentence, citations
 
 
 def _item_from_eval(item: dict[str, Any], title: str) -> tuple[str, list[str]]:
-    bullet = _clean(item.get('bullet') or '', limit=190)
+    bullet = _clean(item.get('bullet') or '', limit=190) or _tmpl('fallbacks', 'evaluation_bullet')
     citations = [str(x).strip() for x in (item.get('citations') or []) if str(x).strip()]
-    sentence = f"Evaluation remains part of the substantive comparison in {title.lower()} because {bullet} {_cites(citations, max_keys=3)}."
+    sentence = _render('items', 'evaluation', title_lower=title.lower(), bullet=bullet, cite_all=_cites(citations, max_keys=3))
     return sentence, citations
 
 
 def _item_from_limit(item: dict[str, Any], title: str) -> tuple[str, list[str]]:
-    text = _clean(item.get('excerpt') or item.get('bullet') or '', limit=190)
+    text = _clean(item.get('excerpt') or item.get('bullet') or '', limit=190) or _tmpl('fallbacks', 'limitation_text')
     citations = [str(x).strip() for x in (item.get('citations') or []) if str(x).strip()]
-    sentence = f"A recurring limitation in {title.lower()} is that {text} {_cites(citations, max_keys=3)}, which narrows how confidently results can be generalized across settings."
+    sentence = _render('items', 'limitation', title_lower=title.lower(), text=text, cite_all=_cites(citations, max_keys=3))
     return sentence, citations
 
 
 def _make_paragraphs(pack: dict[str, Any], title: str) -> list[str]:
-    thesis = _clean(pack.get('thesis') or f'{title} is best read as a comparison problem rather than a single architecture category.', limit=260)
-    tension = _clean(pack.get('tension_statement') or 'reported gains are often shaped by evaluation and interface assumptions as much as by the nominal agent design', limit=260)
-    rq = _clean(pack.get('rq') or '', limit=220)
+    thesis = _clean(pack.get('thesis') or '', limit=260) or _render('fallbacks', 'thesis', title=title)
+    tension = _clean(pack.get('tension_statement') or '', limit=260) or _tmpl('fallbacks', 'tension_statement')
+    rq = _clean(pack.get('rq') or '', limit=220) or _tmpl('fallbacks', 'rq')
 
     cards = [x for x in (pack.get('comparison_cards') or []) if isinstance(x, dict)]
     anchors = [x for x in (pack.get('anchor_facts') or []) if isinstance(x, dict)]
@@ -115,9 +150,15 @@ def _make_paragraphs(pack: dict[str, Any], title: str) -> list[str]:
 
     paragraphs: list[str] = []
     paragraphs.append(
-        f"{title} becomes analytically useful only when the subsection is read through a stable analytical frame rather than as a loose method bucket. "
-        f"The central claim here is that {thesis.lower()} {_cites(seed_cites, max_keys=3)}. "
-        f"That framing matters because {tension.lower()}, and it makes the subsection's guiding question explicit: {rq.lower() if rq else 'which design choices create the most consequential trade-offs under comparable protocols'}."
+        _render(
+            'paragraphs',
+            'opener',
+            title=title,
+            thesis=thesis.lower(),
+            seed_cites=_cites(seed_cites, max_keys=3),
+            tension=tension.lower(),
+            rq=rq.lower(),
+        )
     )
 
     items: list[tuple[str, list[str]]] = []
@@ -131,19 +172,27 @@ def _make_paragraphs(pack: dict[str, Any], title: str) -> list[str]:
         paragraphs.append(text)
         used.extend(cites)
 
-    lens = ', '.join(axes[:3]) if axes else 'execution assumptions, evaluation design, and operational constraints'
+    lens = ', '.join(axes[:3]) if axes else _tmpl('fallbacks', 'lens')
     paragraphs.append(
-        f"Taken together, these comparisons show that {title.lower()} should be judged through {lens} rather than through isolated benchmark wins. "
-        f"Across the cited evidence, stronger results usually coincide with more explicit protocol choices, clearer tool contracts, and more transparent assumptions about cost or access {_cites(used, max_keys=4)}."
+        _render(
+            'paragraphs',
+            'synthesis',
+            title_lower=title.lower(),
+            lens=lens,
+            used_cites=_cites(used, max_keys=4),
+        )
     )
     paragraphs.append(
-        f"The safest synthesis is therefore conservative: the literature already supports meaningful contrasts inside {title.lower()}, but those contrasts stay interpretable only when the subsection keeps architecture, protocol, and limitation signals in the same frame {_cites(used[4:], max_keys=4) or _cites(used, max_keys=4)}."
+        _render(
+            'paragraphs',
+            'conclusion',
+            title_lower=title.lower(),
+            used_cites_tail=_cites(used[4:], max_keys=4) or _cites(used, max_keys=4),
+        )
     )
 
-    while len(paragraphs) < 10:
-        paragraphs.append(
-            f"Additional evidence in {title.lower()} reinforces the same pattern from a different angle, linking system behavior to the details of how tasks, interfaces, and constraints are specified {_cites(used, max_keys=3)}."
-        )
+    if len(paragraphs) <= 2 and used:
+        paragraphs.append(_render('paragraphs', 'cautious_fallback', title_lower=title.lower(), used_cites=_cites(used, max_keys=3)))
 
     return [p.strip() for p in paragraphs if p.strip()]
 

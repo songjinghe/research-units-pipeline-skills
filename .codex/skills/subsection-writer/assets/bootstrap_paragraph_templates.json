@@ -1,0 +1,28 @@
+{
+  "fallbacks": {
+    "thesis": "{title} is best read as a comparison problem rather than a single architecture category.",
+    "tension_statement": "reported gains are often shaped by evaluation and interface assumptions as much as by the nominal agent design",
+    "rq": "which design choices create the most consequential trade-offs under comparable protocols",
+    "comparison_axis": "how competing designs are evaluated",
+    "a_label": "one line of work",
+    "b_label": "another line of work",
+    "a_excerpt": "its reported empirical profile",
+    "b_excerpt": "a different operational trade-off",
+    "anchor_text": "the subsection depends on concrete evidence rather than loose description",
+    "evaluation_bullet": "reported settings change how the comparison should be interpreted",
+    "limitation_text": "key protocol details are reported unevenly",
+    "lens": "execution assumptions, evaluation design, and operational constraints"
+  },
+  "items": {
+    "comparison": "A recurring comparison in {title_lower} concerns {axis}. {a_label} is usually supported by evidence such as {a_excerpt} {cite_a}, whereas {b_label} is tied to {b_excerpt} {cite_b}.",
+    "anchor": "Concrete anchors matter in {title_lower} because {text} {cite_all}.",
+    "evaluation": "Evaluation remains part of the substantive comparison in {title_lower} because {bullet} {cite_all}.",
+    "limitation": "A recurring limitation in {title_lower} is that {text} {cite_all}, which narrows how confidently results can be generalized across settings."
+  },
+  "paragraphs": {
+    "opener": "{title} becomes analytically useful only when the subsection is read through a stable analytical frame rather than as a loose method bucket. The central claim here is that {thesis} {seed_cites}. That framing matters because {tension}, and it makes the subsection's guiding question explicit: {rq}.",
+    "synthesis": "Taken together, these comparisons show that {title_lower} should be judged through {lens} rather than through isolated benchmark wins. Across the cited evidence, stronger results usually coincide with more explicit protocol choices, clearer tool contracts, and more transparent assumptions about cost or access {used_cites}.",
+    "conclusion": "The safest synthesis is therefore conservative: the literature already supports meaningful contrasts inside {title_lower}, but those contrasts stay interpretable only when the subsection keeps architecture, protocol, and limitation signals in the same frame {used_cites_tail}.",
+    "cautious_fallback": "A cautious reading is still possible: the available evidence already identifies meaningful trade-offs in {title_lower}, but stronger claims depend on better-aligned protocol details and clearer reporting assumptions {used_cites}."
+  }
+}

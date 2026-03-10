@@ -12,6 +12,17 @@ from tooling.common import atomic_write_text, copy_tree, today_iso
 from tooling.executor import run_one_unit
 from tooling.pipeline_spec import PipelineSpec
 
+LEGACY_PIPELINE_ALIASES = {
+    "idea-finder": "idea-brainstorm",
+    "idea-finder.pipeline.md": "idea-brainstorm",
+    "pipelines/idea-finder.pipeline.md": "idea-brainstorm",
+}
+
+
+def _normalize_pipeline_name(pipeline: str) -> str:
+    value = str(pipeline or "").strip()
+    return LEGACY_PIPELINE_ALIASES.get(value, value)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="pipeline.py")
@@ -261,10 +272,12 @@ def main() -> int:
 
 
 def _resolve_pipeline_path(repo_root: Path, pipeline: str) -> Path:
-    candidate = Path(pipeline)
+    # Active contract is `idea-brainstorm`; `idea-finder` is retained only as a legacy compatibility shim.
+    normalized = _normalize_pipeline_name(pipeline)
+    candidate = Path(normalized)
     if candidate.exists():
         return candidate.resolve()
-    name = pipeline
+    name = normalized
     if name.endswith(".pipeline.md"):
         filename = name
     else:
@@ -306,7 +319,7 @@ def _auto_pick_pipeline(topic: str) -> str:
         or ("找方向" in topic)
         or ("找 idea" in t)
     ):
-        return "idea-finder"
+        return "idea-brainstorm"
     if "systematic" in t or "prisma" in t or "系统综述" in topic:
         return "systematic-review"
     if "tutorial" in t or "教程" in topic:

@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Any
 
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+DEFAULTS_PATH = PACKAGE_ROOT / "assets" / "outline_defaults.yaml"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
@@ -32,35 +36,19 @@ def main() -> int:
     if not isinstance(taxonomy, list) or not taxonomy:
         raise SystemExit(f"Invalid taxonomy in {taxonomy_path}")
 
-    # Never overwrite non-placeholder user work.
+    defaults = load_yaml(DEFAULTS_PATH) if DEFAULTS_PATH.exists() else None
+    if not isinstance(defaults, dict):
+        raise SystemExit(f"Invalid outline defaults asset: {DEFAULTS_PATH}")
+    _validate_defaults(defaults)
+
     if out_path.exists() and out_path.stat().st_size > 0:
         existing = out_path.read_text(encoding="utf-8", errors="ignore")
         if not _is_placeholder(existing):
             return 0
 
     outline: list[dict[str, Any]] = [
-        {
-            "id": "1",
-            "title": "Introduction",
-            "bullets": [
-                "Intent: motivate the topic, set scope boundaries, and explain why the survey is needed now.",
-                "RQ: What is the survey scope and what reader questions will the taxonomy answer?",
-                "Evidence needs: define key terms; position vs related work; summarize what evidence is collected (datasets/metrics/benchmarks).",
-                "Expected cites: >=10 across intro + background (surveys, seminal works, widely-used benchmarks).",
-                "Structure: preview the taxonomy and how later sections map to evidence and comparisons.",
-            ],
-        },
-        {
-            "id": "2",
-            "title": "Related Work",
-            "bullets": [
-                "Intent: position this survey relative to adjacent lines of work (agents, tool use, RAG, evaluation, security) and existing surveys/reviews.",
-                "RQ: What does this survey add beyond existing overviews (taxonomy choices, evidence-first criteria, evaluation focus)?",
-                "Evidence needs: cite 3–6 surveys/reviews and 3–6 foundational works; clarify scope boundaries and terminology.",
-                "Expected cites: >=10 (surveys/reviews + seminal works + widely-used benchmarks).",
-                "Structure: explain how the taxonomy differs from common organization schemes and why it supports deeper comparisons.",
-            ],
-        },
+        _fixed_section(defaults=defaults, key="intro_section"),
+        _fixed_section(defaults=defaults, key="related_work_section"),
     ]
 
     section_no = 3
@@ -75,7 +63,7 @@ def main() -> int:
         section: dict[str, Any] = {
             "id": section_id,
             "title": name,
-            "bullets": _section_meta_bullets(title=name, hint=topic_desc),
+            "bullets": _section_meta_bullets(title=name, hint=topic_desc, defaults=defaults),
             "subsections": [],
         }
 
@@ -90,7 +78,7 @@ def main() -> int:
                 {
                     "id": subsection_id,
                     "title": child_name,
-                    "bullets": _subsection_bullets(parent=name, title=child_name, hint=child_desc),
+                    "bullets": _subsection_bullets(parent=name, title=child_name, hint=child_desc, defaults=defaults),
                 }
             )
             subsection_no += 1
@@ -102,17 +90,41 @@ def main() -> int:
     return 0
 
 
+def _validate_defaults(defaults: dict[str, Any]) -> None:
+    for key in ("intro_section", "related_work_section", "section_defaults", "subsection_defaults"):
+        if not isinstance(defaults.get(key), dict):
+            raise SystemExit(f"Missing `{key}` in {DEFAULTS_PATH}")
+    if not isinstance(defaults.get("comparison_axis_packs"), list):
+        raise SystemExit(f"Missing `comparison_axis_packs` in {DEFAULTS_PATH}")
+    if not str(defaults.get("fallback_comparison_axes") or "").strip():
+        raise SystemExit(f"Missing `fallback_comparison_axes` in {DEFAULTS_PATH}")
+
+
+def _fixed_section(*, defaults: dict[str, Any], key: str) -> dict[str, Any]:
+    section = defaults.get(key)
+    if not isinstance(section, dict):
+        raise SystemExit(f"Missing `{key}` in {DEFAULTS_PATH}")
+    title = str(section.get("title") or "").strip()
+    bullets = [str(item).strip() for item in (section.get("bullets") or []) if str(item).strip()]
+    if not title or not bullets:
+        raise SystemExit(f"Invalid `{key}` config in {DEFAULTS_PATH}")
+    return {
+        "id": str(section.get("id") or "").strip() or ("1" if key == "intro_section" else "2"),
+        "title": title,
+        "bullets": bullets,
+    }
+
+
 def _hint_sentence(text: str, *, max_len: int = 220) -> str:
     raw = (text or "").strip()
     if not raw:
         return ""
     raw = re.sub(r"\s+", " ", raw).strip()
 
-    # Try to extract a short first sentence.
     best = raw
     for sep in [".", "。", ";"]:
         idx = raw.find(sep)
-        if idx > 40:  # avoid tiny fragments
+        if idx > 40:
             best = raw[: idx + 1].strip()
             break
 
@@ -121,93 +133,74 @@ def _hint_sentence(text: str, *, max_len: int = 220) -> str:
     return best
 
 
-def _section_meta_bullets(*, title: str, hint: str = "") -> list[str]:
-    title = (title or "").strip() or "this chapter"
+def _render_template(template: str, **kwargs: str) -> str:
+    return str(template or "").format(**kwargs).strip()
+
+
+def _section_meta_bullets(*, title: str, hint: str = "", defaults: dict[str, Any]) -> list[str]:
+    config = defaults.get("section_defaults") or {}
+    if not isinstance(config, dict):
+        raise SystemExit(f"Missing `section_defaults` in {DEFAULTS_PATH}")
+
     hint_short = _hint_sentence(hint)
-
     bullets = [
-        f"Intent: define the design space for {title} and provide cross-subsection comparisons.",
-        f"RQ: What is the organizing logic of {title}, and which comparisons are most decision-relevant?",
+        _render_template(str(config.get("intent") or ""), title=title, hint_short=hint_short, parent=""),
+        _render_template(str(config.get("rq") or ""), title=title, hint_short=hint_short, parent=""),
     ]
-    if hint_short:
-        bullets.append(f"Scope cues: {hint_short}")
-    bullets.extend(
-        [
-            "Evidence needs: representative methods; evaluation protocols; known failure modes; connections to adjacent chapters.",
-            "Expected cites: each subsection >=3; chapter total should be high enough to support evidence-first synthesis.",
-            "Chapter lead plan: later write a short (2–3 paragraph) lead that previews the key comparison axes and how the H3 subsections connect.",
-        ]
-    )
-    return bullets
+    scope_template = str(config.get("scope_cues") or "").strip()
+    if hint_short and scope_template:
+        bullets.append(_render_template(scope_template, title=title, hint_short=hint_short, parent=""))
+    for key in ("evidence_needs", "expected_cites", "chapter_lead_plan"):
+        bullets.append(_render_template(str(config.get(key) or ""), title=title, hint_short=hint_short, parent=""))
+    return [bullet for bullet in bullets if bullet]
 
 
-def _subsection_bullets(*, parent: str, title: str, hint: str = "") -> list[str]:
-    title = (title or "").strip() or "this subtopic"
-    parent = (parent or "").strip() or "this chapter"
+def _subsection_bullets(*, parent: str, title: str, hint: str = "", defaults: dict[str, Any]) -> list[str]:
+    config = defaults.get("subsection_defaults") or {}
+    if not isinstance(config, dict):
+        raise SystemExit(f"Missing `subsection_defaults` in {DEFAULTS_PATH}")
+
     hint_short = _hint_sentence(hint)
-
-    # Stage A contract: each H3 must be verifiable with intent/RQ/evidence needs/expected cite density.
-    # Keep bullets checkable; do not leave instruction-like scaffold text (e.g., "enumerate 2-4 ...").
     bullets = [
-        f"Intent: explain what belongs in {title} (within {parent}) and how it differs from neighboring subtopics.",
-        f"RQ: Which design choices in {title} drive the major trade-offs, and how are those trade-offs measured?",
+        _render_template(str(config.get("intent") or ""), title=title, parent=parent, hint_short=hint_short),
+        _render_template(str(config.get("rq") or ""), title=title, parent=parent, hint_short=hint_short),
     ]
-    if hint_short:
-        bullets.append(f"Scope cues: {hint_short}")
-    bullets.extend(
-        [
-            "Evidence needs: core mechanism and system architecture, training and data setup, evaluation protocol (datasets, metrics, human evaluation), compute and latency constraints, and failure modes and limitations.",
-            "Expected cites: >=3 (H3); include >=1 canonical/seminal work and >=1 recent representative work when possible.",
-            "Concrete comparisons: identify >=2 explicit A vs B contrasts (mechanism or protocol) that the subsection must cover.",
-            "Evaluation anchors: name 1-3 benchmarks, datasets, metrics, or protocols that will appear in the subsection.",
-            _comparison_axes_bullet(parent=parent, title=title, hint=hint),
-        ]
-    )
-    return bullets
+    scope_template = str(config.get("scope_cues") or "").strip()
+    if hint_short and scope_template:
+        bullets.append(_render_template(scope_template, title=title, parent=parent, hint_short=hint_short))
+    for key in ("evidence_needs", "expected_cites", "concrete_comparisons", "evaluation_anchors"):
+        bullets.append(_render_template(str(config.get(key) or ""), title=title, parent=parent, hint_short=hint_short))
+    bullets.append(_comparison_axes_bullet(parent=parent, title=title, hint=hint, defaults=defaults))
+    return [bullet for bullet in bullets if bullet]
 
 
+def _comparison_axes_bullet(*, parent: str, title: str, hint: str = "", defaults: dict[str, Any]) -> str:
+    text = " ".join([(title or ""), (hint or "")]).lower()
+    packs = defaults.get("comparison_axis_packs") or []
+    best_score = 0
+    best_bullet = ""
+    if isinstance(packs, list):
+        for pack in packs:
+            if not isinstance(pack, dict):
+                continue
+            keywords = [str(item).strip().lower() for item in (pack.get("keywords") or []) if str(item).strip()]
+            if not keywords:
+                continue
+            score = sum(1 for keyword in keywords if keyword in text)
+            if score <= 0:
+                continue
+            bullet = str(pack.get("bullet") or "").strip()
+            if bullet and score > best_score:
+                best_score = score
+                best_bullet = bullet
 
-def _comparison_axes_bullet(*, parent: str, title: str, hint: str = "") -> str:
-    """Return a content-bearing comparison-axes bullet (no instruction-like scaffold text).
+    if best_bullet:
+        return best_bullet
 
-    Downstream `subsection-briefs` treats `Comparison axes:` as a parseable seed.
-    Keep items as atomic phrases separated by semicolons.
-    """
-
-    text = " ".join([(parent or ""), (title or ""), (hint or "")]).lower()
-
-    # Agent/system survey heuristics.
-    if any(k in text for k in ["agent", "tool", "tool-use", "function", "mcp", "protocol", "interface"]):
-        return (
-            "Comparison axes: tool interface contract (schemas/protocols); tool selection/routing policy; "
-            "sandboxing/permissions/observability; evaluation protocol (tasks, metrics, budget); failure modes."
-        )
-    if any(k in text for k in ["plan", "planning", "reason", "reasoning", "search", "thought", "tree", "mcts"]):
-        return (
-            "Comparison axes: control-loop design (planner/executor); deliberation/search method; "
-            "action grounding (tools vs environment); evaluation protocol (success, cost, latency); failure modes."
-        )
-    if any(k in text for k in ["memory", "retrieval", "rag", "cache", "long-horizon"]):
-        return (
-            "Comparison axes: memory type (episodic/semantic/scratchpad); retrieval source/index; "
-            "write/update/forgetting policy; evaluation protocol (long-horizon success, cost); failure modes."
-        )
-    if any(k in text for k in ["multi-agent", "coordination", "debate", "collaboration", "swarm"]):
-        return (
-            "Comparison axes: communication protocol/roles; aggregation (vote/debate/referee); "
-            "stability/robustness; evaluation protocol (coordination success, cost); failure modes."
-        )
-    if any(k in text for k in ["safety", "security", "attack", "threat", "guardrail", "injection", "exfiltration"]):
-        return (
-            "Comparison axes: threat model; defense surface (policy/sandbox/monitoring); "
-            "security evaluation protocol; robustness vs capability trade-offs; failure modes."
-        )
-
-    # Generic fallback (still content-bearing; semicolon-separated).
-    return (
-        "Comparison axes: core mechanism/architecture; training/data/supervision; "
-        "evaluation protocol (datasets, metrics, human eval); efficiency (compute, latency, cost); failure modes."
-    )
+    fallback = str(defaults.get("fallback_comparison_axes") or "").strip()
+    if fallback:
+        return fallback
+    raise SystemExit(f"Missing fallback comparison axes in {DEFAULTS_PATH}")
 
 
 def _is_placeholder(text: str) -> bool:

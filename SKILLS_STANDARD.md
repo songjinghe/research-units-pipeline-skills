@@ -60,11 +60,46 @@ Each skill is a folder under `.codex/skills/<skill>/` and must include:
 - `references/` (optional): deeper docs, checklists (avoid bloating `SKILL.md`)
 - `assets/` (optional): templates, schemas, fixtures
 
+### Reference-first design (default)
+
+Skills should be authored **reference-first, script-last**:
+
+1. `SKILL.md` explains the job, workflow, acceptance, and guardrails.
+2. `references/` carries domain judgment, examples, comparison rubrics, and anti-patterns.
+3. `assets/` carries reusable static artifacts (schemas, palettes, starter templates, fixtures).
+4. `scripts/` only automate deterministic transforms/checks that are already justified by the docs.
+
+Authoring default:
+- If the skill is semantic (planning, evidence shaping, writing, editing, ideation), put the *domain logic* in `SKILL.md` + `references/`, not in Python heuristics.
+- If a skill produces reader-facing artifacts, the expected shape/tone/examples should live in `references/` or `assets/`, not as hard-coded prose in `scripts/`.
+- A script-heavy semantic skill with no `references/` or `assets/` needs explicit justification; the default assumption is that the skill is under-documented.
+
+### Responsibility split (what goes where)
+
+- `SKILL.md`
+  - Owns routing/discovery metadata, Inputs/Outputs, workflow, acceptance, guardrails, and when extra files should be loaded.
+  - Must be sufficient for an LLM/human to understand the task without reading source code.
+  - Should stay concise; push detailed examples and domain catalogs down to `references/` / `assets/`.
+
+- `references/`
+  - Owns domain guidance that is judgment-heavy or wording-sensitive: examples-good/bad, decision rubrics, operator catalogs, evaluation-anchor examples, failure modes, style examples, refactor notes.
+  - Preferred home for behavior that would otherwise become hidden Python defaults.
+  - Should be written for selective loading (small focused files, not one giant dump).
+
+- `assets/`
+  - Owns static reusable artifacts: schemas, JSON/YAML templates, palettes, starter tables, fixtures, prompt fragments, format skeletons.
+  - Should be machine-consumable or copyable without adding new domain judgment at runtime.
+
+- `scripts/`
+  - Own scaffolding, validation, compilation, extraction, normalization, deterministic transforms, and report generation.
+  - Must not be the primary source of skill semantics, style policy, or domain defaults.
+
 ### Progressive disclosure (recommended)
 
 1. **YAML front matter**: only `name` + `description` (for discovery/routing).
 2. **`SKILL.md` body**: the workflow + checklists + guardrails.
-3. **Scripts/resources**: loaded only when the workflow calls for them.
+3. **`references/` + `assets/`**: domain examples, schemas, and reusable patterns.
+4. **Scripts/resources**: loaded only when the workflow calls for them.
 
 ### Description field (routing-friendly)
 
@@ -91,11 +126,46 @@ Borrowing the best pattern from Anthropic’s `skills` repos:
   - compilation (LaTeX build, QA reports)
   - deterministic transforms (MD→LaTeX conversion, dedupe/ranking)
 
+Deterministic means:
+- Same inputs + same repo state => same outputs (stable ordering, stable IDs, no hidden randomness).
+- No hidden stochastic prose generation inside scripts.
+- No hidden domain decisions that cannot be inspected from `SKILL.md` / `references/` / `assets/`.
+
 Authoring rule (skills-first):
 - The primary workflow must be readable and executable from `SKILL.md` alone (LLM-first). If a script exists, treat it as **optional validation/scaffolding**, not the main instruction path.
 - Avoid writing skills that *require* users to run `python .../run.py` as step 1; prefer “write/inspect artifacts” first, then offer scripts as an optional deterministic check.
 
 **Avoid** scripts that “replace” semantic work (taxonomy/outline/notes/writing). If a script exists for those, it must be clearly labeled **bootstrap only** and the workflow must still require LLM refinement before marking a unit `DONE`.
+
+### Generic-skill prohibitions (forbidden in scripts and generated artifacts)
+
+Do **not** hide the following inside skill scripts:
+
+- **Domain default values that belong in docs/assets**
+  - e.g., default comparison axes, canned cluster-specific theses, fallback limitations, evaluation caveat lists, ranking rubrics, operator catalogs.
+  - If the value is domain-specific or likely to evolve during refactor, move it to `references/` or `assets/`.
+
+- **Prose templates for reader-facing content**
+  - e.g., canned abstract/introduction paragraphs, fixed chapter-lead paragraphs, canned "why now / hypothesis / first-week plan" text.
+  - Scripts may scaffold placeholders or manifests; they must not silently author the paper/memo voice.
+
+- **Forced paragraph counts or hidden content quotas**
+  - e.g., `while len(paragraphs) < N`, always-generate-10-paragraphs, fixed numbers of idea cards explained only in code.
+  - If a minimum exists, state it in `SKILL.md`; if it is reader-facing structure, justify it in `references/`.
+
+- **Reader-facing ellipsis / scaffold leakage**
+  - e.g., `...`, `…`, `... (N more)`, `TODO`, placeholder stubs in final Markdown.
+
+- **Pipeline voice in reader-facing deliverables**
+  - e.g., `this pipeline`, `this run`, `workspace`, `unit`, `quality gate`, `evidence pack` in final prose.
+
+- **Hidden policy drift**
+  - If a script's behavior would surprise a maintainer reading only `SKILL.md`, it is too semantic to live only in code.
+
+Preferred refactor path:
+- move judgment-heavy defaults to `references/`
+- move reusable static shapes to `assets/`
+- keep scripts as deterministic executors/checkers
 
 ## 2a) Role-based prompting (Anthropic-style, prompt-level guidance)
 
@@ -148,6 +218,7 @@ When a skill writes/edits prose (C5), prefer a "paper voice" contract over britt
 - ❌ "This survey should..." (limit ≤1 per draft)
 - ❌ "Two limitations..." / "The key point is that..." as repeated cross-section sentence slots
 - ❌ "This run demonstrates..." (avoid entirely)
+- ❌ `this pipeline aims ...` / `this workspace ...` / `quality gate` / `evidence pack`
 - ✅ Instead: vary synthesis openers (decision-first, tension-first, evidence-first)
 
 **Meta-guidance phrasing** (talking about the paper instead of doing research):
@@ -177,6 +248,7 @@ C2-C4 outputs must be **structured, non-narrative** to prevent "middle-state lea
 - ❌ Meta-phrases about transformation (e.g., "turning X into Y", "bridging A to B")
 - ❌ Template phrases (e.g., "Taken together", "This subsection will")
 - ❌ Planner talk (e.g., "After establishing X, we move to Y")
+- ❌ Reader-facing ellipsis / placeholder leakage (`...`, `…`, `TODO`, `... (N more)`)
 
 **18 skills enforce this**: subsection-briefs, evidence-draft, evidence-binder, anchor-sheet, writer-context-pack, claim-matrix-rewriter, table-schema, chapter-briefs, transition-weaver (output only), and others in C2-C4.
 
@@ -327,7 +399,10 @@ If you have legacy artifacts (mixed field names / `@BibKey` prefixes), run `sche
 
 - [ ] Has `SKILL.md` with `name` + `description`.
 - [ ] Declares clear **Inputs / Outputs** and **Acceptance criteria**.
+- [ ] `SKILL.md` is the primary instruction surface; semantic behavior is not hidden in scripts.
+- [ ] If the skill is semantic or reader-facing, it includes `references/` and/or `assets/` for examples, schemas, rubrics, or reusable templates.
 - [ ] If scripts exist: they are deterministic and safe; `SKILL.md` explains when to use them.
+- [ ] Scripts do not own prose templates, hidden domain defaults, forced paragraph counts, reader-facing ellipsis, or pipeline voice.
 - [ ] If outputs JSONL: follows standardized field names from section 6.
 
 ### New pipeline

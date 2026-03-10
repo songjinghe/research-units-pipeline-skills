@@ -27,8 +27,8 @@ def main() -> int:
     from tooling.ideation import DEFAULT_IDEA_RUBRIC, extract_goal_from_goal_md
 
     workspace = Path(args.workspace).resolve()
-    outputs = parse_semicolon_list(args.outputs) or ["output/IDEA_BRIEF.md", "queries.md", "DECISIONS.md"]
-    brief_rel = next((x for x in outputs if x.endswith("IDEA_BRIEF.md")), "output/IDEA_BRIEF.md")
+    outputs = parse_semicolon_list(args.outputs) or ["output/trace/IDEA_BRIEF.md", "queries.md", "DECISIONS.md"]
+    brief_rel = next((x for x in outputs if x.endswith("IDEA_BRIEF.md")), "output/trace/IDEA_BRIEF.md")
     queries_rel = next((x for x in outputs if x.endswith("queries.md")), "queries.md")
     decisions_rel = next((x for x in outputs if x.endswith("DECISIONS.md")), "DECISIONS.md")
 
@@ -42,32 +42,42 @@ def main() -> int:
     topic = extract_goal_from_goal_md(workspace / "GOAL.md")
     toks = _topic_tokens(topic)
     query_buckets = [
-        f"{' '.join(toks)} evaluation reliability benchmark",
-        f"{' '.join(toks)} failure mode protocol",
-        f"{' '.join(toks)} safety governance auditability",
-        f"{' '.join(toks)} system constraints latency cost permissions",
+        f"{' '.join(toks)} agent evaluation reliability",
+        f"{' '.join(toks)} failure mode limitation",
+        f"{' '.join(toks)} adaptation planning memory",
+        f"{' '.join(toks)} benchmark risk governance",
     ]
     brief_lines = [
         "# IDEA_BRIEF",
         "",
         "## Goal",
         f"- Topic: {topic}",
-        "- Deliverable: `output/IDEA_SHORTLIST.md` + `output/IDEA_TOP3_REPORT.md`",
-        "- Objective: produce a small set of feasible, evidence-anchored research ideas rather than a full survey draft",
+        "- Deliverable: `output/REPORT.md` + `output/APPENDIX.md` + `output/REPORT.json`",
+        "- Objective: produce a discussion-ready research idea brainstorm memo rather than a project execution spec",
         "",
         "## Scope",
         "- In scope:",
-        f"  - research ideas directly related to {topic}",
-        "  - evaluation, failure modes, interventions, and system constraints that can be tested with modest resources",
+        f"  - research directions directly related to {topic}",
+        "  - tensions, missing pieces, and academically meaningful axes suggested by the literature",
         "- Out of scope:",
-        "  - ideas requiring proprietary telemetry by default",
-        "  - open-ended platform building without a bounded first experiment",
+        "  - full survey drafting",
+        "  - rigid project management plans",
+        "  - ideas that only work as benchmark-wrapper restatements",
+        "",
+        "## Audience",
+        "- Primary readers: PI / PhD",
+        "- Primary use: discussion, prioritization, and next-round reading / deeper thinking",
         "",
         "## Constraints",
-        "- Timebox: 1 week for the first smoke-test experiment",
-        "- Team size: 1-2 people",
-        "- Compute: modest",
         "- Evidence mode: abstract by default unless fulltext is explicitly requested",
+        "- Discussion horizon: directions should be strong enough to discuss, not necessarily ready to execute immediately",
+        "- Preference: fewer, sharper directions over a large templated pool",
+        "- Memo contract: each lead direction must expose a distinct thesis line, an explicit rank basis, a quick kill criterion, and paper-specific reading notes",
+        "",
+        "## Exclusions",
+        "- proprietary telemetry by default",
+        "- pure product execution planning",
+        "- inspirational future-work dumping without literature anchors",
         "",
         "## Rubric",
         "| criterion | weight | note |",
@@ -81,11 +91,17 @@ def main() -> int:
             "## Targets",
             "- Candidate retrieval pool: >=800",
             "- Core set size: 100",
-            "- Opportunity rows: >=16",
-            "- Idea pool size: 60-80",
-            "- Screened candidates: 12-18",
-            "- Final shortlist size: 5-7",
-            "- Top-3 report size: 3",
+            "- Signal table rows: 10-20",
+            "- Direction pool size: 12-24",
+            "- Screened directions: 8-12",
+            "- Final shortlist size: 5",
+            "- Memo lead directions: 3",
+            "- Lead-set cluster diversity: >=2",
+            "- Lead-set program-kind diversity: >=2",
+            "- Reading-guide rows per lead direction: >=3 anchor papers",
+            "",
+            "## Focus lenses after C2",
+            "- Focus clusters: (to be filled after C2 approval)",
             "",
             "## Query Buckets",
         ]
@@ -95,14 +111,10 @@ def main() -> int:
     brief_lines.extend(
         [
             "",
-            "## Exclusions",
-            "- robotics",
-            "- purely inspirational future-work lists",
-            "- hidden enterprise telemetry",
-            "",
             "## Table Policy",
-            "- Use tables for opportunity mapping, screening, and cross-idea comparison.",
-            "- Use cards only for the final shortlist and top-3 expansion.",
+            "- Use tables for signals, screening, and shortlist convergence.",
+            "- Reserve prose for the final brainstorm memo and appendix only.",
+            "- The appendix must function as a reading guide, not as a generic reminder list.",
             "",
             "## Open Questions",
             "- None by default; refine interactively when the user provides extra constraints.",
@@ -114,14 +126,16 @@ def main() -> int:
     query_lines = [
         "# queries",
         "",
-        '- draft_profile: "idea_finder"',
+        '- draft_profile: "idea_brainstorm"',
         '- max_results: "1800"',
         '- core_size: "100"',
-        '- idea_pool_min: "60"',
-        '- idea_pool_max: "80"',
-        '- idea_screen_top_n: "15"',
-        '- idea_shortlist_size: "7"',
-        '- idea_top3_size: "3"',
+        '- direction_pool_min: "12"',
+        '- direction_pool_max: "24"',
+        '- idea_screen_top_n: "10"',
+        '- idea_shortlist_size: "5"',
+        '- report_top_n: "3"',
+        '- lead_set_cluster_diversity: "2"',
+        '- lead_set_program_diversity: "2"',
         '- evidence_mode: "abstract"',
         '- keywords:',
     ]
@@ -129,10 +143,9 @@ def main() -> int:
         query_lines.append(f"  - {q}")
     query_lines.extend([
         '- exclude:',
-        '  - robotics',
-        '  - embodied navigation',
         '  - proprietary telemetry',
-        '  - react hooks',
+        '  - product roadmap',
+        '  - inspirational future work',
         '',
     ])
     atomic_write_text(queries_path, "\n".join(query_lines).rstrip() + "\n")
@@ -145,8 +158,8 @@ def main() -> int:
                     "# Decisions log",
                     "",
                     "## Approvals (check to unblock)",
-                    "- [ ] Approve C0 (kickoff: scope/sources/time window/constraints)",
-                    "- [ ] Approve C2 (focus clusters + exclusions)",
+                    "- [ ] Approve C0 (kickoff: topic / constraints / exclusions)",
+                    "- [ ] Approve C2 (focus lenses + exclusions)",
                     "",
                 ]
             )

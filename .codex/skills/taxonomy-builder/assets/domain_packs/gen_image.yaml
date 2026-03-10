@@ -1,0 +1,63 @@
+profile: gen_image
+display_name: Generative image models
+compatibility_mode: p0
+detect:
+  any_of:
+    - diffusion
+    - text-to-image
+    - text to image
+    - image generation
+    - stable diffusion
+    - sdxl
+    - dit
+    - pixart
+    - imagen
+    - maskgit
+    - vqgan
+    - vqvae
+    - gan
+    - autoregressive
+representative_papers:
+  top_level_max: 4
+  suffix_template: " Representative paper_id(s): {paper_ids}."
+taxonomy:
+  - name: "Foundations & Formulations"
+    description_base: "Core objectives, representations, and sampling/inference formulations for modern generative image models."
+    representative_terms: [diffusion, text, image, token, gan, edit]
+    children:
+      - name: "Objectives and likelihood views"
+        description: "Training objectives (denoising/score matching, autoregressive factorization, adversarial training) and what they optimize."
+      - name: "Representations (pixel/latent/token)"
+        description: "How representations (pixel space, continuous latents, discrete tokens) shape compute, fidelity, and controllability."
+      - name: "Sampling and efficiency"
+        description: "Samplers/solvers, guidance, distillation/consistency, and other techniques that reduce inference steps and cost."
+  - name: "Model Families (Diffusion & Token-based)"
+    description_base: "Major model families for text-to-image generation and editing, and the trade-offs they induce (quality, speed, controllability)."
+    representative_terms: [diffusion, latent, transformer, token, masked, autoregressive]
+    children:
+      - name: "Diffusion and latent diffusion"
+        description: "Diffusion-style pipelines, latent diffusion, and conditioning mechanisms (cross-attention) with implications for compute and controllability."
+      - name: "Diffusion transformers and scaling"
+        description: "Transformer backbones (DiT-style) and scaling/architecture choices that affect sample quality, training stability, and inference speed."
+      - name: "Token-based / AR / masked generation"
+        description: "Discrete tokenization, autoregressive or masked token predictors, and decoding strategies; comparisons versus diffusion pipelines."
+  - name: "Control, Editing & Conditioning"
+    description_base: "Mechanisms to steer generation: structured conditioning, layout/geometry signals, inpainting/editing, and personalization."
+    representative_terms: [control, editing, conditioning, personalization, lora, dreambooth]
+    children:
+      - name: "Structured controls"
+        description: "Conditioning with geometry/layout/depth/pose/segmentation and how control signals propagate through the backbone."
+      - name: "Instruction-guided editing"
+        description: "Editing/inversion methods, text-based editing, and failure modes such as identity drift or over-editing."
+      - name: "Personalization and tuning"
+        description: "Fine-tuning and parameter-efficient adaptation (e.g., LoRA-like) for subject-driven personalization with limited examples."
+  - name: "Evaluation, Safety & Provenance"
+    description_base: "How models are evaluated, common benchmark pitfalls, and concerns around bias, misuse, and provenance/watermarking."
+    representative_terms: [evaluation, benchmark, safety, provenance, watermark, robustness]
+    children:
+      - name: "Metrics and human evaluation"
+        description: "Automatic metrics (distribution/semantic alignment) and human evaluation protocols; gaps between metrics and perception."
+      - name: "Robustness and failure modes"
+        description: "Prompt sensitivity, compositional failures, bias/toxicity, and reliability issues under distribution shift."
+      - name: "Provenance and safeguards"
+        description: "Watermarking/provenance, dataset governance, and mitigation strategies for misuse and deepfakes."

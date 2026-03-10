@@ -20,6 +20,171 @@ class PaperRef:
     evidence_level: str
 
 
+_ASSET_CACHE: dict[str, Any] | None = None
+
+
+def _skill_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _load_json_asset(path: Path) -> Any:
+    if not path.exists() or path.stat().st_size <= 0:
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return {}
+    return data if isinstance(data, (dict, list)) else {}
+
+
+def _list_strings(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for item in value:
+        text = re.sub(r"\s+", " ", str(item or "").strip())
+        if text:
+            out.append(text)
+    return out
+
+
+def _runtime_assets() -> dict[str, Any]:
+    global _ASSET_CACHE
+    if _ASSET_CACHE is not None:
+        return _ASSET_CACHE
+
+    root = _skill_root() / "assets"
+    phrase_root = root / "phrase_packs"
+    domain_root = root / "domain_packs"
+
+    phrase_packs: dict[str, dict[str, Any]] = {}
+    for path in sorted(phrase_root.glob("*.json")) if phrase_root.exists() else []:
+        data = _load_json_asset(path)
+        if isinstance(data, dict):
+            phrase_packs[path.stem] = data
+
+    domain_packs: dict[str, dict[str, Any]] = {}
+    for path in sorted(domain_root.glob("*.json")) if domain_root.exists() else []:
+        data = _load_json_asset(path)
+        if not isinstance(data, dict):
+            continue
+        name = str(data.get("name") or path.stem).strip() or path.stem
+        domain_packs[name] = data
+
+    _ASSET_CACHE = {
+        "phrase_packs": phrase_packs,
+        "domain_packs": domain_packs,
+    }
+    return _ASSET_CACHE
+
+
+def _contains_any(text: str, needles: list[str]) -> bool:
+    low = (text or "").lower()
+    return any(str(n or "").strip().lower() in low for n in needles if str(n or "").strip())
+
+
+def _selected_domain_packs(*, sub_title: str, goal: str) -> list[dict[str, Any]]:
+    assets = _runtime_assets()
+    title_low = (sub_title or "").lower()
+    goal_low = (goal or "").lower()
+
+    ranked: list[tuple[int, str, dict[str, Any]]] = []
+    for name, pack in (assets.get("domain_packs") or {}).items():
+        if name == "generic" or not isinstance(pack, dict):
+            continue
+        detect = pack.get("detect") or {}
+        if not isinstance(detect, dict):
+            continue
+
+        title_any = _list_strings(detect.get("title_any"))
+        goal_any = _list_strings(detect.get("goal_any"))
+        title_all = _list_strings(detect.get("title_all"))
+        goal_all = _list_strings(detect.get("goal_all"))
+
+        matched = False
+        if title_any and _contains_any(title_low, title_any):
+            matched = True
+        if goal_any and _contains_any(goal_low, goal_any):
+            matched = True
+        if title_all and all(term.lower() in title_low for term in title_all):
+            matched = True
+        if goal_all and all(term.lower() in goal_low for term in goal_all):
+            matched = True
+        if not matched:
+            continue
+
+        priority = int(pack.get("priority") or 100)
+        ranked.append((priority, name, pack))
+
+    ranked.sort(key=lambda item: (item[0], item[1]))
+    return [pack for _, _, pack in ranked]
+
+
+def _apply_pack_axis_rules(*, pack: dict[str, Any], title_low: str, goal_low: str, add: Any) -> None:
+    for rule in pack.get("axis_rules") or []:
+        if not isinstance(rule, dict):
+            continue
+        source = str(rule.get("source") or "title").strip().lower()
+        haystack = title_low
+        if source == "goal":
+            haystack = goal_low
+        elif source == "both":
+            haystack = f"{title_low}\n{goal_low}"
+
+        match_any = _list_strings(rule.get("match_any"))
+        if match_any and not _contains_any(haystack, match_any):
+            continue
+
+        for item in _list_strings(rule.get("items")):
+            add(item)
+
+
+def _first_formatted_template(*, title: str, joined: str, rules: Any) -> str:
+    if not isinstance(rules, list):
+        return ""
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        match_any = _list_strings(rule.get("match_any"))
+        if match_any and not _contains_any(joined, match_any):
+            continue
+        template = str(rule.get("template") or "").strip()
+        if template:
+            return template.format(title=title)
+    return ""
+
+
+def _collect_pack_items(*, joined: str, rules: Any) -> list[str]:
+    out: list[str] = []
+    if not isinstance(rules, list):
+        return out
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        match_any = _list_strings(rule.get("match_any"))
+        if match_any and not _contains_any(joined, match_any):
+            continue
+        for item in _list_strings(rule.get("items")):
+            if item not in out:
+                out.append(item)
+    return out
+
+
+def _first_pack_label(*, joined: str, rules: Any) -> str:
+    if not isinstance(rules, list):
+        return ""
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        match_any = _list_strings(rule.get("match_any"))
+        if match_any and not _contains_any(joined, match_any):
+            continue
+        label = re.sub(r"\s+", " ", str(rule.get("label") or "").strip())
+        if label:
+            return label
+    return ""
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
@@ -310,24 +475,25 @@ def _thesis_statement(*, sub_title: str, axes: list[str], evidence_summary: dict
     has_fulltext = int(evidence_summary.get("fulltext", 0) or 0) > 0
     seed = f"thesis:{title}:{axes_phrase}:{'fulltext' if has_fulltext else 'abstract'}"
 
-    # The thesis is an internal execution hint for C5 writers; avoid "This subsection ..." meta-prose
-    # because it creates repetitive, generator-like openers in the final draft.
-    if has_fulltext:
-        options = [
-            f"Design choices in {title} create decision-relevant trade-offs—especially in {axes_phrase}—and meaningful comparisons depend on consistent evaluation protocols.",
-            f"The core tension in {title} lies in {axes_phrase}, and the literature is most informative when methods are compared under shared evaluation settings.",
-            f"Across reported systems in {title}, variation in {axes_phrase} drives downstream trade-offs, making protocol-aligned evaluation a first-class design constraint.",
-            f"In {title}, decisions about {axes_phrase} often dominate practical outcomes; protocol-consistent comparisons make these trade-offs interpretable.",
-        ]
+    pack = (_runtime_assets().get("phrase_packs") or {}).get("thesis_patterns") or {}
+    key = "fulltext" if has_fulltext else "abstract"
+    options = []
+    for template in _list_strings(pack.get(key)):
+        try:
+            options.append(template.format(title=title, axes_phrase=axes_phrase))
+        except Exception:
+            continue
+    if options:
         return _pick(seed, options)
 
-    options = [
-        f"{title} methods emphasize {axes_phrase} trade-offs, but synthesis is clearest when claims are tied to explicit evaluation settings and reporting conventions.",
-        f"For {title}, {axes_phrase} is a recurring axis of variation, and results are easiest to interpret when protocols and failure assumptions are explicit.",
-        f"{title} highlights a tension around {axes_phrase}, motivating a protocol-aware synthesis rather than per-paper summaries.",
-        f"In {title}, differences in {axes_phrase} frequently imply different evaluation setups, so the key is to compare under consistent protocols where possible.",
-    ]
-    return _pick(seed, options)
+    fallback = str(pack.get("fallback") or "").strip()
+    if fallback:
+        try:
+            return fallback.format(title=title, axes_phrase=axes_phrase)
+        except Exception:
+            pass
+
+    return f"{title}: {axes_phrase}"
 
 
 def _tension_statement(*, sub_title: str, axes: list[str], goal: str) -> str:
@@ -338,60 +504,30 @@ def _tension_statement(*, sub_title: str, axes: list[str], goal: str) -> str:
     """
 
     title = re.sub(r"\s+", " ", (sub_title or "").strip())
-    # Title-first heuristics: axes/required-fields often contain generic tokens (e.g., "protocol"),
-    # which can collapse many subsections into the same tension statement.
     joined = " ".join([title.lower(), (goal or "").lower()])
 
-    if any(k in joined for k in ["safety", "security", "attack", "threat", "guardrail", "sandbox", "injection", "governance"]):
-        return (
-            f"In {title}, a key tension is capability versus safety: stronger agent actions increase utility "
-            "but widen the attack surface and raise containment requirements."
-        )
+    for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
+        match = _first_formatted_template(title=title, joined=joined, rules=pack.get("tension_rules"))
+        if match:
+            return match
 
-    if any(k in joined for k in ["benchmark", "benchmarks", "evaluation", "metric", "metrics", "dataset", "datasets"]):
-        return (
-            f"In {title}, a recurring tension is coverage versus comparability: broader suites capture more behaviors "
-            "but make head-to-head comparison fragile when protocols and constraints differ."
-        )
-
-    if any(k in joined for k in ["self-improvement", "self improvement", "adaptation", "self-play", "self play", "reflection", "fine-tune", "finetune"]):
-        return (
-            f"In {title}, the core trade-off is adaptability versus stability: systems that change themselves can improve over time "
-            "but risk drifting, overfitting, or becoming harder to evaluate and control."
-        )
-
-    if any(k in joined for k in ["multi-agent", "multi agent", "coordination", "debate", "swarm", "collaboration"]):
-        return (
-            f"In {title}, the central trade-off is specialization versus coordination: dividing labor can boost performance "
-            "but adds communication overhead and stability risks."
-        )
-
-    if any(k in joined for k in ["plan", "planning", "reason", "search", "tree", "deliberation"]):
-        return (
-            f"In {title}, a recurring tension is deliberation depth versus cost: more planning can improve reliability "
-            "but increases latency and budget sensitivity."
-        )
-
-    if any(k in joined for k in ["memory", "retrieval", "rag", "cache", "long-horizon", "long horizon"]):
-        return (
-            f"In {title}, the core tension is persistence versus freshness: retaining more context helps long-horizon tasks "
-            "but raises staleness, contamination, and verification challenges."
-        )
-
-    if any(k in joined for k in ["tool", "tools", "function", "api", "schema", "mcp", "interface", "orchestration", "routing", "router"]):
-        return (
-            f"In {title}, a practical tension is expressivity versus control: richer interfaces expand capability "
-            "but make behavior harder to constrain and verify."
-        )
+    generic_pack = (_runtime_assets().get("domain_packs") or {}).get("generic") or {}
+    match = _first_formatted_template(title=title, joined=joined, rules=generic_pack.get("tension_rules"))
+    if match:
+        return match
 
     # Fallback: paraphrase axes to reduce slash-style leakage.
     axes_hint = ", ".join(
         [re.sub(r"\s*/\s*", " and ", str(a).strip()) for a in (axes or [])[:2] if str(a).strip()]
     )
     axes_hint = axes_hint or "mechanism and evaluation"
-    return (
-        f"A central tension in {title} is the trade-off between {axes_hint} and what can be evaluated reliably under realistic constraints."
-    )
+    fallback = str(generic_pack.get("tension_fallback") or "").strip()
+    if fallback:
+        try:
+            return fallback.format(title=title, axes_hint=axes_hint)
+        except Exception:
+            pass
+    return f"{title}: {axes_hint}"
 
 
 def _evaluation_anchor_minimal(
@@ -435,6 +571,8 @@ def _evaluation_anchor_minimal(
 
 def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outline_axes: list[str]) -> list[str]:
     axes: list[str] = []
+    assets = _runtime_assets()
+    generic_pack = (assets.get("domain_packs") or {}).get("generic") or {}
 
     def norm(x: str) -> str:
         x = re.sub(r"\s+", " ", (x or "").strip().lower())
@@ -469,75 +607,21 @@ def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outlin
     title_low = (sub_title or "").lower()
     goal_low = (goal or "").lower()
 
-    # Domain-specific axes for LLM-agent surveys (cheap heuristics; should become evidence-driven with richer notes).
-    is_agent_domain = any(k in goal_low for k in ["agent", "agents", "llm agent", "tool use", "tool-use", "memory", "planning"]) or any(
-        k in title_low for k in ["agent", "tool", "memory", "rag", "planning", "reasoning", "multi-agent", "evaluation", "safety", "security"]
-    )
-
-    if is_agent_domain:
-        if any(t in title_low for t in ["agent loop", "action space", "action spaces", "closed-loop", "controller"]):
-            add("action representation (tool call / environment operation)")
-            add("state update and observation fidelity")
-            add("termination and recovery policy")
-        if any(t in title_low for t in ["plan", "planning", "reason", "reasoning", "deliberation", "search", "tree", "thought"]):
-            add("control loop design (planner / executor, search)")
-            add("deliberation method (CoT / ToT / MCTS)")
-            add("action grounding (tool calls vs environment actions)")
-        if any(t in title_low for t in ["tool", "orchestration", "mcp", "api", "function", "protocol"]):
-            add("tool interface (function calling, schemas, protocols)")
-            add("tool selection / routing policy")
-            add("sandboxing / permissions / observability")
-            add("execution contract and error handling")
-        if any(t in title_low for t in ["memory", "retrieval", "rag", "cache", "long-horizon"]):
-            add("memory type (episodic / semantic / scratchpad)")
-            add("retrieval source + index (docs / web / logs)")
-            add("write / update / forgetting policy")
-        if any(t in title_low for t in ["multi-agent", "coordination", "debate", "collaboration", "swarm"]):
-            add("communication protocol + role assignment")
-            add("aggregation (vote / debate / referee)")
-            add("stability (collusion, mode collapse, incentives)")
-        if any(t in title_low for t in ["train", "alignment", "preference", "rl", "reinforcement", "self-improvement", "reflection"]):
-            add("training signal (SFT / preference / RL)")
-            add("data synthesis + evaluator / reward")
-            add("generalization + regression control")
-            add("update trigger and feedback source")
-        if any(t in title_low for t in ["evaluation", "benchmark", "suite", "deploy", "deployment"]):
-            add("task suites (web / code / embodied / tools)")
-            add("metrics (success, cost, reliability, safety)")
-            add("contamination + reproducibility controls")
-            add("budget + tool-access reporting")
-        if any(t in title_low for t in ["safety", "security", "attack", "guardrail", "defense", "vulnerab"]):
-            add("threat model (prompt/tool injection, exfiltration)")
-            add("defense surface (policy, sandbox, monitoring)")
-            add("security evaluation protocol")
-            add("auditability and governance boundary")
-
-    # Existing T2I-specific heuristics (kept for backward compatibility).
-    if any(t in title_low for t in ["representation", "latent", "token", "pixel", "tokenizer", "codebook"]):
-        add("representation (pixel / latent / token)")
-    if any(t in title_low for t in ["sampling", "solver", "distillation", "speed", "efficiency", "steps"]):
-        add("sampling / solver (steps, solver, distillation)")
-    if any(t in title_low for t in ["guidance", "cfg", "classifier-free"]):
-        add("guidance strategy (CFG, conditioning)")
-    if any(t in title_low for t in ["control", "editing", "personalization", "inversion", "lora", "dreambooth"]):
-        add("control / personalization interface")
-    if any(t in title_low for t in ["evaluation", "benchmark", "metrics"]):
-        add("evaluation protocol (benchmarks / metrics / human)")
-
-    if "text-to-image" in goal_low or "t2i" in goal_low or "image generation" in goal_low:
-        add("datasets / benchmarks (COCO, DrawBench, GenEval, etc.)")
+    for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
+        _apply_pack_axis_rules(pack=pack, title_low=title_low, goal_low=goal_low, add=add)
 
     # Final fallback: stable generic set.
-    for a in [
+    fallback_axes = _list_strings(generic_pack.get("fallback_axes")) or [
         "core mechanism and system architecture",
         "training and data setup",
         "evaluation protocol",
         "compute and efficiency",
         "failure modes and limitations",
-    ]:
+    ]
+    for a in fallback_axes:
         add(a)
 
-    generic = {
+    generic = set(norm(a) for a in (_list_strings(generic_pack.get("generic_axes")) or [
         "core mechanism and system architecture",
         "training and data setup",
         "evaluation protocol",
@@ -552,7 +636,7 @@ def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outlin
         "sandboxing / permissions / observability",
         "failure modes and limitations",
         "failure modes and limitations.",
-    }
+    ]))
 
     # Reorder: keep non-generic axes first so heuristics aren't crowded out by scaffold-y outline axes.
     ordered: list[str] = []
@@ -587,53 +671,34 @@ def _bridge_terms(*, sub_title: str, axes: list[str], goal: str) -> list[str]:
 
     title_low = (sub_title or "").lower()
     goal_low = (goal or "").lower()
+    joined = "\n".join([title_low, goal_low])
+    assets = _runtime_assets()
+    generic_pack = (assets.get("domain_packs") or {}).get("generic") or {}
+    bridge_pack = (assets.get("phrase_packs") or {}).get("bridge_contrast") or {}
 
+    stopwords = {x.lower() for x in _list_strings(bridge_pack.get("bridge_stopwords"))} or {"mechanism", "data", "evaluation", "efficiency", "limitations"}
     terms: list[str] = []
 
     def add(x: str) -> None:
         x = re.sub(r"\s+", " ", (x or "").strip())
         if not x:
             return
-        if x.lower() in {"mechanism", "data", "evaluation", "efficiency", "limitations"}:
+        if x.lower() in stopwords:
             return
         if x not in terms:
             terms.append(x)
 
-    # Agent-domain heuristics (cheap but useful for coherence).
-    if any(k in goal_low for k in ["agent", "agents", "tool use", "tool-use", "memory", "planning"]) or any(
-        k in title_low for k in ["agent", "tool", "memory", "rag", "planning", "reasoning", "multi-agent", "evaluation", "safety", "security"]
-    ):
-        if any(t in title_low for t in ["plan", "planning", "reason", "reasoning", "deliberation", "search", "tree", "thought"]):
-            for t in ["planner/executor", "search", "deliberation", "action grounding"]:
-                add(t)
-        if any(t in title_low for t in ["tool", "orchestration", "mcp", "api", "function", "protocol"]):
-            for t in ["function calling", "tool schema", "routing", "sandbox", "observability"]:
-                add(t)
-        if any(t in title_low for t in ["memory", "retrieval", "rag", "cache", "long-horizon"]):
-            for t in ["retrieval", "index", "write policy", "long-term memory"]:
-                add(t)
-        if any(t in title_low for t in ["multi-agent", "coordination", "debate", "collaboration", "swarm"]):
-            for t in ["roles", "communication", "debate", "aggregation", "stability"]:
-                add(t)
-        if any(t in title_low for t in ["train", "alignment", "preference", "rl", "reinforcement", "self-improvement", "reflection"]):
-            for t in ["preference", "reward", "feedback", "self-improvement"]:
-                add(t)
-        if any(t in title_low for t in ["evaluation", "benchmark", "suite", "deploy", "deployment"]):
-            for t in ["benchmarks", "metrics", "reproducibility", "contamination"]:
-                add(t)
-        if any(t in title_low for t in ["safety", "security", "attack", "guardrail", "defense", "vulnerab"]):
-            for t in ["threat model", "prompt/tool injection", "monitoring", "guardrails"]:
-                add(t)
+    for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
+        for item in _collect_pack_items(joined=joined, rules=pack.get("bridge_rules")):
+            add(item)
 
-    # Add lightweight terms from axes.
-    for a in axes[:5]:
-        low = str(a or "").lower()
-        if "benchmark" in low or "metric" in low or "dataset" in low:
-            add("benchmarks/metrics")
-        if "compute" in low or "efficien" in low or "cost" in low:
-            add("compute")
-        if "threat" in low or "security" in low or "attack" in low:
-            add("threat model")
+    axes_joined = "\n".join([str(a or "").lower() for a in axes[:5]])
+    for item in _collect_pack_items(joined=axes_joined, rules=generic_pack.get("bridge_axis_rules")):
+        add(item)
+
+    if not terms:
+        for item in _list_strings(generic_pack.get("bridge_fallback")):
+            add(item)
 
     return terms[:6]
 
@@ -643,33 +708,33 @@ def _contrast_hook(*, sub_title: str, axes: list[str], goal: str) -> str:
 
     title_low = (sub_title or "").lower()
     goal_low = (goal or "").lower()
-    axes_low = " ".join([str(a or "").lower() for a in axes])
+    joined = "\n".join([title_low, goal_low])
+    assets = _runtime_assets()
+    generic_pack = (assets.get("domain_packs") or {}).get("generic") or {}
+    bridge_pack = (assets.get("phrase_packs") or {}).get("bridge_contrast") or {}
 
-    if any(k in goal_low for k in ["agent", "agents"]) or "agent" in title_low:
-        if any(t in title_low for t in ["plan", "planning", "reason", "reasoning", "deliberation", "search", "thought"]):
-            return "planning/control loop"
-        if any(t in title_low for t in ["tool", "orchestration", "mcp", "api", "function", "protocol"]):
-            return "tool interfaces"
-        if any(t in title_low for t in ["memory", "retrieval", "rag", "cache"]):
-            return "memory/retrieval"
-        if any(t in title_low for t in ["multi-agent", "coordination", "debate", "collaboration", "swarm"]):
-            return "coordination"
-        if any(t in title_low for t in ["train", "alignment", "preference", "rl", "self-improvement", "reflection"]):
-            return "learning/feedback"
-        if any(t in title_low for t in ["evaluation", "benchmark", "suite", "deploy", "deployment"]):
-            return "evaluation"
-        if any(t in title_low for t in ["safety", "security", "attack", "guardrail", "defense", "vulnerab"]):
-            return "security"
+    for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
+        label = _first_pack_label(joined=joined, rules=pack.get("contrast_rules"))
+        if label:
+            return label
 
-    if any(t in axes_low for t in ["benchmark", "metric", "dataset", "evaluation"]):
-        return "evaluation"
-    if any(t in axes_low for t in ["compute", "efficien", "cost"]):
-        return "compute"
-    if any(t in axes_low for t in ["failure", "limit"]):
-        return "limitations"
+    axes_joined = "\n".join([str(a or "").lower() for a in axes])
+    label = _first_pack_label(joined=axes_joined, rules=generic_pack.get("contrast_axis_rules"))
+    if label:
+        return label
 
-    # Fallback: first axis phrase.
-    return (axes[0] if axes else "").strip()[:48]
+    fallback = str(generic_pack.get("contrast_fallback") or "").strip()
+    first_axis = (axes[0] if axes else "").strip()
+    max_len = int(bridge_pack.get("contrast_fallback_max_len") or 48)
+    if fallback and first_axis:
+        try:
+            rendered = fallback.format(first_axis=first_axis)
+            if rendered:
+                return rendered[:max_len]
+        except Exception:
+            pass
+
+    return first_axis[:max_len]
 
 
 def _required_evidence_fields(*, sub_title: str, axes: list[str], goal: str) -> list[str]:

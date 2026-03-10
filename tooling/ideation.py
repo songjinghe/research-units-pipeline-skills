@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -10,23 +10,12 @@ from tooling.common import atomic_write_text, ensure_dir, read_jsonl
 
 
 DEFAULT_IDEA_RUBRIC: list[tuple[str, float, str]] = [
-    ("feasibility", 0.25, "can a small team test it in ~1 week?"),
-    ("novelty_delta", 0.20, "is there a clear delta vs nearest prior work?"),
-    ("evidence_traceability", 0.20, "can we anchor it to existing papers and failure modes?"),
-    ("evaluation_clarity", 0.20, "does it admit a clear task/metric/baseline?"),
-    ("writeability", 0.10, "can it become a coherent short paper/report?"),
-    ("portfolio_diversity", 0.05, "does the shortlist cover different clusters / idea types?"),
-]
-
-OPERATOR_FAMILIES: list[str] = [
-    "Counterfactual / constraint flip",
-    "Failure-mode-first",
-    "Evaluation protocol swap",
-    "Component swap in an agent loop",
-    "Combination with explicit assumptions",
-    "Cross-domain analogy import",
-    "Negative-result mining",
-    "System/product constraints",
+    ("discussion_worthiness", 0.24, "is this direction worth a serious PI/PhD discussion right now?"),
+    ("academic_value", 0.22, "could it open a meaningful paper/thesis-worthy research angle?"),
+    ("evidence_grounding", 0.18, "can we point to concrete literature tensions rather than pure speculation?"),
+    ("direction_distinctness", 0.16, "is it genuinely different from neighboring directions, not just a wording variant?"),
+    ("first_probe_clarity", 0.10, "is there a plausible low-cost first probe that would teach us something?"),
+    ("thesis_potential", 0.10, "does it plausibly grow beyond a one-off note into a stronger line of work?"),
 ]
 
 STOPWORDS = {
@@ -35,59 +24,251 @@ STOPWORDS = {
     "agents", "agent", "model", "models", "llm", "large", "language", "using", "based",
 }
 
+CLUSTER_AXIS_HINTS: list[tuple[list[str], list[str], str, str]] = [
+    (["agent loop", "action"], ["observability granularity", "action-space design", "tool/environment boundary"], "mechanism", "Could sharpen how we think about the basic agent loop rather than adding yet another full stack."),
+    (["tool", "orchestration", "interface"], ["tool routing", "permission model", "API reliability assumptions"], "systems", "Could clarify whether interface design is the real bottleneck behind seemingly agent-level gains."),
+    (["planning", "reasoning"], ["search depth", "verification loop", "partial-observability handling"], "mechanism", "Could turn vague talk about reasoning quality into a sharper research question about what actually drives robust planning."),
+    (["memory", "retrieval", "rag"], ["retrieval policy", "state summarization cadence", "memory horizon"], "mechanism", "Could reveal when memory is a genuine capability lever versus a reporting convenience."),
+    (["self-improvement", "adaptation"], ["feedback type", "adaptation horizon", "evaluation signal quality"], "adaptation", "Could distinguish genuine improvement from evaluation-sensitive self-optimization."),
+    (["multi-agent", "coordination"], ["role specialization", "communication budget", "aggregation rule"], "coordination", "Could separate coordination benefits from simple redundancy or verification effects."),
+    (["benchmark", "evaluation"], ["metric choice", "task slice design", "failure-analysis lens"], "evaluation", "Could make evaluation choices themselves a research object instead of hidden background assumptions."),
+    (["safety", "security", "governance"], ["threat model", "monitoring granularity", "permission boundary"], "governance", "Could connect technical agent behaviors to deployment-relevant risk questions in a more principled way."),
+]
+
+GENERIC_LIMITATION_PATTERNS = [
+    "abstract-level evidence only",
+    "validate assumptions",
+    "full paper",
+    "before relying on this as key evidence",
+]
+
+BENCHMARK_HINTS = [
+    "HotpotQA", "FEVER", "ALFWorld", "WebShop", "HumanEval", "WebArena", "AgentBench",
+    "GSM8K", "MATH", "Wikipedia", "wiki", "API", "question answering", "fact verification",
+]
+
+AXIS_INSIGHT_LIBRARY: dict[str, dict[str, str]] = {
+    "observability granularity": {
+        "question": "whether several agent-loop gains are really planner gains, or whether they mostly come from changing what the planner gets to observe and when",
+        "confound": "planner quality and broader agent competence",
+        "thesis": "Several agent-loop gains remain hard to interpret because papers often improve observation access at the same time they improve the planner; before crediting planner depth, we should ask what the system was allowed to see.",
+        "insight": "A convincing result would not just move aggregate score. It would show which published gains survive once observation access is fixed, ideally producing a regime map of when observability—not planner depth—changes the failure story.",
+        "contribution_shape": "Could yield a causal-attribution result plus a reporting rule for agent-loop papers: claims about planning quality should specify and control observation access.",
+        "demotion": "This direction weakens sharply if the strongest prior work already holds observation access fixed while planner quality changes and still reports the same gain pattern.",
+        "kill_signal": "an anchor paper already fixes observation access while varying planner quality and the main conclusion still survives",
+        "missing_piece": "What is missing is a fixed-interface, fixed-budget comparison that varies only observation access and tracks whether the failure taxonomy—not just average score—changes.",
+        "program_kind": "causal attribution",
+        "time_to_clarity": "fast",
+        "priority_note": "Fastest to falsify on public tasks, and the answer would immediately change how several agent-loop results are interpreted.",
+        "reading_extract": "what the agent sees at each step, which ablations vary planner depth, and whether the action interface stays fixed",
+        "title": "Observability granularity vs planner depth",
+    },
+    "action-space design": {
+        "question": "whether robustness comes from better reasoning or from giving the agent a cleaner action interface",
+        "confound": "the shape of the action vocabulary and interface design",
+        "thesis": "Some agent-loop gains may be interface gains in disguise: when action vocabularies become cleaner or narrower, papers can attribute robustness to reasoning improvements that partly come from action-space design.",
+        "insight": "A useful result would show whether the same nominal planner still behaves very differently once the action space is widened, normalized, or made less ergonomic.",
+        "contribution_shape": "Could produce an action-space normalization protocol and a clearer account of which agent claims survive once interface ergonomics are controlled.",
+        "demotion": "This direction weakens if current papers already compare equivalent action spaces and still obtain the same ranking.",
+        "kill_signal": "the key anchor papers already normalize action vocabularies or API surfaces and still see the same ordering",
+        "missing_piece": "What is missing is an action-space-normalized comparison that keeps planner prompts fixed while changing only interface granularity and affordances.",
+        "program_kind": "interface normalization",
+        "time_to_clarity": "medium",
+        "priority_note": "Interesting and still thesis-relevant, but less immediate than observability because interface normalization usually requires more careful task redesign.",
+        "reading_extract": "how many actions are available, how semantically aligned the actions are, and whether interface cleanup happens together with reasoning changes",
+        "title": "Action-space design or agent competence?",
+    },
+    "tool/environment boundary": {
+        "question": "whether reliability depends more on boundary design between tool and environment than on the nominal reasoning loop",
+        "confound": "tool abstraction and environment modeling",
+        "thesis": "A number of agent results may really be about boundary design: where the system stops reasoning internally and starts delegating to tools can change reliability without changing the nominal planner much.",
+        "insight": "A strong result would show that several agent-level conclusions are actually boundary-design conclusions once tool abstraction is normalized.",
+        "contribution_shape": "Could yield a boundary-design taxonomy and a cleaner experimental recipe for separating planner quality from tool/interface scaffolding.",
+        "demotion": "This direction weakens if changing the boundary carefully barely affects the failure story.",
+        "kill_signal": "careful tool-boundary changes leave both the metric and the qualitative failure modes essentially unchanged",
+        "missing_piece": "What is missing is a comparison that keeps task semantics fixed while moving the tool/environment boundary in a controlled way.",
+        "program_kind": "systems boundary",
+        "time_to_clarity": "medium",
+        "priority_note": "Valuable as a systems-facing thesis line, but slower to turn into a decisive first readout than the lead mechanism questions.",
+        "reading_extract": "where tool calls begin, what state is exposed to the planner, and whether environment modeling changes together with the tool boundary",
+        "title": "Where the tool boundary really matters",
+    },
+    "search depth": {
+        "question": "whether apparent planning gains reflect deeper search or simply more inference-time budget to recover from weak initial choices",
+        "confound": "inference-time compute budget",
+        "thesis": "Many planning results still bundle depth with budget: deeper search often spends more tokens, branches, or retries, so it remains unclear whether depth changes reasoning quality or just buys more recovery opportunities.",
+        "insight": "A convincing result would show whether depth changes the nature of planning failures under a matched budget, rather than merely delaying failure by spending more compute.",
+        "contribution_shape": "Could produce a compute-normalized planning benchmark slice and a regime map for when search depth matters beyond extra inference budget.",
+        "demotion": "This direction weakens if prior work already equalizes budget and still finds depth-specific gains.",
+        "kill_signal": "the anchor papers already normalize token or wall-clock budget and the depth advantage remains intact",
+        "missing_piece": "What is missing is a compute-normalized study that holds token or wall-clock budget fixed while varying depth or branching, then checks whether failure modes actually change.",
+        "program_kind": "budget-normalized mechanism",
+        "time_to_clarity": "medium",
+        "priority_note": "Still thesis-sized, but it ranks behind observability because compute normalization is harder to defend and easier for prior work to have addressed already.",
+        "reading_extract": "the reported depth or branching settings, the effective compute budget, and whether shallow baselines were budget-matched",
+        "title": "Search depth or compute budget?",
+    },
+    "verification loop": {
+        "question": "whether verification contributes a distinct reasoning mechanism or mostly acts as expensive redundancy",
+        "confound": "extra compute and repeated checking",
+        "thesis": "Verification-heavy pipelines may look stronger because they retry, re-check, or filter more often, not necessarily because they add a distinct reasoning mechanism.",
+        "insight": "A useful result would separate verification as a mechanism from verification as a compute-expensive retry policy.",
+        "contribution_shape": "Could produce a cleaner protocol for comparing verification loops under matched retry or compute budgets.",
+        "demotion": "This direction weakens if verification can be replaced by simple repetition with little change in behavior.",
+        "kill_signal": "repeat-sampling or retry baselines already match the reported verification gain",
+        "missing_piece": "What is missing is a matched-budget comparison between explicit verification and simple repetition or reranking baselines.",
+        "program_kind": "verification audit",
+        "time_to_clarity": "medium",
+        "priority_note": "Decision-relevant when the group suspects redundancy masquerading as reasoning, though the probe is less clean than the top two directions.",
+        "reading_extract": "how many extra passes are spent on checking, whether retry baselines exist, and which errors verification actually fixes",
+        "title": "Verification or just expensive redundancy?",
+    },
+    "partial-observability handling": {
+        "question": "whether planning systems fail because they reason badly or because they are brittle under missing state information",
+        "confound": "state visibility",
+        "thesis": "Some planning failures may be epistemic before they are algorithmic: systems can look like weak planners when they are actually brittle under missing state information.",
+        "insight": "A strong result would show whether improved visibility changes the failure taxonomy more than planner changes do.",
+        "contribution_shape": "Could produce a planning-under-partial-observability benchmark slice and a clearer division between epistemic and algorithmic failure modes.",
+        "demotion": "This direction weakens if stronger visibility barely changes the failure pattern.",
+        "kill_signal": "improved visibility leaves both success rates and error types almost unchanged",
+        "missing_piece": "What is missing is a task slice that varies only state visibility while keeping planner scaffolding steady.",
+        "program_kind": "epistemic failure analysis",
+        "time_to_clarity": "medium",
+        "priority_note": "Useful if the group wants a deeper failure-analysis program, but it is currently less concrete than the lead directions.",
+        "reading_extract": "what information is hidden, which observations are restored by tools, and whether planner quality is tested separately from visibility",
+        "title": "Is planning failure really an observability problem?",
+    },
+    "retrieval policy": {
+        "question": "whether memory gains come from better stored knowledge or from better decisions about when and how retrieval is triggered",
+        "confound": "memory content versus retrieval timing",
+        "thesis": "Reported memory gains are often hard to interpret because memory content and retrieval triggers move together; some improvements may be protocol effects about when retrieval happens, not capability effects about what memory stores.",
+        "insight": "A convincing result would separate memory-content effects from retrieval-trigger effects and show whether the interpretation of current RAG-style gains changes once trigger policy is normalized.",
+        "contribution_shape": "Could yield a cleaner memory-evaluation protocol and a reusable result on when retrieval policy, rather than memory content, is the true hidden variable.",
+        "demotion": "This direction weakens if current work already varies retrieval policy independently of memory content and sees the same story.",
+        "kill_signal": "the main memory papers already keep the memory store fixed while varying retrieval triggers or timing and the conclusion does not move",
+        "missing_piece": "What is missing is a fixed-memory comparison that varies retrieval trigger and timing only, then checks whether the gain survives and which errors it actually removes.",
+        "program_kind": "protocol sensitivity",
+        "time_to_clarity": "medium",
+        "priority_note": "Different enough from the planning directions to stay in the lead set, but it ranks lower because the current evidence is thinner and more protocol-sensitive.",
+        "reading_extract": "what is stored in memory, when retrieval fires, what retrieval budget is allowed, and whether trigger policy is ever ablated independently",
+        "title": "Retrieval policy or memory content?",
+    },
+    "state summarization cadence": {
+        "question": "whether summarization helps because it improves reasoning or because it selectively compresses away troublesome state information",
+        "confound": "what gets forgotten versus what gets highlighted",
+        "thesis": "Summarization may help less because the agent reasons better and more because the system filters state in a favorable way; cadence choices can quietly redefine what information survives.",
+        "insight": "A useful result would show whether different summarization cadences preserve the same conclusions and failure taxonomy once memory content is held steady.",
+        "contribution_shape": "Could produce a summarization-control protocol for long-horizon agents and a clearer account of how state compression alters conclusions.",
+        "demotion": "This direction weakens if different summarization cadences preserve the same conclusions and failure taxonomy.",
+        "kill_signal": "changing summarization cadence leaves both retrieval behavior and downstream errors largely unchanged",
+        "missing_piece": "What is missing is a fixed-memory, fixed-task comparison that varies only summarization cadence and records what state is lost or amplified.",
+        "program_kind": "state compression",
+        "time_to_clarity": "medium",
+        "priority_note": "Promising but currently less mature than retrieval-policy framing because the concrete prior-work hooks are thinner.",
+        "reading_extract": "what gets summarized away, how often summaries are rewritten, and whether failure cases correlate with state compression choices",
+        "title": "What summarization cadence is really changing",
+    },
+    "memory horizon": {
+        "question": "whether longer memory helps because more context is useful or because evaluations reward persistence over selectivity",
+        "confound": "context length and evaluation design",
+        "thesis": "Longer memory can look like better capability even when the benchmark mainly rewards persistence or repeated access to earlier state, so horizon effects may partly be evaluation-design effects.",
+        "insight": "A convincing result would show whether extending horizon changes task framing and error patterns, not just aggregate score.",
+        "contribution_shape": "Could produce a regime map for when horizon length matters, versus when selective retrieval or better task design explains the gain.",
+        "demotion": "This direction weakens if memory horizon has little effect once retrieval policy is controlled.",
+        "kill_signal": "memory-length changes stop mattering once retrieval triggers or evaluation design are normalized",
+        "missing_piece": "What is missing is a horizon study that matches retrieval policy and benchmark framing while varying how much state is retained.",
+        "program_kind": "regime mapping",
+        "time_to_clarity": "medium",
+        "priority_note": "Conceptually useful, but currently less decisive than retrieval-policy framing for a first discussion round.",
+        "reading_extract": "whether longer context actually changes retrieval choices, and whether the benchmark rewards persistence more than selective recall",
+        "title": "Does longer memory really help?",
+    },
+}
+
 
 @dataclass(frozen=True)
-class IdeaCard:
-    idea_id: str
-    tier: str
-    operator: str
+class IdeaSignal:
+    signal_id: str
     cluster: str
-    idea_type: str
-    gap_type: str
-    problem: str
-    sharp_gap: str
-    why_now: str
-    candidate_wedge: str
-    evidence_signal: str
-    key_assumption: str
-    falsification: str
+    direction_type: str
+    theme: str
+    claim_or_observation: str
+    tension: str
+    missing_piece: str
+    possible_axis: str
+    academic_value: str
+    evidence_confidence: str
     paper_ids: list[str]
-    opportunity_ids: list[str]
 
 
 @dataclass(frozen=True)
-class ScreenedIdea:
-    idea_id: str
+class DirectionCard:
+    direction_id: str
     cluster: str
-    idea_type: str
-    operator: str
-    total_score: float
-    feasibility: int
-    novelty_delta: int
-    evidence_traceability: int
-    evaluation_clarity: int
-    writeability: int
-    why_now: str
-    keep: str
-    rationale: str
+    direction_type: str
+    title: str
+    focus_axis: str
+    main_confound: str
+    program_kind: str
+    contribution_shape: str
+    time_to_clarity: str
+    one_line_thesis: str
+    why_interesting: str
+    literature_suggests: list[str]
+    closest_prior_gap: list[str]
+    missing_piece: str
+    possible_variants: list[str]
+    academic_value: str
+    first_probes: list[str]
+    what_counts_as_insight: str
+    weakness_conditions: list[str]
+    kill_criteria: list[str]
+    what_would_change_mind: list[str]
+    best_fit: str
+    why_this_ranks_here: str
+    evidence_confidence: str
+    paper_ids: list[str]
+    signal_ids: list[str]
+    anchor_reading_notes: list[dict[str, str]]
 
+
+@dataclass(frozen=True)
+class ScreenedDirection:
+    direction_id: str
+    cluster: str
+    direction_type: str
+    title: str
+    total_score: float
+    discussion_worthiness: int
+    academic_value_score: int
+    evidence_grounding: int
+    direction_distinctness: int
+    first_probe_clarity: int
+    thesis_potential: int
+    recommendation: str
+    rationale: str
 
 
 def read_core_set(path: Path) -> list[dict[str, str]]:
     import csv
-
     if not path.exists():
         return []
     with path.open("r", encoding="utf-8", newline="") as handle:
         return [dict(row) for row in csv.DictReader(handle)]
 
 
-
-def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
+def write_jsonl(path: Path, rows: Iterable[dict[str, Any] | Any]) -> None:
     ensure_dir(path.parent)
-    lines = [json.dumps(row, ensure_ascii=False) for row in rows]
-    atomic_write_text(path, "\n".join(lines).rstrip() + ("\n" if lines else ""))
+    encoded: list[str] = []
+    for row in rows:
+        value = asdict(row) if is_dataclass(row) else row
+        encoded.append(json.dumps(value, ensure_ascii=False))
+    atomic_write_text(path, "\n".join(encoded).rstrip() + ("\n" if encoded else ""))
 
+
+def write_json(path: Path, data: Any) -> None:
+    ensure_dir(path.parent)
+    atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=2).rstrip() + "\n")
 
 
 def uniq_keep_order(items: Iterable[str]) -> list[str]:
@@ -102,11 +283,9 @@ def uniq_keep_order(items: Iterable[str]) -> list[str]:
     return out
 
 
-
 def slugify(text: str) -> str:
     raw = re.sub(r"[^A-Za-z0-9]+", "-", str(text or "").strip().lower())
     return raw.strip("-") or "x"
-
 
 
 def clean_text(text: str, *, limit: int = 220) -> str:
@@ -121,24 +300,29 @@ def clean_text(text: str, *, limit: int = 220) -> str:
     return clipped if clipped else s[:limit].strip()
 
 
-
-def parse_markdown_table(md: str) -> list[dict[str, str]]:
-    lines = [ln.rstrip() for ln in (md or "").splitlines()]
-    header: list[str] | None = None
-    rows: list[dict[str, str]] = []
-    for idx, ln in enumerate(lines):
-        if not ln.strip().startswith("|"):
+def clean_sentence(text: str, *, limit: int = 180) -> str:
+    s = clean_text(text, limit=max(limit * 2, limit))
+    if len(s) <= limit:
+        return s
+    window = s[:limit + 40]
+    pieces = re.split(r'(?<=[.!?;])\s+', window)
+    acc: list[str] = []
+    total = 0
+    for piece in pieces:
+        piece = piece.strip()
+        if not piece:
             continue
-        cols = [c.strip() for c in ln.strip().strip("|").split("|")]
-        if idx + 1 < len(lines):
-            nxt = lines[idx + 1].strip()
-            if nxt.startswith("|") and re.fullmatch(r"\|?\s*:?-{3,}:?(\s*\|\s*:?-{3,}:?)+\s*\|?", nxt):
-                header = cols
-                continue
-        if header and len(cols) == len(header):
-            rows.append({header[i]: cols[i] for i in range(len(header))})
-    return rows
-
+        nxt = total + len(piece) + (1 if acc else 0)
+        if nxt > limit and acc:
+            break
+        acc.append(piece)
+        total = nxt
+        if total >= int(limit * 0.65):
+            break
+    if acc:
+        return " ".join(acc).strip()
+    clipped = s[:limit].rsplit(" ", 1)[0].strip()
+    return clipped if clipped else s[:limit].strip()
 
 
 def markdown_table(headers: list[str], rows: list[list[str]]) -> str:
@@ -148,13 +332,16 @@ def markdown_table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join([head, sep] + body)
 
 
+def write_markdown(path: Path, text: str) -> None:
+    ensure_dir(path.parent)
+    atomic_write_text(path, text.rstrip() + "\n")
+
 
 def extract_goal_from_goal_md(path: Path) -> str:
     if not path.exists():
         return "research ideas"
     lines = [ln.strip() for ln in path.read_text(encoding="utf-8", errors="ignore").splitlines() if ln.strip() and not ln.startswith("#")]
     return lines[0] if lines else "research ideas"
-
 
 
 def parse_idea_brief(path: Path) -> dict[str, Any]:
@@ -164,11 +351,12 @@ def parse_idea_brief(path: Path) -> dict[str, Any]:
         "focus_clusters": [],
         "query_buckets": [],
         "exclusions": [],
-        "pool_min": 60,
-        "pool_max": 90,
-        "shortlist_size": 7,
         "constraints": [],
         "targets": {},
+        "direction_pool_min": 12,
+        "direction_pool_max": 24,
+        "shortlist_size": 5,
+        "report_top_n": 3,
     }
     cur = None
     for raw in text.splitlines():
@@ -178,32 +366,52 @@ def parse_idea_brief(path: Path) -> dict[str, Any]:
             continue
         if cur == "goal" and line.startswith("- Topic:"):
             out["goal"] = line.split(":", 1)[1].strip()
-        if cur == "focus after c2" and line.startswith("- Focus clusters:"):
+        if cur in {"focus after c2", "focus lenses after c2"} and line.startswith("- Focus clusters:"):
             out["focus_clusters"] = [x.strip() for x in line.split(":", 1)[1].split(";") if x.strip()]
         if cur == "query buckets" and re.match(r"^\d+\.\s+", line):
             out["query_buckets"].append(re.sub(r"^\d+\.\s+", "", line).strip())
-        if cur == "exclude terms" and line.startswith("- "):
-            out["exclusions"].append(line[2:].strip())
+        if cur in {"exclude terms", "exclusions"} and line.startswith("- "):
+            value = line[2:].strip()
+            if value and not value.lower().startswith("none"):
+                out["exclusions"].append(value)
         if cur == "constraints" and line.startswith("- "):
             out["constraints"].append(line[2:].strip())
         if cur == "targets" and line.startswith("- ") and ":" in line:
             key, value = line[2:].split(":", 1)
             out["targets"][key.strip().lower().replace(" ", "_")] = value.strip()
-    try:
-        out["pool_min"] = int(re.findall(r"\d+", str(out["targets"].get("idea_pool_size") or "60"))[0])
-    except Exception:
-        out["pool_min"] = 60
-    try:
-        nums = re.findall(r"\d+", str(out["targets"].get("idea_pool_size") or "60-90"))
-        out["pool_max"] = int(nums[-1]) if nums else 90
-    except Exception:
-        out["pool_max"] = 90
-    try:
-        out["shortlist_size"] = int(re.findall(r"\d+", str(out["targets"].get("final_shortlist_size") or "7"))[0])
-    except Exception:
-        out["shortlist_size"] = 7
+
+    def _pick_int(keys: list[str], default: int) -> int:
+        for key in keys:
+            raw = str(out["targets"].get(key) or "")
+            nums = re.findall(r"\d+", raw)
+            if nums:
+                return int(nums[0])
+        return default
+
+    def _pick_int_last(keys: list[str], default: int) -> int:
+        for key in keys:
+            raw = str(out["targets"].get(key) or "")
+            nums = re.findall(r"\d+", raw)
+            if nums:
+                return int(nums[-1])
+        return default
+
+    out["direction_pool_min"] = _pick_int(["direction_pool_size", "direction_pool", "idea_pool_size", "idea_pool_min"], 12)
+    out["direction_pool_max"] = _pick_int_last(["direction_pool_size", "direction_pool", "idea_pool_size", "idea_pool_max"], 24)
+    out["shortlist_size"] = _pick_int(["final_shortlist_size", "idea_shortlist_size", "shortlist_size"], 5)
+    out["report_top_n"] = _pick_int(["memo_top_n", "report_top_n", "idea_report_top_n", "idea_top3_size"], 3)
     return out
 
+
+def collect_note_index(path: Path) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for rec in read_jsonl(path):
+        if not isinstance(rec, dict):
+            continue
+        pid = str(rec.get("paper_id") or "").strip()
+        if pid:
+            out[pid] = rec
+    return out
 
 
 def keywords_from_cluster(name: str) -> list[str]:
@@ -211,11 +419,10 @@ def keywords_from_cluster(name: str) -> list[str]:
     return uniq_keep_order(toks)
 
 
-
 def score_note_to_cluster(cluster_name: str, note: dict[str, Any]) -> int:
     keys = keywords_from_cluster(cluster_name)
     blob_parts = [str(note.get("title") or "")]
-    for field in ["summary_bullets", "limitations", "key_results", "method"]:
+    for field in ["summary_bullets", "limitations", "key_results", "method", "abstract"]:
         val = note.get(field)
         if isinstance(val, list):
             blob_parts.extend([str(x) for x in val])
@@ -223,7 +430,6 @@ def score_note_to_cluster(cluster_name: str, note: dict[str, Any]) -> int:
             blob_parts.append(val)
     blob = " ".join(blob_parts).lower()
     return sum(1 for key in keys if key in blob)
-
 
 
 def map_notes_to_clusters(taxonomy_path: Path, notes_path: Path) -> dict[str, list[dict[str, Any]]]:
@@ -247,287 +453,785 @@ def map_notes_to_clusters(taxonomy_path: Path, notes_path: Path) -> dict[str, li
                 if s > 0:
                     scored.append((s, note))
             scored.sort(key=lambda x: (-x[0], str(x[1].get("paper_id") or "")))
-            out[name] = [n for _, n in scored[:10]]
+            out[name] = [n for _, n in scored[:8]]
     return out
 
 
+def _cluster_profile(cluster: str) -> tuple[str, list[str], str]:
+    low = cluster.lower()
+    for keys, axes, direction_type, academic_value in CLUSTER_AXIS_HINTS:
+        if any(key in low for key in keys):
+            return direction_type, axes, academic_value
+    return "research", ["assumption sensitivity", "failure analysis", "scope boundary"], "Could sharpen the way this sub-area is framed and compared."
 
-def build_opportunity_rows(*, cluster: str, notes: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
+
+def _note_bullets(note: dict[str, Any], field: str) -> list[str]:
+    val = note.get(field)
+    if isinstance(val, list):
+        return [clean_text(x, limit=220) for x in val if clean_text(x, limit=220)]
+    if isinstance(val, str) and clean_text(val, limit=220):
+        return [clean_text(val, limit=220)]
+    return []
+
+
+def _specific_limitations(note: dict[str, Any]) -> list[str]:
+    items = _note_bullets(note, "limitations")
+    specific = []
+    for item in items:
+        low = item.lower()
+        if any(pat in low for pat in GENERIC_LIMITATION_PATTERNS):
+            continue
+        specific.append(item)
+    return specific or items
+
+
+def _evidence_confidence(notes: list[dict[str, Any]]) -> str:
     if not notes:
-        return rows
-    limitation_bits: list[tuple[str, str]] = []
-    summary_bits: list[tuple[str, str]] = []
+        return "low"
+    if any(str(n.get("evidence_level") or "").strip() == "fulltext" for n in notes):
+        return "medium-high"
+    specific = sum(
+        1
+        for n in notes
+        if _specific_limitations(n) and not any(p in (_specific_limitations(n)[0].lower()) for p in GENERIC_LIMITATION_PATTERNS)
+    )
+    if len(notes) >= 3 and specific >= 2:
+        return "medium"
+    return "low-medium"
+
+
+def _axis_profile(axis: str, cluster: str) -> dict[str, str]:
+    base = AXIS_INSIGHT_LIBRARY.get(axis, {})
+    confound = base.get("confound", "nearby design choices and evaluation framing")
+    return {
+        "question": base.get("question", f"whether {axis} is doing more conceptual work in {cluster.lower()} than current papers make explicit"),
+        "confound": confound,
+        "thesis": base.get("thesis", f"Current results in {cluster.lower()} may be hard to interpret because {axis} still moves together with {confound}."),
+        "insight": base.get("insight", f"A meaningful result would show whether {axis} changes how we interpret the current literature rather than merely how we narrate it."),
+        "contribution_shape": base.get("contribution_shape", f"Could turn {axis} into a cleaner explanatory variable for {cluster.lower()} rather than a background convenience."),
+        "demotion": base.get("demotion", f"This direction would weaken if the strongest prior work already isolates {axis} cleanly."),
+        "kill_signal": base.get("kill_signal", f"the strongest prior work already isolates {axis} against {confound}"),
+        "missing_piece": base.get("missing_piece", f"What is missing is a cleaner comparison that varies {axis} while keeping {confound} fixed enough to change interpretation, not just presentation."),
+        "program_kind": base.get("program_kind", "mechanism clarification"),
+        "time_to_clarity": base.get("time_to_clarity", "medium"),
+        "priority_note": base.get("priority_note", f"Worth discussion because it could turn {axis} into a sharper explanatory wedge for {cluster.lower()}."),
+        "reading_extract": base.get("reading_extract", f"which variables change together with {axis}, what comparator is used, and whether any ablation already fixes {confound}"),
+        "title": base.get("title", f"What {axis} is really doing"),
+    }
+
+
+def _result_fact(note: dict[str, Any]) -> str:
+    candidates = _note_bullets(note, "key_results") + _note_bullets(note, "summary_bullets")
+    scored: list[str] = []
+    for cand in candidates:
+        low = cand.lower()
+        if any(token in low for token in ["pass@1", "accuracy", "success rate", "exact match", "f1", "outperform", "achiev", "%"]) or any(ch.isdigit() for ch in cand):
+            scored.append(cand)
+    chosen = scored[0] if scored else _claim_text(note)
+    chosen = re.sub(r"^(for instance|for example|e\.g\.)[:,]?\s*", "", chosen, flags=re.IGNORECASE)
+    low = chosen.lower()
+    tasks = _extract_task_mentions(note)
+    task_text = "/".join(tasks[:2]) if tasks else "reported setting"
+    percents = re.findall(r"\d+(?:\.\d+)?%", chosen)
+    if "pass@1" in low and percents:
+        if len(percents) >= 2:
+            return clean_text(f"{task_text}: {percents[0]} pass@1 vs {percents[1]} in the reported comparison.", limit=95)
+        return clean_text(f"{task_text}: {percents[0]} pass@1 in the reported comparison.", limit=95)
+    if "success rate" in low and len(percents) >= 2:
+        baseline = " over imitation/RL baselines" if "imitation" in low or "reinforcement learning" in low else " in the reported comparison"
+        return clean_text(f"{task_text}: {percents[0]}/{percents[1]} success-rate gains{baseline}.", limit=95)
+    if len(percents) >= 2:
+        return clean_text(f"{task_text}: {percents[0]} vs {percents[1]} in the reported comparison.", limit=95)
+    if len(percents) == 1:
+        return clean_text(f"{task_text}: reported result reaches {percents[0]} in the abstract.", limit=95)
+    return clean_text(chosen, limit=95)
+
+
+def _metric_phrase(notes: list[dict[str, Any]]) -> str:
+    blob = " ".join(_result_fact(note) for note in notes)
+    low = blob.lower()
+    if "pass@1" in low:
+        return "pass@1 plus failure-type shifts"
+    if "success rate" in low:
+        return "success rate plus failure-type shifts"
+    if "accuracy" in low:
+        return "accuracy plus failure-type shifts"
+    if "exact match" in low:
+        return "exact match plus failure-type shifts"
+    if "f1" in low:
+        return "F1 plus failure-type shifts"
+    if "%" in blob:
+        return "the reported benchmark metric plus failure-type shifts"
+    return "task success plus failure-type shifts"
+
+
+def _sentence_has_concrete_hook(text: str) -> bool:
+    low = str(text or "").lower()
+    if any(ch.isdigit() for ch in str(text or "")):
+        return True
+    if any(token in low for token in ["pass@1", "accuracy", "success rate", "exact match", "f1", "alfworld", "webshop", "hotpotqa", "fever", "humaneval", "webarena", "agentbench"]):
+        return True
+    return False
+
+
+def _extract_task_mentions(note: dict[str, Any]) -> list[str]:
+    blob_parts = []
+    for field in ["key_results", "summary_bullets", "method", "abstract", "title"]:
+        val = note.get(field)
+        if isinstance(val, list):
+            blob_parts.extend([str(x) for x in val])
+        elif isinstance(val, str):
+            blob_parts.append(val)
+    blob = " ".join(blob_parts)
+    low = blob.lower()
+    positions: list[tuple[int, str]] = []
+    for hint in BENCHMARK_HINTS:
+        pos = low.find(hint.lower())
+        if pos >= 0:
+            positions.append((pos, hint))
+    for match in re.finditer(r"\b(?:HumanEval|ALFWorld|WebShop|HotpotQA|FEVER|WebArena|AgentBench|GSM8K|MATH)\b", blob):
+        positions.append((match.start(), match.group(0)))
+    positions.sort(key=lambda item: (item[0], item[1]))
+    return uniq_keep_order(name for _, name in positions)
+
+
+def _task_phrase(notes: list[dict[str, Any]]) -> str:
+    tasks: list[str] = []
     for note in notes:
-        pid = str(note.get("paper_id") or "").strip()
-        title = str(note.get("title") or pid).strip()
-        for lim in note.get("limitations") or []:
-            txt = clean_text(lim, limit=180)
-            if txt:
-                limitation_bits.append((pid, txt))
-        for sm in note.get("summary_bullets") or []:
-            txt = clean_text(sm, limit=180)
-            if txt:
-                summary_bits.append((pid, txt))
-        if not note.get("limitations"):
-            limitation_bits.append((pid, f"Limited evidence extracted from {title}; unresolved assumptions should be tested explicitly."))
-    gap_templates = [
-        ("failure_mode", "failure mode the current papers mention but do not isolate cleanly"),
-        ("protocol_gap", "evaluation protocol mismatch that could flip conclusions across settings"),
-        ("artifact_gap", "missing artifact or benchmark slice needed to make the comparison executable"),
-        ("boundary_gap", "scope boundary that papers acknowledge but do not test directly"),
-    ]
-    lim_src = limitation_bits[:6]
-    sum_src = summary_bits[:6]
-    for idx, (gap_type, prompt) in enumerate(gap_templates, start=1):
-        refs = [pid for pid, _ in (lim_src if idx % 2 else sum_src)[:3]] or [pid for pid, _ in limitation_bits[:3]]
-        signal = clean_text((lim_src[idx - 1][1] if idx - 1 < len(lim_src) else sum_src[idx - 1][1] if idx - 1 < len(sum_src) else f"The current literature around {cluster.lower()} still leaves a testable gap."), limit=160)
-        rows.append(
-            {
-                "opportunity_id": f"{slugify(cluster)[:18]}-{idx}",
-                "cluster": cluster,
-                "gap_type": gap_type,
-                "unresolved_gap": f"{cluster}: {prompt}",
-                "evidence_signal": signal,
-                "why_now": f"Recent papers around {cluster.lower()} make the comparison concrete enough for a bounded test rather than a survey-level discussion.",
-                "candidate_wedge": f"Build a small benchmark, protocol slice, or intervention that isolates {cluster.lower()} under one controllable variable.",
-                "paper_ids": uniq_keep_order(refs),
-            }
+        tasks.extend(_extract_task_mentions(note))
+    uniq = uniq_keep_order(tasks)
+    if not uniq:
+        return "a small public task slice"
+    if len(uniq) == 1:
+        return uniq[0]
+    return "/".join(uniq[:2])
+
+
+def _claim_text(note: dict[str, Any]) -> str:
+    candidates = _note_bullets(note, "key_results") + _note_bullets(note, "summary_bullets")
+    for cand in candidates:
+        if len(cand.split()) >= 8:
+            return cand
+    return clean_text(note.get("method") or note.get("title") or "", limit=220)
+
+
+def _limitation_text(note: dict[str, Any], axis: str, cluster: str) -> str:
+    limitations = _specific_limitations(note)
+    if limitations and not any(pat in limitations[0].lower() for pat in GENERIC_LIMITATION_PATTERNS):
+        return limitations[0]
+    profile = _axis_profile(axis, cluster)
+    return f"The paper still leaves unclear whether {axis} is genuinely responsible for the reported story in {cluster.lower()}, or whether that story is really driven by {profile['confound']}."
+
+
+def _anchor_notes(note_index: dict[str, dict[str, Any]], paper_ids: list[str]) -> list[dict[str, Any]]:
+    return [note_index[pid] for pid in paper_ids if pid in note_index]
+
+
+def _paper_annotation(note: dict[str, Any], axis: str, cluster: str) -> str:
+    title = clean_text(note.get("title") or note.get("paper_id") or "paper", limit=110)
+    profile = _axis_profile(axis, cluster)
+    result = _result_fact(note)
+    return clean_sentence(
+        f"{title}: {result} Open gap: {axis} still moves with {profile['confound']}.",
+        limit=300,
+    )
+
+
+
+def _synthesis_annotation(notes: list[dict[str, Any]], axis: str, cluster: str) -> str:
+    profile = _axis_profile(axis, cluster)
+    task_phrase = _task_phrase(notes)
+    return clean_sentence(
+        f"Across the anchor papers, the live question is whether {axis} changes interpretation itself or merely rides along with {profile['confound']}, especially on {task_phrase}.",
+        limit=260,
+    )
+
+
+
+def build_signal_rows(*, cluster: str, notes: list[dict[str, Any]]) -> list[IdeaSignal]:
+    if not notes:
+        return []
+    direction_type, axes, academic_value = _cluster_profile(cluster)
+    evidence_confidence = _evidence_confidence(notes)
+    anchors = notes[:3]
+    paper_ids = uniq_keep_order(str(n.get("paper_id") or "").strip() for n in anchors)
+    signals: list[IdeaSignal] = []
+    for idx, axis in enumerate(axes[:3], start=1):
+        anchor = anchors[(idx - 1) % len(anchors)]
+        claim = _claim_text(anchor)
+        tension = _limitation_text(anchor, axis, cluster)
+        profile = _axis_profile(axis, cluster)
+        missing_piece = clean_sentence(
+            f"What is still missing is a direction that isolates whether {axis} is the real explanatory variable in {cluster.lower()}, rather than leaving it entangled with {profile['confound']}.",
+            limit=240,
         )
-    return rows
+        signals.append(IdeaSignal(
+            signal_id=f"SIG-{slugify(cluster)[:16]}-{idx}",
+            cluster=cluster,
+            direction_type=direction_type,
+            theme=f"{profile['title']} in {cluster}",
+            claim_or_observation=claim,
+            tension=clean_text(tension, limit=220),
+            missing_piece=missing_piece,
+            possible_axis=axis,
+            academic_value=academic_value,
+            evidence_confidence=evidence_confidence,
+            paper_ids=paper_ids,
+        ))
+    return signals
 
 
-
-def opportunity_table_markdown(rows: list[dict[str, Any]]) -> str:
+def signal_table_markdown(rows: list[IdeaSignal]) -> str:
     table_rows = []
     for row in rows:
         table_rows.append([
-            row.get("opportunity_id", ""),
-            row.get("cluster", ""),
-            row.get("gap_type", ""),
-            row.get("unresolved_gap", ""),
-            row.get("evidence_signal", ""),
-            row.get("why_now", ""),
-            row.get("candidate_wedge", ""),
-            ", ".join(row.get("paper_ids", [])),
+            row.signal_id,
+            row.cluster,
+            row.theme,
+            row.claim_or_observation,
+            row.tension,
+            row.missing_piece,
+            row.possible_axis,
+            row.academic_value,
+            row.evidence_confidence,
+            ", ".join(row.paper_ids),
         ])
-    return "\n".join(
-        [
-            "# IDEA_OPPORTUNITY_TABLE",
-            "",
-            "## Opportunity Table",
-            "",
-            markdown_table(
-                ["Opportunity ID", "Cluster", "Gap Type", "Unresolved Gap", "Evidence Signal", "Why now", "Candidate Wedge", "Evidence pointers"],
-                table_rows,
+    return "\n".join([
+        "# IDEA_SIGNAL_TABLE",
+        "",
+        "## Research signals",
+        "",
+        markdown_table(["Signal ID", "Cluster", "Theme", "Claim / observation", "Tension", "Missing piece", "Possible axis", "Academic value", "Confidence", "Paper IDs"], table_rows),
+        "",
+    ])
+
+
+def _title_from_signal(signal: IdeaSignal) -> str:
+    profile = _axis_profile(signal.possible_axis, signal.cluster)
+    return clean_sentence(profile["title"], limit=72)
+
+
+def _best_fit(direction_type: str, axis: str) -> str:
+    if direction_type == "governance":
+        return "Best fit when the group wants a deployment-relevant reading of agent behavior rather than another internal benchmark story."
+    if direction_type == "evaluation":
+        return "Best fit when the discussion is really about what counts as convincing evidence, not just how to raise scores."
+    if axis in {"search depth", "verification loop", "retrieval policy"}:
+        return "Best fit for a PhD discussion that wants one sharper mechanism/confound question rather than a broad systems buildout."
+    return "Best fit for PI/PhD discussions that want a thesis-worthy mechanism question rather than a generic benchmark wrapper."
+
+
+def signals_to_direction_cards(signals: list[IdeaSignal], *, note_index: dict[str, dict[str, Any]], focus_clusters: list[str], pool_min: int, pool_max: int) -> list[DirectionCard]:
+    focus = {x.strip() for x in focus_clusters if str(x).strip()}
+    cards: list[DirectionCard] = []
+    for idx, signal in enumerate(signals, start=1):
+        profile = _axis_profile(signal.possible_axis, signal.cluster)
+        anchors = _anchor_notes(note_index, signal.paper_ids)
+        task_phrase = _task_phrase(anchors)
+        metric_phrase = _metric_phrase(anchors)
+        nearest = anchors[0] if anchors else {}
+        nearest_title = clean_text((nearest.get("title") if isinstance(nearest, dict) else "") or (signal.paper_ids[0] if signal.paper_ids else signal.cluster), limit=90)
+        nearest_task_phrase = _task_phrase([nearest]) if nearest else task_phrase
+        literature_suggests = [_paper_annotation(note, signal.possible_axis, signal.cluster) for note in anchors[:2]]
+        literature_suggests.append(_synthesis_annotation(anchors, signal.possible_axis, signal.cluster))
+        closest_prior_gap = [
+            clean_sentence(
+                f"{nearest_title} is the closest prior anchor because it already reports concrete behavior on {nearest_task_phrase}. The unresolved point is whether those gains survive once {profile['confound']} is held fixed while {signal.possible_axis} is varied.",
+                limit=220,
             ),
-            "",
+            clean_sentence(
+                "The novelty test here is narrow, not rhetorical: if a strong anchor paper already runs that single-variable control, this direction should collapse quickly rather than stay alive as a vague confound story.",
+                limit=220,
+            ),
         ]
-    )
+        one_line_thesis = clean_sentence(profile["thesis"], limit=230)
+        why_interesting = clean_sentence(
+            f"This is not just another benchmark wedge. It opens a {profile['program_kind']} line around {signal.possible_axis}: {profile['question']}.",
+            limit=220,
+        )
+        missing_piece = clean_sentence(profile["missing_piece"], limit=230)
+        possible_variants = [
+            clean_sentence(f"Single-variable control on {task_phrase}: vary {signal.possible_axis} while holding {profile['confound']} fixed as far as the setup allows.", limit=210),
+            clean_sentence("Replace score-only reporting with a failure-type comparison after the same intervention, so the result says more than whether the average went up.", limit=210),
+            clean_sentence("Check whether the conclusion survives on one simple public task slice and one more tool- or environment-heavy setting before treating it as a general claim.", limit=210),
+        ]
+        first_probes = [
+            clean_sentence(
+                f"Intervention: vary {signal.possible_axis} while holding {profile['confound']} as fixed as possible on {task_phrase}. Readout: {metric_phrase}. Decisive if the interpretation changes even after the control.",
+                limit=220,
+            ),
+            clean_sentence(
+                f"Prior-work audit: inspect {nearest_title} for any ablation that already fixes {profile['confound']}, and if the conclusion survives, demote this direction.",
+                limit=180,
+            ),
+        ]
+        what_counts_as_insight = clean_sentence(profile['insight'], limit=190)
+        kill_criteria = [
+            clean_sentence(f"Kill quickly if {profile['kill_signal']}.", limit=170),
+            clean_sentence(f"Kill if the first controlled probe leaves both {metric_phrase} and the failure taxonomy essentially unchanged.", limit=170),
+        ]
+        weakness_conditions = [
+            clean_sentence(f"This direction is weaker if changing {signal.possible_axis} mostly rescales the aggregate metric without changing which failure modes appear or disappear.", limit=175),
+            clean_sentence(profile['demotion'], limit=170),
+        ]
+        anchor_reading_notes: list[dict[str, str]] = []
+        for note in anchors[:3]:
+            title = clean_text(note.get("title") or note.get("paper_id") or "paper", limit=110)
+            result = _result_fact(note)
+            anchor_reading_notes.append({
+                "paper_title": title,
+                "why_read": clean_sentence(f"Closest {signal.cluster.lower()} anchor with a concrete result hook on {task_phrase}: {result}", limit=180),
+                "what_to_extract": clean_sentence(f"Extract the metric and comparator, then check whether {profile['reading_extract']}.", limit=180),
+                "current_hook": clean_sentence(result, limit=180),
+                "kill_signal": clean_sentence(f"Weaken this direction if the paper already shows {profile['kill_signal']}.", limit=180),
+            })
+        why_this_ranks_here = clean_sentence(profile['priority_note'], limit=170)
+        cards.append(DirectionCard(
+            direction_id=f"DIR-{idx:03d}",
+            cluster=signal.cluster,
+            direction_type=signal.direction_type,
+            title=_title_from_signal(signal),
+            focus_axis=signal.possible_axis,
+            main_confound=profile['confound'],
+            program_kind=profile['program_kind'],
+            contribution_shape=profile['contribution_shape'],
+            time_to_clarity=profile['time_to_clarity'],
+            one_line_thesis=one_line_thesis,
+            why_interesting=why_interesting,
+            literature_suggests=literature_suggests,
+            closest_prior_gap=closest_prior_gap,
+            missing_piece=missing_piece,
+            possible_variants=possible_variants,
+            academic_value=profile['contribution_shape'],
+            first_probes=first_probes,
+            what_counts_as_insight=what_counts_as_insight,
+            weakness_conditions=weakness_conditions,
+            kill_criteria=kill_criteria,
+            what_would_change_mind=kill_criteria,
+            best_fit=_best_fit(signal.direction_type, signal.possible_axis),
+            why_this_ranks_here=why_this_ranks_here,
+            evidence_confidence=signal.evidence_confidence,
+            paper_ids=signal.paper_ids,
+            signal_ids=[signal.signal_id],
+            anchor_reading_notes=anchor_reading_notes,
+        ))
+    cards.sort(key=lambda c: (0 if c.cluster in focus else 1, c.cluster, c.program_kind, c.title))
+    target = max(pool_min, min(pool_max, len(cards)))
+    return cards[:target]
 
 
 
-def rows_to_idea_cards(rows: list[dict[str, Any]], *, focus_clusters: list[str]) -> list[IdeaCard]:
-    cards: list[IdeaCard] = []
-    focus_set = {x.strip() for x in focus_clusters if str(x).strip()}
-    operators = OPERATOR_FAMILIES
-    for idx, row in enumerate(rows):
-        cluster = str(row.get("cluster") or "").strip()
-        for op_idx, operator in enumerate(operators):
-            tier = "Tier-1 Plausible"
-            if "failure" in str(row.get("gap_type") or "") or op_idx in {1, 2}:
-                tier = "Tier-2 Ready"
-            elif op_idx in {5}:
-                tier = "Tier-0 Wild"
-            idea_type = "evaluation"
-            low = cluster.lower()
-            if any(k in low for k in ["safety", "security", "governance"]):
-                idea_type = "safety"
-            elif any(k in low for k in ["tool", "interface", "orchestration"]):
-                idea_type = "system-constraint"
-            elif any(k in low for k in ["memory", "retrieval"]):
-                idea_type = "mechanism"
-            elif any(k in low for k in ["planning", "reasoning", "loop"]):
-                idea_type = "mechanism"
-            elif any(k in low for k in ["adaptation", "improvement"]):
-                idea_type = "adaptation"
-            elif any(k in low for k in ["coordination"]):
-                idea_type = "coordination"
-            gap_type = str(row.get("gap_type") or "gap").strip().replace("_", " ")
-            wedge = clean_text(row.get("candidate_wedge") or f"Make the gap in {cluster.lower()} executable under one controllable variable.", limit=180)
-            evidence_signal = clean_text(row.get("evidence_signal") or f"Recent papers in {cluster.lower()} point to an unresolved empirical or protocol issue.", limit=180)
-            why_now = clean_text(row.get("why_now") or f"Recent papers in {cluster.lower()} make the gap concrete enough for a bounded experiment.", limit=180)
-            sharp_gap = clean_text(row.get("unresolved_gap") or f"{cluster}: a still-undertested {gap_type}.", limit=180)
-
-            problem = wedge
-            if operator == "Failure-mode-first":
-                problem = f"Start from {gap_type} evidence in {cluster.lower()} and design an experiment that scores recovery quality, not only end-task success."
-            elif operator == "Evaluation protocol swap":
-                problem = f"Hold the task fixed but swap metric, budget, or observability assumptions around {sharp_gap.lower()} to test whether reported winners stay stable."
-            elif operator == "System/product constraints":
-                problem = f"Turn the deployment constraint behind {sharp_gap.lower()} into the main experimental variable instead of leaving it as background context."
-            elif operator == "Component swap in an agent loop":
-                problem = f"Hold the broader pipeline fixed and swap only one local component tied to {sharp_gap.lower()} to identify which change actually moves reliability."
-            elif operator == "Counterfactual / constraint flip":
-                problem = f"Invert the key assumption behind {sharp_gap.lower()} and test whether the same conclusions still hold."
-            elif operator == "Combination with explicit assumptions":
-                problem = f"Combine two promising fixes for {sharp_gap.lower()} but make the enabling assumptions explicit and falsifiable from the start."
-            elif operator == "Cross-domain analogy import":
-                problem = f"Import a control, verification, or monitoring trick that could make {sharp_gap.lower()} testable in agent settings."
-            elif operator == "Negative-result mining":
-                problem = f"Mine a reproducible negative result around {sharp_gap.lower()} where a popular strategy fails under realistic conditions."
-            refs = row.get("paper_ids") or []
-            cards.append(
-                IdeaCard(
-                    idea_id=f"IP-{idx+1:03d}-{op_idx+1}",
-                    tier=tier,
-                    operator=operator,
-                    cluster=cluster,
-                    idea_type=idea_type,
-                    gap_type=gap_type,
-                    problem=clean_text(problem, limit=180),
-                    sharp_gap=sharp_gap,
-                    why_now=why_now,
-                    candidate_wedge=wedge,
-                    evidence_signal=evidence_signal,
-                    key_assumption=f"{evidence_signal} This suggests the unresolved {gap_type} in {cluster.lower()} is large enough that changing one explicit variable should expose materially different outcomes.",
-                    falsification=f"If the new setup does not change diagnosis, ranking, or failure profile relative to the baseline framing for {sharp_gap.lower()}, the idea is too weak.",
-                    paper_ids=uniq_keep_order(refs)[:4],
-                    opportunity_ids=[str(row.get("opportunity_id") or "")],
-                )
-            )
-    # Keep focus-aligned ideas first.
-    cards.sort(key=lambda c: (0 if c.cluster in focus_set else 1, c.tier, c.cluster, c.operator, c.idea_id))
-    return cards
-
-
-
-def idea_pool_markdown(cards: list[IdeaCard]) -> str:
+def direction_pool_markdown(cards: list[DirectionCard]) -> str:
     rows: list[list[str]] = []
     for card in cards:
         rows.append([
-            card.idea_id,
-            card.tier,
-            card.operator,
+            card.direction_id,
             card.cluster,
-            card.idea_type,
-            card.problem,
-            card.sharp_gap,
-            card.key_assumption,
-            card.falsification,
+            card.direction_type,
+            card.program_kind,
+            card.title,
+            clean_sentence(card.one_line_thesis, limit=100),
+            clean_sentence(card.why_interesting, limit=100),
+            clean_sentence(card.missing_piece, limit=100),
+            clean_sentence(" / ".join(card.possible_variants), limit=120),
+            clean_sentence(card.academic_value, limit=90),
+            clean_sentence(" / ".join(card.first_probes), limit=120),
+            card.evidence_confidence,
             ", ".join(card.paper_ids),
-            ", ".join(card.opportunity_ids),
         ])
-    return "\n".join(
-        [
-            "# IDEA_POOL",
-            "",
-            "## Pool Table",
-            "",
-            markdown_table(
-                ["Idea ID", "Tier", "Operator", "Cluster", "Idea Type", "Problem", "Sharp Gap", "Key Assumption", "How to Falsify", "Paper IDs", "Opportunity IDs"],
-                rows,
-            ),
-            "",
-        ]
-    )
+    return "\n".join([
+        "# IDEA_DIRECTION_POOL",
+        "",
+        "## Candidate research directions",
+        "",
+        markdown_table(["Direction ID", "Cluster", "Type", "Program", "Title", "One-line thesis", "Why interesting", "Missing piece", "Possible variants", "Academic value", "First probes", "Confidence", "Paper IDs"], rows),
+        "",
+    ])
 
 
+def _thesis_potential(direction_type: str, cluster: str) -> int:
+    if direction_type in {"mechanism", "coordination", "adaptation"}:
+        return 5
+    if direction_type in {"systems", "governance"}:
+        return 4
+    if "benchmark" in cluster.lower() or direction_type == "evaluation":
+        return 3
+    return 4
 
-def score_idea_cards(cards: list[IdeaCard], *, focus_clusters: list[str]) -> list[ScreenedIdea]:
-    focus_set = {x.strip() for x in focus_clusters if str(x).strip()}
-    rows: list[ScreenedIdea] = []
-    for idx, card in enumerate(cards):
-        feasibility = 5 if card.tier == "Tier-2 Ready" else 4 if card.tier == "Tier-1 Plausible" else 2
-        novelty = 4 if "swap" in card.operator.lower() or "negative" in card.operator.lower() else 3
-        evidence = 5 if len(card.paper_ids) >= 3 else 4 if len(card.paper_ids) >= 2 else 2
-        eval_clarity = 5 if any(k in card.problem.lower() for k in ["benchmark", "protocol", "metric", "variable", "failure", "recovery"]) else 3
-        writeability = 5 if card.cluster in focus_set else 4
-        why_now = "The current paper set already exposes the gap clearly enough to support a bounded first experiment."
-        bonus = 0.25 if card.cluster in focus_set else 0.0
-        total = feasibility * 0.25 + novelty * 0.20 + evidence * 0.20 + eval_clarity * 0.20 + writeability * 0.10 + bonus
-        keep = "keep" if idx < 18 else "maybe" if idx < 30 else "drop"
-        rationale = "strong fit to brief and evidence" if keep == "keep" else "interesting but weaker wedge" if keep == "maybe" else "too broad or redundant for the first shortlist"
-        rows.append(
-            ScreenedIdea(
-                idea_id=card.idea_id,
-                cluster=card.cluster,
-                idea_type=card.idea_type,
-                operator=card.operator,
-                total_score=round(total, 2),
-                feasibility=feasibility,
-                novelty_delta=novelty,
-                evidence_traceability=evidence,
-                evaluation_clarity=eval_clarity,
-                writeability=writeability,
-                why_now=why_now,
-                keep=keep,
-                rationale=rationale,
-            )
+
+def score_direction_cards(cards: list[DirectionCard], *, focus_clusters: list[str]) -> list[ScreenedDirection]:
+    focus = {x.strip() for x in focus_clusters if str(x).strip()}
+    cluster_counts: dict[str, int] = {}
+    program_counts: dict[str, int] = {}
+    for card in cards:
+        cluster_counts[card.cluster] = cluster_counts.get(card.cluster, 0) + 1
+        program_counts[card.program_kind] = program_counts.get(card.program_kind, 0) + 1
+
+    provisional: list[tuple[DirectionCard, float, int, int, int, int, int, int]] = []
+    for card in cards:
+        discussion_worthiness = 5 if card.cluster in focus or card.time_to_clarity == "fast" else 4
+        academic_value_score = 5 if any(token in card.contribution_shape.lower() for token in ["rule", "protocol", "regime map", "causal"]) else 4
+        concrete_hooks = sum(1 for item in card.literature_suggests if _sentence_has_concrete_hook(item))
+        evidence_grounding = 5 if len(card.paper_ids) >= 3 and concrete_hooks >= 2 else 4 if len(card.paper_ids) >= 2 and concrete_hooks >= 1 else 3
+        if program_counts.get(card.program_kind, 0) == 1 and cluster_counts.get(card.cluster, 0) == 1:
+            direction_distinctness = 5
+        elif program_counts.get(card.program_kind, 0) == 1 or cluster_counts.get(card.cluster, 0) == 1:
+            direction_distinctness = 4
+        else:
+            direction_distinctness = 3
+        probe_blob = " ".join(card.first_probes).lower()
+        first_probe_clarity = 5 if all(token in probe_blob for token in ["intervention:", "readout:", "decisive if"]) else 4 if "intervention:" in probe_blob else 3
+        thesis_potential = _thesis_potential(card.direction_type, card.cluster)
+        total = round(
+            discussion_worthiness * 0.24 + academic_value_score * 0.22 + evidence_grounding * 0.18 + direction_distinctness * 0.16 + first_probe_clarity * 0.10 + thesis_potential * 0.10,
+            2,
         )
-    rows.sort(key=lambda r: (-r.total_score, r.keep != "keep", r.cluster, r.idea_id))
+        provisional.append((card, total, discussion_worthiness, academic_value_score, evidence_grounding, direction_distinctness, first_probe_clarity, thesis_potential))
+    provisional.sort(key=lambda row: (-row[1], 0 if row[0].time_to_clarity == "fast" else 1, row[0].cluster, row[0].title))
+    rows: list[ScreenedDirection] = []
+    for idx, (card, total, dw, av, eg, dd, fp, tp) in enumerate(provisional, start=1):
+        recommendation = "keep" if idx <= 7 else "maybe" if idx <= 12 else "drop"
+        strengths: list[str] = []
+        if eg >= 5:
+            strengths.append("concrete anchor evidence")
+        if dd >= 5:
+            strengths.append(f"distinct {card.program_kind} wedge")
+        if fp >= 5:
+            strengths.append("clean first probe")
+        if av >= 5:
+            strengths.append("thesis-sized payoff")
+        if not strengths:
+            strengths.append("discussion value")
+        risk = "still abstract-first" if str(card.evidence_confidence).startswith("low") else f"main risk is controlling {card.main_confound} cleanly"
+        rationale = clean_sentence(f"Strongest on {' + '.join(strengths[:2])}; {risk}.", limit=160)
+        rows.append(ScreenedDirection(
+            direction_id=card.direction_id,
+            cluster=card.cluster,
+            direction_type=card.direction_type,
+            title=card.title,
+            total_score=total,
+            discussion_worthiness=dw,
+            academic_value_score=av,
+            evidence_grounding=eg,
+            direction_distinctness=dd,
+            first_probe_clarity=fp,
+            thesis_potential=tp,
+            recommendation=recommendation,
+            rationale=rationale,
+        ))
     return rows
 
 
 
-def screening_table_markdown(rows: list[ScreenedIdea]) -> str:
+def screening_table_markdown(rows: list[ScreenedDirection]) -> str:
     data: list[list[str]] = []
     for row in rows:
         data.append([
-            row.idea_id,
+            row.direction_id,
             row.cluster,
-            row.idea_type,
-            row.operator,
+            row.direction_type,
+            row.title,
             f"{row.total_score:.2f}",
-            str(row.feasibility),
-            str(row.novelty_delta),
-            str(row.evidence_traceability),
-            str(row.evaluation_clarity),
-            str(row.writeability),
-            row.keep,
+            str(row.discussion_worthiness),
+            str(row.academic_value_score),
+            str(row.evidence_grounding),
+            str(row.direction_distinctness),
+            str(row.first_probe_clarity),
+            str(row.thesis_potential),
+            row.recommendation,
             row.rationale,
         ])
-    return "\n".join(
-        [
-            "# IDEA_SCREENING_TABLE",
+    return "\n".join([
+        "# IDEA_SCREENING_TABLE",
+        "",
+        "## Discussion-first screening",
+        "",
+        markdown_table(["Direction ID", "Cluster", "Type", "Title", "Total", "Discussion", "Academic value", "Evidence", "Distinctness", "First probe", "Thesis potential", "Decision", "Rationale"], data),
+        "",
+    ])
+
+
+def shortlist_markdown(records: list[dict[str, Any]]) -> str:
+    lines = ["# IDEA_SHORTLIST", "", "## Prioritized directions", ""]
+    for record in records:
+        lines.extend([
+            f"### Direction {record['rank']}. {record['title']}",
+            f"- Cluster: {record['cluster']}",
+            f"- Type: {record['direction_type']}",
+            f"- Focus axis: {record.get('focus_axis')}",
+            f"- Program kind: {record.get('program_kind')}",
+            f"- Main confound: {record.get('main_confound')}",
+            f"- Time to clarity: {record.get('time_to_clarity')}",
+            f"- One-line thesis: {record['one_line_thesis']}",
+            f"- Why this is interesting: {record['why_interesting']}",
+            f"- Why this ranks here: {record['why_this_ranks_here']}",
+            f"- Contribution shape: {record.get('contribution_shape')}",
+            "- What the literature already suggests:",
+        ])
+        for item in record.get("literature_suggests") or []:
+            lines.append(f"  - {item}")
+        lines.extend([
+            "- Closest prior work and why it does not settle the question:",
+        ])
+        for item in record.get("closest_prior_gap") or []:
+            lines.append(f"  - {item}")
+        lines.extend([
+            f"- What is still missing: {record['missing_piece']}",
+            "- Possible variants:",
+        ])
+        for item in record.get("possible_variants") or []:
+            lines.append(f"  - {item}")
+        lines.extend([
+            f"- Why this could matter academically: {record['academic_value']}",
+            "- First probes:",
+        ])
+        for item in record.get("first_probes") or []:
+            lines.append(f"  - {item}")
+        lines.extend([
+            f"- What would count as actual insight: {record['what_counts_as_insight']}",
+            "- What would make this weak or unconvincing:",
+        ])
+        for item in record.get("weakness_conditions") or []:
+            lines.append(f"  - {item}")
+        lines.extend([
+            "- Quick kill criteria:",
+        ])
+        for item in record.get("kill_criteria") or record.get("what_would_change_mind") or []:
+            lines.append(f"  - {item}")
+        lines.extend([
+            f"- Best fit: {record['best_fit']}",
+            f"- Evidence confidence: {record['evidence_confidence']}",
+            "- Anchor papers: " + ", ".join(f"`{pid}`" for pid in record.get("paper_ids") or []),
+            f"- Why prioritized now: {record['why_prioritized']}",
             "",
-            "## Screening Table",
+        ])
+    return "\n".join(lines)
+
+
+
+def shortlist_snapshot_table(records: list[dict[str, Any]]) -> str:
+    rows = []
+    for rec in records:
+        rows.append([
+            str(rec.get("rank") or ""),
+            rec.get("title", ""),
+            clean_sentence(rec.get("why_this_ranks_here", ""), limit=52),
+            clean_sentence(rec.get("contribution_shape", rec.get("academic_value", "")), limit=56),
+            clean_sentence((rec.get("kill_criteria") or rec.get("what_would_change_mind") or [""])[0], limit=54),
+        ])
+    return markdown_table(["Rank", "Direction", "Why now", "If it survives", "Fast kill signal"], rows)
+
+
+
+def build_report_payload(*, topic: str, shortlist: list[dict[str, Any]], deferred: list[dict[str, Any]], trace_paths: dict[str, str]) -> dict[str, Any]:
+    top = shortlist[:3]
+    takeaways: list[str] = []
+    if top:
+        takeaways.append("The strongest directions are the ones most likely to change how existing results are interpreted, not just add another benchmark win.")
+        takeaways.append("The current rank order reflects a tradeoff between time-to-clarity, thesis-sized payoff, and how concrete the nearest prior-work gap already looks.")
+        program_kinds = uniq_keep_order(str(rec.get("program_kind") or "").strip() for rec in top)
+        if len(program_kinds) >= 2:
+            takeaways.append(f"The lead set is intentionally not one confound template repeated three times: it spans {', '.join(program_kinds[:3])} rather than a single explanatory mold.")
+        else:
+            takeaways.append("The lead set still sits in one tight neighborhood, so the next reading pass should stress-test whether those directions are genuinely distinct thesis lines.")
+        if any(str(rec.get("evidence_confidence") or "").startswith("low") for rec in top):
+            takeaways.append("Most anchors are still abstract-first, so the memo is best used to decide the next reading and falsification pass rather than to lock a project immediately.")
+        else:
+            takeaways.append("The evidence is already concrete enough for a serious PI/PhD discussion, though one deeper paper pass could still reshuffle the exact order.")
+    lead = top[0] if top else {}
+    lead_anchor = (lead.get("anchor_reading_notes") or [{}])[0] if top else {}
+    lead_anchor_title = lead_anchor.get("paper_title") if isinstance(lead_anchor, dict) else "the first anchor paper"
+    discussion_questions = [
+        "Which direction still survives once we ask for a single-variable control rather than a suggestive confound story?",
+        "Which lead direction would still matter if the nearest prior work already addressed the obvious control we are worried about?",
+        "Which candidate could plausibly turn into a thesis line with a reusable method, protocol, or regime map rather than a one-off empirical note?",
+        "Which ranking would change most after one full-paper reading pass on the anchor set?",
+    ]
+    uncertainties = [
+        "The main remaining risk is novelty risk, not idea scarcity: closer reading may reveal that one lead direction is already settled by an existing control or ablation.",
+        "Evidence confidence is still bounded by abstract-first notes for part of the lead set, so paper-specific details could either strengthen or kill a direction quickly.",
+        "The memo is more reliable as a discussion and triage artifact than as a final commitment on exact project order.",
+    ]
+    next_steps = []
+    if top:
+        next_steps.append(clean_sentence(f"Start with {lead.get('title')}: read {lead_anchor_title or 'the first anchor paper'} looking specifically for whether {lead.get('focus_axis')} is already isolated against {lead.get('main_confound')}.", limit=220))
+        first_probe = (lead.get("first_probes") or [""])[0]
+        if first_probe:
+            next_steps.append(clean_sentence(first_probe, limit=220))
+        next_steps.append(clean_sentence(f"Re-rank only after checking the quick kill criteria for {lead.get('title')} and at least one competing direction in the lead set.", limit=220))
+    else:
+        next_steps.extend([
+            "Read the anchor papers for the current top direction in full and test whether the memo's stated hidden variable still looks unresolved.",
+            "In the next PI/PhD discussion, use the ranking arguments and kill criteria to decide whether any direction deserves promotion into a sharper thesis candidate.",
+        ])
+    return {
+        "topic": topic,
+        "takeaways": takeaways,
+        "top_directions": top,
+        "deferred_directions": deferred,
+        "discussion_questions": discussion_questions,
+        "uncertainties": uncertainties,
+        "next_steps": next_steps,
+        "trace_artifacts": trace_paths,
+    }
+
+
+
+def report_markdown(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Research Idea Brainstorm Memo",
+        "",
+        "## 0. Scope and framing",
+        "",
+        f"- Topic: {payload.get('topic') or 'research ideas'}",
+        "- Intended readers: PI / PhD",
+        "- Goal: surface a small number of discussion-worthy research directions rather than force a final project choice.",
+        "- Current evidence basis: abstract-first notes unless otherwise stated.",
+        "- What this memo is not: not a final project spec, not a survey draft, and not a symmetric top-3 proposal pack.",
+        "",
+        "## 1. Big-picture takeaways",
+        "",
+    ]
+    for item in payload.get("takeaways") or []:
+        lines.append(f"- {item}")
+    lines.extend([
+        "",
+        "## 2. Top directions at a glance",
+        "",
+        shortlist_snapshot_table(payload.get("top_directions") or []),
+        "",
+    ])
+    for idx, record in enumerate(payload.get("top_directions") or [], start=1):
+        lines.extend([
+            f"## {idx + 2}. Direction {idx} — {record.get('title')}",
             "",
-            markdown_table(
-                [
-                    "Idea ID",
-                    "Cluster",
-                    "Idea Type",
-                    "Operator",
-                    "Total",
-                    "Feasibility",
-                    "Novelty",
-                    "Evidence",
-                    "Eval Clarity",
-                    "Writeability",
-                    "Keep?",
-                    "Rationale",
-                ],
-                data,
-            ),
+            "### One-line thesis",
+            f"- {record.get('one_line_thesis')}",
             "",
-        ]
-    )
+            "### Why it belongs in the lead set",
+            f"- {record.get('why_this_ranks_here')}",
+            f"- Time to clarity: {record.get('time_to_clarity')}",
+            "",
+            "### What the current literature actually shows",
+        ])
+        for item in record.get("literature_suggests") or []:
+            lines.append(f"- {item}")
+        lines.extend([
+            "",
+            "### Closest prior work and remaining gap",
+        ])
+        for item in record.get("closest_prior_gap") or []:
+            lines.append(f"- {item}")
+        lines.extend([
+            f"- Missing piece: {record.get('missing_piece')}",
+            "",
+            "### If this direction is right, what contribution emerges",
+            f"- {record.get('contribution_shape') or record.get('academic_value')}",
+            f"- {record.get('what_counts_as_insight')}",
+            "",
+            "### Smallest decisive probe",
+        ])
+        for item in record.get("first_probes") or []:
+            lines.append(f"- {item}")
+        lines.extend([
+            "",
+            "### Quick kill criteria",
+        ])
+        for item in record.get("kill_criteria") or record.get("what_would_change_mind") or []:
+            lines.append(f"- {item}")
+        lines.extend(["",])
+    lines.extend([
+        "## 6. Other promising but not prioritized directions",
+        "",
+    ])
+    deferred = payload.get("deferred_directions") or []
+    if deferred:
+        for record in deferred:
+            lines.append(f"- **{record.get('title')}** — {record.get('one_line_thesis')} (why not prioritized now: {record.get('why_not_prioritized')})")
+    else:
+        lines.append("- No additional deferred directions were retained in the current memo.")
+    lines.extend([
+        "",
+        "## 7. Cross-cutting discussion questions",
+        "",
+    ])
+    for item in payload.get("discussion_questions") or []:
+        lines.append(f"- {item}")
+    lines.extend([
+        "",
+        "## 8. Uncertainty and disagreement",
+        "",
+    ])
+    for item in payload.get("uncertainties") or []:
+        lines.append(f"- {item}")
+    lines.extend([
+        "",
+        "## 9. Suggested next reading / next discussion step",
+        "",
+    ])
+    for item in payload.get("next_steps") or []:
+        lines.append(f"- {item}")
+    lines.extend([
+        "",
+        "## 10. Appendix guide",
+        "",
+        "- `output/APPENDIX.md` for anchor-paper reading notes and deferred directions.",
+        "- `output/REPORT.json` for the structured version of this memo.",
+    ])
+    return "\n".join(lines)
 
 
 
-def write_markdown(path: Path, text: str) -> None:
-    ensure_dir(path.parent)
-    atomic_write_text(path, text.rstrip() + "\n")
-
-
-
-def collect_note_index(notes_path: Path) -> dict[str, dict[str, Any]]:
-    out: dict[str, dict[str, Any]] = {}
-    for rec in read_jsonl(notes_path):
-        if not isinstance(rec, dict):
-            continue
-        pid = str(rec.get("paper_id") or "").strip()
-        if pid:
-            out[pid] = rec
-    return out
+def appendix_markdown(payload: dict[str, Any], *, core_titles: dict[str, str]) -> str:
+    lines = [
+        "# Appendix to the Research Idea Brainstorm Memo",
+        "",
+        "## A. Deferred but still promising directions",
+        "",
+    ]
+    deferred = payload.get("deferred_directions") or []
+    if deferred:
+        for rec in deferred:
+            lines.extend([
+                f"### {rec.get('title')}",
+                f"- One-line thesis: {rec.get('one_line_thesis')}",
+                f"- Program kind: {rec.get('program_kind')}",
+                f"- Why interesting: {rec.get('why_interesting')}",
+                f"- Why not prioritized now: {rec.get('why_not_prioritized')}",
+                "",
+            ])
+    else:
+        lines.append("- (none)")
+    lines.extend([
+        "## B. Anchor papers and what to extract",
+        "",
+    ])
+    for rec in payload.get("top_directions") or []:
+        lines.append(f"### {rec.get('title')}")
+        lines.append(f"- Program kind: {rec.get('program_kind')}")
+        lines.append(f"- Lead-set reason: {rec.get('why_this_ranks_here')}")
+        notes = rec.get("anchor_reading_notes") or []
+        if notes:
+            rows: list[list[str]] = []
+            for item in notes:
+                if not isinstance(item, dict):
+                    continue
+                rows.append([
+                    item.get("paper_title", "paper"),
+                    item.get("why_read", ""),
+                    item.get("what_to_extract", ""),
+                    item.get("current_hook", ""),
+                    item.get("kill_signal", ""),
+                ])
+            if rows:
+                lines.append(markdown_table(["Anchor paper", "Why read now", "What to extract", "Current evidence hook", "Kill signal"], rows))
+            else:
+                for pid in rec.get("paper_ids") or []:
+                    title = core_titles.get(pid, pid)
+                    lines.append(f"- {title}")
+        else:
+            for pid in rec.get("paper_ids") or []:
+                title = core_titles.get(pid, pid)
+                lines.append(f"- {title}")
+        lines.append("")
+    return "\n".join(lines)

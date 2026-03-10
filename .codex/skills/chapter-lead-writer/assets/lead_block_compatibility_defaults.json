@@ -1,0 +1,27 @@
+{
+  "compatibility_mode": true,
+  "default_archetype": "lens-first",
+  "limits": {
+    "throughline_items": 2,
+    "contrast_items": 3,
+    "subsection_preview_items": 3
+  },
+  "joiners": {
+    "throughline": "; ",
+    "contrasts": ", ",
+    "subsection_preview": ", "
+  },
+  "fallbacks": {
+    "section_title": "chapter {section_id}",
+    "comparison_problem": "adjacent subsections resolving the same system tension",
+    "recurring_contrasts": "protocol assumptions, resource constraints, and evaluation scope",
+    "subsection_preview": "the chapter subsections"
+  },
+  "templates": {
+    "lens-first": {
+      "paragraph_1": "What holds {section_title} together is a shared comparison problem: {comparison_problem}{citation}.",
+      "paragraph_2": "Across {subsection_preview}, the recurring contrasts are {recurring_contrasts}, so each subsection sharpens a different part of the same argument{citation}.",
+      "paragraph_3": "That progression moves from {lead_start} toward {lead_end}, keeping the chapter comparative without collapsing distinct design choices into a single architecture label{citation}."
+    }
+  }
+}

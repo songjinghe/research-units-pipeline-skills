@@ -25,6 +25,78 @@ _EVAL_STOP = {
     "transformer",
 }
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+ASSETS_DIR = PACKAGE_ROOT / "assets"
+POLICY_PATH = ASSETS_DIR / "evidence_policy.json"
+SCHEMA_PATH = ASSETS_DIR / "evidence_pack_schema.json"
+
+
+def _load_json_asset(path: Path) -> dict[str, Any]:
+    if not path.exists() or path.stat().st_size <= 0:
+        raise SystemExit(f"Missing required asset: {path}")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception as exc:
+        raise SystemExit(f"Invalid JSON asset {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SystemExit(f"Invalid JSON asset root (need object): {path}")
+    return data
+
+
+def _runtime_policy() -> dict[str, Any]:
+    return _load_json_asset(POLICY_PATH)
+
+
+def _profile_thresholds(*, policy: dict[str, Any], profile: str, draft_profile: str) -> dict[str, int]:
+    thresholds = policy.get("profile_thresholds") or {}
+    default_cfg = thresholds.get("default") or {}
+    deep_cfg = thresholds.get("deep") or default_cfg
+    cfg = deep_cfg if str(draft_profile or "").strip().lower() == "deep" else default_cfg
+    return {
+        "min_snippets": int(cfg.get("min_snippets") or 12),
+        "min_comparisons": int(cfg.get("min_comparisons") or 8),
+        "min_limitations": int(cfg.get("min_limitations") or 5),
+    }
+
+
+def _block_message(policy: dict[str, Any], key: str, **kwargs: Any) -> str:
+    template = str(((policy.get("block_messages") or {}).get(key) or "")).strip()
+    if not template:
+        return key
+    try:
+        return template.format(**kwargs)
+    except Exception:
+        return template
+
+
+def _downgrade_message(policy: dict[str, Any], key: str) -> str:
+    return str(((policy.get("downgrade_messages") or {}).get(key) or key)).strip()
+
+
+def _validate_pack_shape(pack: dict[str, Any], schema: dict[str, Any]) -> None:
+    required = schema.get("required") or []
+    if not isinstance(required, list):
+        return
+    missing = [str(k) for k in required if str(k) and k not in pack]
+    if missing:
+        raise SystemExit(f"Evidence pack missing required fields: {', '.join(missing)}")
+
+
+def _has_numeric_evidence(evidence_snippets: list[dict[str, Any]]) -> bool:
+    for item in evidence_snippets or []:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text") or "")
+        if re.search(r"\d+(?:\.\d+)?%?", text):
+            return True
+    return False
+
+
+def _append_unique(items: list[str], value: str) -> None:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    if text and text not in items:
+        items.append(text)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -46,6 +118,9 @@ def main() -> int:
 
     profile = _pipeline_profile(workspace)
     draft_profile = _draft_profile(workspace)
+    policy = _runtime_policy()
+    schema = _load_json_asset(SCHEMA_PATH)
+    thresholds = _profile_thresholds(policy=policy, profile=profile, draft_profile=draft_profile)
 
     inputs = parse_semicolon_list(args.inputs) or [
         "outline/subsection_briefs.jsonl",
@@ -193,32 +268,40 @@ def main() -> int:
         abstract_n = int(evidence_summary.get("abstract", 0) or 0) if isinstance(evidence_summary, dict) else 0
         title_n = int(evidence_summary.get("title", 0) or 0) if isinstance(evidence_summary, dict) else 0
 
-        verify_fields = _verify_fields(axes=axes, evidence_summary={"fulltext": fulltext_n, "abstract": abstract_n})
+        verify_fields = _verify_fields(
+            axes=axes,
+            evidence_summary={"fulltext": fulltext_n, "abstract": abstract_n},
+            policy=policy,
+        )
 
         blocking_missing: list[str] = []
+        downgrade_signals: list[str] = []
         if not cite_keys:
-            blocking_missing.append("no usable citation keys for mapped papers (bibkey missing or not in ref.bib)")
+            _append_unique(blocking_missing, _block_message(policy, "no_citations"))
         if (fulltext_n + abstract_n) == 0 and title_n > 0:
-            blocking_missing.append("title-only evidence for this subsection (need abstracts or full text)")
+            _append_unique(blocking_missing, _block_message(policy, "title_only_evidence"))
         if not evidence_snippets:
-            blocking_missing.append("no evidence snippets extractable from notes/fulltext (need richer abstracts/fulltext)")
+            _append_unique(blocking_missing, _block_message(policy, "no_snippets"))
 
-        if profile == "arxiv-survey":
-            min_snippets = 14 if draft_profile == "deep" else 12
-            snip_ok = (
-                len([s for s in evidence_snippets if isinstance(s, dict) and str(s.get("text") or "").strip()])
-                if isinstance(evidence_snippets, list)
-                else 0
+        snip_ok = (
+            len([s for s in evidence_snippets if isinstance(s, dict) and str(s.get("text") or "").strip()])
+            if isinstance(evidence_snippets, list)
+            else 0
+        )
+        if snip_ok < int(thresholds.get("min_snippets") or 12):
+            _append_unique(
+                blocking_missing,
+                _block_message(policy, "too_few_snippets", min_needed=int(thresholds.get("min_snippets") or 12), actual=snip_ok),
             )
-            if snip_ok < min_snippets:
-                blocking_missing.append(
-                    f"too few evidence snippets (need >= {min_snippets}; have {snip_ok}); enrich paper notes/evidence bank for this subsection"
-                )
 
         eval_tokens = _extract_eval_tokens(pids=cited_pids, notes_by_pid=notes_by_pid)
         wants_eval = any(t in " ".join(axes).lower() for t in ["evaluation", "benchmark", "metric", "dataset"])
         if wants_eval and not eval_tokens:
-            blocking_missing.append("no concrete evaluation tokens (benchmarks/metrics) extractable for this subsection")
+            _append_unique(blocking_missing, _block_message(policy, "missing_eval_tokens"))
+        if fulltext_n == 0 and abstract_n > 0:
+            _append_unique(downgrade_signals, _downgrade_message(policy, "abstract_only"))
+        if _has_numeric_evidence(evidence_snippets) and not eval_tokens:
+            _append_unique(downgrade_signals, _downgrade_message(policy, "numeric_without_protocol"))
 
         definitions_setup = _definitions_setup(
             rq=rq,
@@ -234,29 +317,34 @@ def main() -> int:
             cite_keys=cite_keys,
             has_fulltext=(fulltext_n > 0),
         )
-        if len([c for c in claim_candidates if isinstance(c, dict) and str(c.get('claim') or '').strip()]) < 3:
-            blocking_missing.append('too few snippet-derived claim candidates (need >=3); enrich paper notes/evidence bank for this subsection')
+        claim_n = len([c for c in claim_candidates if isinstance(c, dict) and str(c.get('claim') or '').strip()])
+        if claim_n < 3:
+            _append_unique(blocking_missing, _block_message(policy, 'too_few_claim_candidates', min_needed=3))
 
         concrete_comparisons = _comparisons(
             axes=axes,
             clusters=clusters,
             cite_keys=cite_keys,
             evidence_snippets=evidence_snippets,
+            policy=policy,
         )
-        min_comp = 4
-        if profile == "arxiv-survey":
-            min_comp = 10 if draft_profile == "deep" else 8
-        if len([c for c in concrete_comparisons if isinstance(c, dict)]) < min_comp:
-            blocking_missing.append(
-                f"too few concrete comparisons (need >= {min_comp} A-vs-B comparisons grounded in clusters)"
+        comp_n = len([c for c in concrete_comparisons if isinstance(c, dict)])
+        if comp_n < int(thresholds.get('min_comparisons') or 8):
+            _append_unique(
+                blocking_missing,
+                _block_message(policy, 'too_few_comparisons', min_needed=int(thresholds.get('min_comparisons') or 8)),
             )
 
         evaluation_protocol = _evaluation_protocol(
             tokens=eval_tokens,
             cite_keys=cite_keys,
+            policy=policy,
         )
 
         failures_limitations = _limitations_from_notes(cited_pids, notes_by_pid=notes_by_pid, cite_keys=cite_keys)
+        if len([item for item in failures_limitations if isinstance(item, dict) and str(item.get('bullet') or '').strip()]) < int(thresholds.get('min_limitations') or 5):
+            _append_unique(downgrade_signals, _downgrade_message(policy, 'insufficient_limitations'))
+            _append_unique(verify_fields, 'failure modes / known limitations')
 
         pack = {
             "sub_id": sub_id,
@@ -274,9 +362,11 @@ def main() -> int:
             "evaluation_protocol": evaluation_protocol,
             "failures_limitations": failures_limitations,
             "blocking_missing": blocking_missing,
+            "downgrade_signals": downgrade_signals,
             "verify_fields": verify_fields,
             "generated_at": now_iso_seconds(),
         }
+        _validate_pack_shape(pack, schema)
 
         records.append(pack)
         _write_md_pack(md_dir / f"{sub_id}.md", pack)
@@ -435,7 +525,7 @@ def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[s
     return out
 
 
-def _verify_fields(*, axes: list[str], evidence_summary: dict[str, Any]) -> list[str]:
+def _verify_fields(*, axes: list[str], evidence_summary: dict[str, Any], policy: dict[str, Any]) -> list[str]:
     fields: list[str] = []
 
     def add(x: str) -> None:
@@ -445,17 +535,19 @@ def _verify_fields(*, axes: list[str], evidence_summary: dict[str, Any]) -> list
 
     joined = " ".join([a.lower() for a in axes])
 
-    # Default verification checklist (keep as short phrases; no prose).
-    add("named benchmarks/datasets used")
-    add("metrics/human-eval protocol")
-    if "compute" in joined or "efficien" in joined or "cost" in joined:
-        add("compute/training/inference cost")
-    if "data" in joined or "training" in joined:
-        add("training data and supervision signal")
-    if "failure" in joined or "limit" in joined:
-        add("failure modes / known limitations")
+    for item in (policy.get("verify_field_defaults") or []):
+        add(str(item or ""))
 
-    add("baseline choices and ablation evidence")
+    for rule in (policy.get("verify_field_rules") or []):
+        if not isinstance(rule, dict):
+            continue
+        keywords = [str(k).strip().lower() for k in (rule.get("keywords") or []) if str(k).strip()]
+        field = str(rule.get("field") or "").strip()
+        if field and any(k in joined for k in keywords):
+            add(field)
+
+    if int((evidence_summary or {}).get("fulltext", 0) or 0) == 0:
+        add("paper-local protocol details from full text")
 
     return fields[:12]
 
@@ -537,6 +629,7 @@ def _comparisons(
     clusters: Any,
     cite_keys: list[str],
     evidence_snippets: Any,
+    policy: dict[str, Any],
 ) -> list[dict[str, Any]]:
     # Build multiple A-vs-B comparison cards (NO PROSE).
     # A150++ requires a larger pool of concrete comparisons (survey>=8, deep>=10)
@@ -544,16 +637,7 @@ def _comparisons(
 
     axes = [str(a).strip() for a in (axes or []) if str(a).strip()]
     if not axes:
-        axes = [
-            "core mechanism and system architecture",
-            "tool and interface assumptions",
-            "planning and control loop",
-            "memory and retrieval",
-            "evaluation protocol (benchmarks and metrics)",
-            "compute, latency, and cost",
-            "robustness and failure modes",
-            "safety and threat model",
-        ]
+        axes = [str(a).strip() for a in (policy.get("default_axes") or []) if str(a).strip()]
 
     # Build cluster groups.
     groups: list[dict[str, Any]] = []
@@ -586,25 +670,9 @@ def _comparisons(
                 {"label": "Group B", "pids": pids[mid : mid + mid]},
             ]
 
-    # Fallback: no usable cluster grouping.
+    # No usable cluster grouping: return explicit failure state to the caller instead of fabricating A/B cards.
     if len(groups) < 2:
-        out: list[dict[str, Any]] = []
-        for ax in axes[:10]:
-            out.append(
-                {
-                    "axis": ax,
-                    "A_label": "Approach A",
-                    "B_label": "Approach B",
-                    "A_papers": "Approach A",
-                    "B_papers": "Approach B",
-                    "A_highlights": [],
-                    "B_highlights": [],
-                    "write_prompt": "Contrast A vs B along the axis using only cited evidence; do not introduce new claims.",
-                    "evidence_field": ax,
-                    "citations": cite_keys[:6],
-                }
-            )
-        return out[:10]
+        return []
 
     # Pair ordering: prioritize earlier clusters.
     pairs: list[tuple[int, int]] = []
@@ -797,31 +865,24 @@ def _extract_eval_tokens(*, pids: list[str], notes_by_pid: dict[str, dict[str, A
     return tokens[:12]
 
 
-def _evaluation_protocol(*, tokens: list[str], cite_keys: list[str]) -> list[dict[str, Any]]:
-    """Produce protocol-context bullets (NO PROSE).
-
-    A150++ packs require multiple evaluation anchors so C5 can write protocol-aware
-    comparisons without guessing (task + metric + constraints). In abstract mode
-    many details are underspecified; these bullets also encode when to weaken claims.
-    """
+def _evaluation_protocol(*, tokens: list[str], cite_keys: list[str], policy: dict[str, Any]) -> list[dict[str, Any]]:
+    """Produce protocol-context bullets (NO PROSE) from explicit policy, not filler."""
 
     out: list[dict[str, Any]] = []
     cites_strong = cite_keys[:4] if isinstance(cite_keys, list) else []
     cites_light = cite_keys[:2] if isinstance(cite_keys, list) else []
 
     tok_list = ", ".join([t for t in (tokens or []) if str(t).strip()][:10]).strip()
-    if tok_list:
-        out.append({"bullet": "Evaluation mentions include: " + tok_list + ".", "citations": cites_strong or cites_light})
-    else:
-        out.append({"bullet": "Evaluation protocol details are sparse in the extracted notes for this subsection; treat numeric comparisons as provisional unless benchmark/metric and constraints are stated.", "citations": cites_light})
+    if not tok_list or not (cites_strong or cites_light):
+        return []
 
-    out.append({"bullet": "When comparing results, anchor the paragraph with: task type + metric + constraint (budget, tool access, horizon, or threat model) when stated.", "citations": cites_light})
-    out.append({"bullet": "Prefer head-to-head comparisons only when benchmark/metric are shared; otherwise frame differences as protocol-driven rather than method superiority.", "citations": cites_light})
-    out.append({"bullet": "Avoid underspecified model/baseline naming; if abstracts omit details, state that the baseline is reported but underspecified instead of guessing.", "citations": cites_light})
-    out.append({"bullet": "If a claim relies on a single reported number, pair it with a limitation/caveat from the same evidence so the draft remains conservative.", "citations": cites_light})
-    out.append({"bullet": "If budgets or environments differ across papers, treat cross-paper numeric comparison as fragile and prefer qualitative contrasts aligned to the subsection axes.", "citations": cites_light})
+    out.append({"bullet": "Evaluation mentions include: " + tok_list + ".", "citations": cites_strong or cites_light})
 
-    # Keep the pack compact but rich enough for gates (survey: >=5, deep: >=6).
+    for bullet in (policy.get("evaluation_protocol_defaults") or []):
+        bullet = str(bullet or "").strip()
+        if bullet:
+            out.append({"bullet": bullet, "citations": cites_light})
+
     return out[:8]
 
 
@@ -885,25 +946,6 @@ def _limitations_from_notes(pids: list[str], *, notes_by_pid: dict[str, dict[str
 
         if len(out) >= 10:
             break
-
-    # Ensure minimum count for gates (survey: >=5, deep: >=6).
-    min_needed = 6
-    if len(out) < min_needed:
-        fillers = [
-            "Limitations are underreported in abstracts for this subsection; avoid strong generalizations without matched protocol details.",
-            "Some evaluations omit threat model or budget assumptions; treat robustness and safety claims as conditional on unstated constraints.",
-            "Reported outcomes may depend on environment or tooling differences; prefer within-benchmark contrasts and state transfer caveats explicitly.",
-            "Ablations and failure analysis are often missing at abstract level; keep comparative claims conservative unless directly supported.",
-            "When evidence is thin, phrase conclusions as patterns in reported protocols rather than definitive rankings.",
-            "If multiple papers report inconsistent outcomes, note the disagreement instead of reconciling without evidence.",
-        ]
-        for b in fillers:
-            if len(out) >= min_needed:
-                break
-            add(b, cite_keys[:2] if isinstance(cite_keys, list) else [])
-
-    while len(out) < min_needed:
-        add("Failure-mode evidence is sparse for this subsection; treat conclusions as provisional and prioritize richer extraction upstream.", cite_keys[:2] if isinstance(cite_keys, list) else [])
 
     return out[:8]
 
@@ -992,6 +1034,14 @@ def _write_md_pack(path: Path, pack: dict[str, Any]) -> None:
     if blocking:
         lines.extend(["", "## Blocking missing (stop drafting)", ""])
         for m in blocking:
+            m = str(m).strip()
+            if m:
+                lines.append(f"- {m}")
+
+    downgrade = pack.get("downgrade_signals") or []
+    if downgrade:
+        lines.extend(["", "## Downgrade signals (keep claims conservative)", ""])
+        for m in downgrade:
             m = str(m).strip()
             if m:
                 lines.append(f"- {m}")

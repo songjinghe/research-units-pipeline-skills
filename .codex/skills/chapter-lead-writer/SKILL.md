@@ -1,148 +1,165 @@
 ---
 name: chapter-lead-writer
 description: |
-  Write H2 chapter lead blocks (`sections/S<sec_id>_lead.md`) that preview the chapter\x27s comparison lens and connect its H3 subsections, without adding new facts.
+  Write H2 chapter lead blocks (`sections/S<sec_id>_lead.md`) that preview the chapter's comparison lens and connect its H3 subsections, without adding new facts.
   **Trigger**: chapter lead writer, section lead writer, H2 lead, lead paragraph, 章节导读, 章节导语.
-  **Use when**: you have H2 chapters with multiple H3 subsections and the draft reads like \"paragraph islands\" across subsections.
-  **Skip if**: the outline has no H3 subsections, or `outline/chapter_briefs.jsonl` is missing (build briefs first).
+  **Use when**: you have H2 chapters with multiple H3 subsections and the draft reads like paragraph islands across subsections.
+  **Skip if**: the outline has no H3 subsections, or `outline/chapter_briefs.jsonl` is missing.
   **Network**: none.
   **Guardrail**: no new facts/citations; no headings; no narration templates; use only citation keys present in `citations/ref.bib`.
 ---
 
-# Chapter Lead Writer (H2 coherence without ToC bloat)
+# Chapter Lead Writer
 
-Purpose: prevent a common survey failure mode: each H3 is locally fine, but the chapter feels like stitched islands.
+## Purpose
 
-A chapter lead is a short paragraph block inserted right after `## <H2 title>` and before the first `###`.
-It should *announce the lens and contrasts*, not narrate the outline.
+This skill writes the body-only lead block that sits under an H2 heading and makes a chapter with multiple H3 subsections read like one argument.
+
+This `SKILL.md` is now the **package router**, not the full method manual.
+
+## Migration status
+
+This package is in **P0 compatibility-preserving migration**:
+- `references/` and `assets/` now hold the intended knowledge and contract layers.
+- `scripts/run.py` remains in **compatibility mode** for active generation.
+- a later script-thinning pass should move more judgment and exemplars out of Python and leave the script with deterministic execution and validation only.
+
+For now, preserve the existing output contract and treat `scripts/run.py` as the execution source of truth.
 
 ## Inputs
 
-- `outline/outline.yml` (which H2 sections have H3 subsections)
-- `outline/chapter_briefs.jsonl` (preferred: throughline + key contrasts + lead plan)
-- Optional:
-  - `outline/writer_context_packs.jsonl` (for consistent phrasing and shared anchors)
+Required:
+- `outline/outline.yml`
+- `outline/chapter_briefs.jsonl`
 - `citations/ref.bib`
+
+Optional:
+- `outline/writer_context_packs.jsonl`
 
 ## Outputs
 
 For each H2 section with H3 subsections:
 - `sections/S<sec_id>_lead.md`
 
-Constraints:
-- Body-only: MUST NOT contain headings (`#`, `##`, `###`).
-- No \"in this section\" narration; this lead will be read as paper prose.
+## Output contract
 
-## Workflow
+Keep these file-shape rules stable:
+- each lead file is body-only and contains no headings
+- each lead file previews the chapter lens and connects multiple H3s as one argument
+- each lead file stays within the chapter's existing citation scope
+- each lead file adds no new facts that are not supported later in the chapter
 
-1) Enumerate chapters
-- Read `outline/outline.yml` and list the H2 sections that have H3 subsections.
+## References to load
 
-2) Load the chapter plan
-- For each such H2, open its record in `outline/chapter_briefs.jsonl` and extract:
-  - `throughline` (the chapter\x27s question)
-  - `key_contrasts` (the axes tying the H3s together)
-  - `lead_paragraph_plan` (the intended paragraph jobs)
+Read these files explicitly when applying this skill:
 
-3) Pull shared anchors (optional)
-- If available, consult `outline/writer_context_packs.jsonl` for shared cross-cutting anchors and consistent terminology.
-- Validate any citation keys you plan to use against `citations/ref.bib`.
+1. `references/overview.md`
+- always read first
+- defines the role split, output contract, and compatibility-mode boundary
 
-4) Write `sections/S<sec_id>_lead.md`
-- Keep it 2-3 tight paragraphs.
-- Preview the lens + contrasts; hint at evaluation constraints (protocol mismatch, budget/tool access).
-- Do not add new claims that are not supported later in the H3s.
+2. `references/lead_block_archetypes.md`
+- read before drafting or revising a lead block
+- use it to choose a lead shape such as lens-first, contrast-first, or calibration-first
 
-## Best-of-2 sampling (recommended)
+3. `references/throughline_patterns.md`
+- read when `outline/chapter_briefs.jsonl` is thin, uneven, or hard to convert into one chapter-level throughline
 
-Chapter leads are short but high impact.
-Draft **2 candidate lead blocks** (or at least 2 candidate first paragraphs) with different emphases (lens-first vs contrast-first), then keep the one that:
-- connects the H3s as one argument (not a ToC narration)
-- previews 2-3 real contrasts (no slash-lists)
-- stays consistent with `outline/chapter_briefs.jsonl` and avoids new claims
+4. `references/bridge_examples.md`
+- read when the lead needs stronger transitions between H3 subsections without sounding like slide narration
 
-Do not keep both variants.
+5. `references/bad_narration_examples.md`
+- read when removing table-of-contents narration, planner talk, count-based opener slots, or title narration
 
-## Role cards (use explicitly)
+## Assets to reuse
 
-### Lens Setter
+- `assets/lead_block_contract.json`
+  - machine-readable schema for the intended lead-block contract
+  - use it as the stable package contract during later thinning / validation work
+- `assets/lead_block_compatibility_defaults.json`
+  - compatibility-mode source of truth for fallback phrasing, item limits, joiners, and sentence cadence
+  - patch this asset before changing Python when the issue is fixed fallback wording or lead cadence
 
-Mission: state the chapter’s comparison lens (the question this chapter answers).
+## Routing rules
 
-Do:
-- Name 1-2 concrete tensions the chapter resolves.
-- Commit to 2-3 cross-cutting contrasts that connect the H3s.
+Use this skill in the following order:
 
-Avoid:
-- Table-of-contents narration ("In this section", "Next we").
+1. Confirm the chapter is eligible
+- identify H2 sections with H3 subsections from `outline/outline.yml`
+- locate the corresponding chapter brief in `outline/chapter_briefs.jsonl`
 
-### Connector
+2. Load the method
+- read `references/overview.md`
+- read `references/lead_block_archetypes.md`
+- load the other reference files only if the chapter brief or current prose needs them
 
-Mission: explain why the H3s belong together as one argument.
+3. Check citation scope
+- if `outline/writer_context_packs.jsonl` exists, use it for cross-cutting chapter citations
+- keep any citations inside the existing chapter scope and validate keys against `citations/ref.bib`
 
-Do:
-- Write an argument bridge that makes the next H3 feel necessary.
-- Hint at protocol assumptions that matter (budget/tool access) without adding new facts.
+4. Execute
+- **current phase**: use `scripts/run.py` in compatibility mode to preserve active behavior and output shape
+- **future phase**: keep `scripts/run.py` for deterministic execution only, with the writing method and anti-pattern inventory living in `references/`
 
-Avoid:
-- Slash-axis lists and planner talk.
+## Compatibility mode note
 
-### Calibration Anchor
+`scripts/run.py` still contains active lead-generation logic.
 
-Mission: set expectations for how comparisons in this chapter should be read.
+That is temporary. For now:
+- do not treat the current script wording as the target architecture
+- do treat `assets/lead_block_compatibility_defaults.json` as the primary compatibility-mode wording source
+- do not copy large prose instructions back into `SKILL.md`
+- do preserve the current output contract while reducing obvious narration stems in the active path
 
-Do:
-- Mention the evaluation lens (protocol mismatch, reproducibility) at a high level.
+## What this skill should guarantee
 
-Avoid:
-- New claims that the H3s do not later substantiate.
+Regardless of where the detailed method lives, this skill should produce chapter leads that:
+- state the chapter's comparison lens rather than narrating the outline
+- connect the H3 subsections as one argument, not as isolated stops on a tour
+- introduce recurring contrasts without slash-list jargon
+- keep the evaluation or calibration lens visible at a high level
+- avoid slide narration, planner talk, and repeated stock openers
 
-## Role prompt: Chapter Lead Author (lens setter)
+## Block conditions
 
-```text
-You are writing the lead block for one survey chapter (H2).
+Stop and route upstream if any of these are true:
+- `outline/chapter_briefs.jsonl` is missing
+- the target H2 section has no H3 subsections
+- the chapter brief is too incomplete to infer a throughline safely
+- the requested lead would require new facts or out-of-scope citations
 
-Your job is to make multiple H3 subsections read as one chapter:
-- announce the chapter’s comparison lens (the question this chapter answers)
-- preview 2-3 cross-cutting contrasts/axes that connect the H3s
-- calibrate how to compare (protocol/budget/tool access assumptions) without adding new facts
+## Script role
 
-Style:
-- argument bridge, not table-of-contents narration
-- no “In this section…” / “Next, we…” / “We now turn…”
-- avoid slash-axis lists; write in natural prose
+`scripts/run.py` should currently be treated as a **compatibility executor**.
 
-Constraints:
-- no new facts
-- no new citation keys
-- if you use citations, they must exist in citations/ref.bib and be truly cross-cutting
-```
+Its long-term role after script thinning is narrower:
+- chapter discovery
+- brief loading and normalization
+- contract validation
+- deterministic report writing
 
-## Anti-patterns (reads auto-generated)
+It is not the long-term home for lead archetypes, bridge examples, or narration anti-patterns.
 
-- \"This chapter surveys...\" / \"In this section, we...\"
-- \"Next, we move to...\" / \"We now discuss...\"
-- Count-based opener slots ("Two key points...", "Three takeaways...") used as the lead's main shape.
-- Title narration: \"From A to B, ...\"
-- Axis label copying: `planning/memory`, `mechanism/architecture` as slash lists
 
-## Mini examples (paraphrase; do not copy)
+## Script
 
-Bad (outline narration):
-- `In this section, we discuss planning and memory, and then cover adaptation.`
+### Quick Start
 
-Better (lens + why + contrasts):
-- `We frame adaptation as a closed-loop problem: planning determines how decisions are formed, while memory and state representation determine what evidence those decisions can reliably condition on. This chapter contrasts design choices that trade off expressivity, verifiability, and cost under comparable protocols.`
+- `python .codex/skills/chapter-lead-writer/scripts/run.py --workspace <workspace_dir>`
 
-Bad (slide bridge):
-- `Next, we move from tool interfaces to planning.`
+### All Options
 
-Better (argument bridge):
-- `Once an interface defines what actions are executable, the next bottleneck is how agents choose those actions over time under uncertainty and budget constraints.`
+- `--workspace <dir>`
+- `--unit-id <id>`
+- `--inputs <a;b;...>`
+- `--outputs <a;b;...>`
+- `--checkpoint <C*>`
 
-## Done checklist
+### Examples
 
-- [ ] Every H2 with H3 subsections has a `sections/S<sec_id>_lead.md` file.
-- [ ] No headings inside lead files.
-- [ ] The lead previews the lens + axes, not the outline mechanics.
-- [ ] Citations (if used) exist in `citations/ref.bib` and are not dumped as a trailing list.
+- `python .codex/skills/chapter-lead-writer/scripts/run.py --workspace workspaces/<ws>`
+
+## Troubleshooting
+
+- If `outline/chapter_briefs.jsonl` is missing or too thin, rebuild chapter briefs first.
+- If `outline/writer_context_packs.jsonl` is missing, the script will still run but with a thinner citation pool.
+- If a generated lead sounds narrated, patch the compatibility asset and references before changing Python.

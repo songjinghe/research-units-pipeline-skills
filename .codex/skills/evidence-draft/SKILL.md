@@ -9,47 +9,26 @@ description: |
   **Guardrail**: NO PROSE; do not invent facts; only use citation keys that exist in `citations/ref.bib`.
 ---
 
-# Evidence Draft (NO PROSE)
+# Evidence Draft
 
-Purpose: turn `papers/paper_notes.jsonl` + subsection mapping into **writeable evidence packs** so the writer never has to guess (and never copies outline placeholders).
+Build deterministic `outline/evidence_drafts.jsonl` packs from briefs + notes + optional evidence bindings.
 
-Key design: every pack should contain **evidence snippets** (1–2 sentences) with **provenance** (abstract/fulltext/notes pointer). Even abstract-level snippets are better than template prose.
+Compatibility mode is active: this migration preserves the existing JSONL contract while moving evidence-quality policy, sparse-evidence routing, and evaluation-anchor rules into `references/` and `assets/`.
 
-Why this matters for writing quality:
-- Packs are the writer substrate; if packs are thin, C5 will either pad prose or guess.
-- Treat `blocking_missing` as a stop signal: route upstream (notes/bindings) instead of writing around gaps.
+## Load Order
 
-## Role cards (prompt-level guidance)
+Always read:
+- `references/overview.md`
+- `references/evidence_quality_policy.md`
 
-- **Evidence Curator**
-  - Mission: turn paper notes into contrastable, citeable evidence (not summaries).
-  - Do: extract snippet-backed comparisons; surface protocol details and failure modes.
-  - Avoid: axis-driven "hypotheses" that are not supported by snippets.
+Read by task:
+- `references/block_vs_downgrade.md` when deciding whether thin evidence should block drafting or only downgrade claim strength
+- `references/evaluation_anchor_rules.md` when evaluation tokens, protocol context, or numeric claims are weak
+- `references/examples_sparse_evidence.md` for evidence-thin pack calibration
 
-- **Provenance Accountant**
-  - Mission: keep every snippet auditable.
-  - Do: attach provenance pointers (abstract/fulltext/notes location) and keep excerpts sentence-level.
-  - Avoid: untraceable paraphrases that cannot be verified.
-
-- **Skeptic**
-  - Mission: prevent evidence inflation.
-  - Do: downgrade claims when evidence is abstract/title-only; convert unknowns into `verify_fields` (not repeated boilerplate in prose).
-  - Avoid: strong conclusions without protocol/metric context.
-
-
-## Non-negotiables
-
-- NO PROSE: packs are bullets-only evidence, not narrative paragraphs.
-- No fabrication: do not invent datasets/metrics/numbers.
-- Citation hygiene: every cite key must exist in `citations/ref.bib`.
-- Claim candidates must be snippet-derived (no axis-driven “Hypothesis: …” items); put questions into `verify_fields` instead.
-- Avoid silent truncation: keep `claim_candidates[].claim` long enough to carry concrete detail (<= ~400 chars) and keep highlight `excerpt` sentence-level (<= ~280 chars).
-- Numeric-claim hygiene (evidence substrate):
-  - If a snippet/claim includes digits or `%`, also include minimal context in the same bullet (at least 2 of: task/setting, metric definition, constraint/budget/tool access).
-  - If the context is not present in notes/fulltext, do not keep the number; downgrade to qualitative wording and add a `verify_fields` item instead.
-- Evidence-aware language:
-  - fulltext-backed → can summarize comparisons
-  - abstract-only/title-only → must be provisional + list verify-fields (no strong “dominant trade-offs” language)
+Machine-readable assets:
+- `assets/evidence_pack_schema.json`
+- `assets/evidence_policy.json`
 
 ## Inputs
 
@@ -58,104 +37,77 @@ Required:
 - `papers/paper_notes.jsonl`
 - `citations/ref.bib`
 
-Optional (recommended for addressable evidence):
+Optional but recommended:
 - `papers/evidence_bank.jsonl`
 - `outline/evidence_bindings.jsonl`
 
 ## Outputs
 
+Keep the current output contract:
 - `outline/evidence_drafts.jsonl`
+- optional human-readable mirrors under `outline/evidence_drafts/`
 
-Optional (human-readable):
-- `outline/evidence_drafts/` (folder of per-subsection Markdown packs)
+## Script Boundary
 
-## Output format (`outline/evidence_drafts.jsonl`)
+Use `scripts/run.py` only for:
+- deterministic joins across briefs / notes / evidence bank / bindings
+- snippet extraction and provenance assembly
+- policy-driven `blocking_missing` / `downgrade_signals` / `verify_fields` materialization
+- pack validation and Markdown mirror generation
 
-JSONL (one JSON object per line). Required fields per record:
+Do not treat `run.py` as the place for:
+- filler bullets that make thin evidence look complete
+- hidden sparse-evidence judgment that is not inspectable from `references/` / `assets/`
+- reader-facing narrative prose
 
-- `sub_id`, `title`
-- `evidence_ids` (list[str]; if `outline/evidence_bindings.jsonl` exists, this should match the binding for the subsection)
-- `evidence_level_summary` (counts: `fulltext|abstract|title`)
-- `evidence_snippets` (list; each has `text`, `paper_id`, `citations`, `provenance`)
-- `definitions_setup` (list of cited bullets)
-- `claim_candidates` (3–5 items; each has `claim`, `citations`, `evidence_field`)
-- `concrete_comparisons` (>=8 items; each has `axis`, `A_papers`, `B_papers`, `citations`, `evidence_field`; may also include `A_highlights`/`B_highlights` with snippet-backed contrast anchors)
-- `evaluation_protocol` (list of concrete protocol bullets + citations)
-- `failures_limitations` (>=5 cited bullets)
-- `blocking_missing` (list[str]; if non-empty, drafting must stop)
-- `verify_fields` (list[str]; non-blocking: fields to verify before making strong claims)
+## Output Shape Rules
 
-### Provenance schema (per snippet)
+Keep these stable:
+- preserve the existing top-level pack fields already used by downstream survey pipelines
+- `claim_candidates` must remain snippet-derived
+- sparse evidence should surface as explicit blockers / downgrade signals / verify fields, not filler bullets
+- citation keys must remain constrained to `citations/ref.bib`
 
-Example:
+## Compatibility Notes
 
-```json
-{"source":"abstract","pointer":"papers/paper_notes.jsonl:paper_id=P0012#abstract","evidence_level":"abstract"}
-```
+Current mode is reference-first with deterministic compatibility:
+- `assets/evidence_policy.json` defines pack thresholds and sparse-evidence routing
+- `assets/evidence_pack_schema.json` documents/validates the stable pack shape
+- `scripts/run.py` still materializes the existing JSONL + Markdown outputs, but no longer pads sparse sections with generic caution prose
 
-Allowed `source`: `fulltext|abstract|paper_notes|title`.
+## Quick Start
 
-## Workflow
+- `python .codex/skills/evidence-draft/scripts/run.py --workspace <workspace_dir>`
 
-1. Load `outline/subsection_briefs.jsonl` and read each subsection’s `rq`, `axes`, `clusters`, and evidence-level policy.
-2. Load `papers/paper_notes.jsonl` and build a per-paper evidence index (`bibkey`, `evidence_level`, `abstract`, `fulltext_path`, `limitations`).
-3. For each subsection:
-   - Build **evidence_snippets** from mapped papers (prefer fulltext, else abstract), and record provenance (A150++: target >=12 snippets per H3).
-   - Definitions/setup: 1–2 bullets that define setup + scope boundary (with citations).
-   - Claim candidates: 3–5 **checkable** candidates (prefer snippet-derived; tag with `evidence_field`).
-   - Concrete comparisons: >=8 A-vs-B comparisons (cluster-vs-cluster) along explicit axes.
-   - Evaluation protocol: list concrete benchmark/metric names if extractable; otherwise treat as a blocking gap.
-   - Failures/limitations: >=5 concrete limitations/failure modes with citations.
-   - Set `blocking_missing` for hard blockers (e.g., no usable citations; title-only evidence; no eval tokens for an eval-heavy subsection).
-4. Write `outline/evidence_drafts.jsonl` and per-subsection Markdown copies.
+## Execution Notes
 
-## Quality checklist
-
-- [ ] Every subsection has >=8 concrete comparisons.
-- [ ] `evidence_snippets` has >=12 items and includes provenance.
-- [ ] Any bullet containing numbers/% also carries minimal protocol context (task/metric/constraint), or the number is removed and moved to `verify_fields`.
-- [ ] `claim_candidates` has >=3 snippet-derived items (no axis-driven hypotheses).
-- [ ] `blocking_missing` is empty.
-- [ ] No `TODO` / `(placeholder)` / `<!-- SCAFFOLD -->` / unicode ellipsis (`…`) remains.
+When running in compatibility mode, `scripts/run.py` currently reads:
+- `outline/subsection_briefs.jsonl`
+- `papers/paper_notes.jsonl`
+- `citations/ref.bib`
+- optionally `papers/evidence_bank.jsonl` and `outline/evidence_bindings.jsonl`
+- `assets/evidence_policy.json` and `assets/evidence_pack_schema.json`
 
 ## Script
 
-### Refinement marker (recommended; prevents churn)
-
-When you are satisfied with evidence packs (and `blocking_missing` is empty), create:
-- `outline/evidence_drafts.refined.ok`
-
-This is an explicit "I reviewed/refined this" signal:
-- prevents scripts from regenerating and undoing your work
-- (in strict runs) can be used as a completion signal before writing
-
 ### Quick Start
 
-- `python .codex/skills/evidence-draft/scripts/run.py --help`
-- `python .codex/skills/evidence-draft/scripts/run.py --workspace <ws>`
+- `python .codex/skills/evidence-draft/scripts/run.py --workspace <workspace_dir>`
 
 ### All Options
 
-- See `--help`.
-- Inputs (required): `outline/subsection_briefs.jsonl`, `papers/paper_notes.jsonl`, `citations/ref.bib`.
-- Inputs (optional): `papers/evidence_bank.jsonl`, `outline/evidence_bindings.jsonl`.
+- `--workspace <dir>`
+- `--unit-id <id>`
+- `--inputs <path1;path2>`
+- `--outputs <path1;path2>`
+- `--checkpoint <C*>`
 
 ### Examples
 
-- Generate evidence packs after citations:
-  - Ensure `citations/ref.bib` exists.
-  - Ensure `outline/subsection_briefs.jsonl` exists (axes/clusters/plan filled).
-  - Ensure `papers/paper_notes.jsonl` has usable evidence (abstract/fulltext/limitations).
-  - Run: `python .codex/skills/evidence-draft/scripts/run.py --workspace workspaces/<ws>`
+- `python .codex/skills/evidence-draft/scripts/run.py --workspace workspaces/<ws>`
 
 ## Troubleshooting
 
-### Issue: evidence packs have `blocking_missing` entries
-
-**Fix**:
-- Treat `blocking_missing` as a stop signal: enrich `papers/paper_notes.jsonl` / `papers/evidence_bank.jsonl` (or adjust scope) before drafting prose.
-
-### Issue: evidence snippets are empty or untraceable
-
-**Fix**:
-- Ensure each snippet includes provenance (paper id + location) and that `outline/evidence_bindings.jsonl` is non-empty for the subsection.
+- If packs look complete despite thin evidence, inspect `assets/evidence_policy.json` and `references/block_vs_downgrade.md` before changing Python.
+- If evaluation bullets are generic, inspect `references/evaluation_anchor_rules.md` and the policy asset.
+- If claims are strong but evidence is abstract/title-only, downgrade via `downgrade_signals` and `verify_fields` rather than adding narrative caveats.

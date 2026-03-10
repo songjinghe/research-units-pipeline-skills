@@ -2,6 +2,8 @@
 
 > 目标：让用户在 30 秒内找到合适的 skill（按 Stage / 触发词 / 输入输出索引）。
 
+> 维护者入口（Phase 0 / standards）：先读 `SKILLS_STANDARD.md`（reference-first / script-determinism / generic-skill prohibitions），再看 `SKILLS_REFACTOR_EXECUTION_PLAN.md` 与 `SKILLS_REFACTOR_P0_P1_CHECKLIST.md`。新 skill / refactor 默认对齐到 Phase 0 的 reference-first 模板目标：`.codex/skills/_template_reference_first/`（模板落地前，先按上述标准与清单执行）。
+
 ## 一句话启用（对话触发 Pipeline）
 
 把下面这句话丢给 Codex（或 Claude Code）即可：
@@ -88,11 +90,11 @@
 - `global-reviewer`：全局一致性回看（术语/章节呼应/结论回扣 RQ；generator voice 检测），输出 `output/GLOBAL_REVIEW.md`
 - `pipeline-auditor`：回归审计（PASS/FAIL）：ellipsis/模板句/引用健康/证据绑定/pipeline voice → `output/AUDIT_REPORT.md`
 - `deliverable-selfloop`：交付物自循环门（snapshot/tutorial/systematic/peer-review）：诊断→修复→复检，直到 PASS → `output/DELIVERABLE_SELFLOOP_TODO.md`
-- `idea-pool-expander`：找 research idea：发散 Idea Pool（operator 驱动 + best-of-N；60-80 条）→ `output/IDEA_POOL.md`
-- `idea-shortlist-curator`：找 research idea：基于筛选表收敛成 5-7 条更厚的 shortlist → `output/IDEA_SHORTLIST.md`
-- `idea-opportunity-mapper`：找 research idea：把 taxonomy + notes 变成机会表（gap / why now / wedge / evidence pointers）→ `output/IDEA_OPPORTUNITY_TABLE.md`
-- `idea-screener`：找 research idea：把发散池压成评分筛选表（keep / maybe / drop）→ `output/IDEA_SCREENING_TABLE.md`
-- `idea-top3-expander`：找 research idea：把 shortlist 里的 top-3 展开成更像 mini proposal 的报告 → `output/IDEA_TOP3_REPORT.md`
+- `idea-signal-mapper`：找 research idea：把 taxonomy + notes 变成 research signals 表（claim / tension / missing piece / possible axis）→ `output/trace/IDEA_SIGNAL_TABLE.md`
+- `idea-direction-generator`：找 research idea：从 signals 生成 12-24 条 discussion-ready research directions → `output/trace/IDEA_DIRECTION_POOL.md`
+- `idea-screener`：找 research idea：把 direction pool 压成讨论导向的评分筛选表（discussion value / distinctness / thesis potential）→ `output/trace/IDEA_SCREENING_TABLE.md`
+- `idea-shortlist-curator`：找 research idea：基于筛选表收敛成 3-5 条更适合 PI/PhD 讨论的 shortlist → `output/trace/IDEA_SHORTLIST.md`
+- `idea-memo-writer`：找 research idea：把 shortlist 写成最终的 brainstorm memo + appendix + structured report → `output/REPORT.md`
 
 **Core Writing Skills**:
 - `grad-paragraph`：研究生段落 micro-skill（张力→对比→评测锚点→限制），用于写出"像综述"的正文段落（通常嵌入 `sections/S*.md` 的写作流程）

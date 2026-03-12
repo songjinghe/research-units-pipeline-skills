@@ -1,20 +1,26 @@
-# research-units-pipeline: repo-global note
+# AGENTS.md
 
-This file is intentionally minimal.
+This is the minimal repo-level instruction file for Codex and other coding agents working in this repository.
+
+## Scope
+
+- Treat this file as the top-level repo-global note, not as the full execution contract.
+- Use it for repository-wide rules only.
+- Read pipeline files, skill files, and standards documents for workflow-specific behavior.
 
 ## Why this file still exists
 
-- It is currently used as a repo-root marker by local tooling.
+- Local tooling currently uses `AGENTS.md` as the repo-root marker.
 - Do not delete or rename it until repo-root discovery is migrated away from `AGENTS.md`.
 
 ## Canonical contracts live elsewhere
 
-- Workflow execution contracts live in `pipelines/*.pipeline.md`.
-- UNITS/checkpoint conventions live in `templates/UNITS.*.csv`, `templates/units.schema.md`, and `SKILLS_STANDARD.md`.
-- Skill-specific behavior lives in `.codex/skills/<skill>/SKILL.md`.
+- Workflow execution contracts: `pipelines/*.pipeline.md`
+- UNITS and checkpoint conventions: `templates/UNITS.*.csv`, `templates/units.schema.md`, `SKILLS_STANDARD.md`
+- Skill-specific behavior: `.codex/skills/<skill>/SKILL.md`
 
-## Repo-global working rules
+## Repo-global rules agents should follow
 
-- Keep generated run artifacts under `workspaces/<name>/`; do not scatter workspace outputs in the repo root.
+- Keep generated run artifacts under `workspaces/<name>/`; do not write workspace outputs into the repo root.
 - Prefer repo skills under `.codex/skills/`; if a capability is missing, add or refactor a skill instead of doing the work ad hoc.
-- For executable pipelines, follow the pipeline's artifact contract, checkpoint contract, and approval flow rather than restating them here.
+- For executable pipelines, follow the selected pipeline's artifact contract, checkpoint contract, and approval flow rather than duplicating those rules here.

@@ -2,9 +2,9 @@
 
 > Languages: **English** | [简体中文](README.zh-CN.md)
 
-Research workflows as reusable pipelines and semantic skills.
+This project uses semantic skills to turn research workflows into reusable pipelines.
 
-This repository is for cases where a plain prompt is too weak, but a pile of scripts is too rigid. It treats research work as staged pipelines with explicit artifacts, checkpoints, and guardrails, so the work can be resumed, audited, and improved without starting over.
+It is designed for the space between fragile prompting and overly rigid scripting. By organizing research tasks into staged pipelines with explicit artifacts, checkpoints, and guardrails, it makes complex work more reusable, inspectable, and iterative. The result is a workflow that can be resumed, audited, and continuously improved instead of being rebuilt from scratch each time.
 
 ## What This Repo Covers
 
@@ -19,7 +19,7 @@ The codebase currently centers on three workflows:
 These workflows share the same architecture:
 
 - `pipelines/` defines stage contracts, artifact expectations, and required skills.
-- `.codex/skills/` holds the reusable skills.
+- `.codex/skills/` holds the reusable skills. (100 skills)
 - `workspaces/` stores per-run artifacts and intermediate outputs.
 - `readme/` contains feature-level documentation.
 

@@ -1,354 +1,204 @@
 # SKILL_INDEX
 
-> 目标：让用户在 30 秒内找到合适的 skill（按 Stage / 触发词 / 输入输出索引）。
+> 目标：让用户和维护者都能快速知道“该用哪个 skill、什么时候用、会产出什么”。
+>
+> 读法建议：先按“目标工作流”定位，再按“阶段/职责”找 skill；如果你要改 skill 本身，而不是运行它，先读 `SKILLS_STANDARD.md`。
 
-> 维护者入口（Phase 0 / standards）：先读 `SKILLS_STANDARD.md`（reference-first / script-determinism / generic-skill prohibitions），再看 `SKILLS_REFACTOR_EXECUTION_PLAN.md` 与 `SKILLS_REFACTOR_P0_P1_CHECKLIST.md`。新 skill / refactor 默认对齐到 Phase 0 的 reference-first 模板目标：`.codex/skills/_template_reference_first/`（模板落地前，先按上述标准与清单执行）。
+## 1. 快速选路
 
-## 一句话启用（对话触发 Pipeline）
+| 你现在想做什么 | 优先看哪条流程 | 关键 skills |
+|---|---|---|
+| 跑完整研究 pipeline | `research-pipeline-runner` | `workspace-init`、`pipeline-router`、`unit-planner`、`unit-executor` |
+| 写一篇证据优先的 survey / PDF | `pipelines/arxiv-survey*.pipeline.md` | `literature-engineer`、`taxonomy-builder`、`paper-notes`、`evidence-draft`、`subsection-writer`、`latex-compile-qa` |
+| 做研究方向 brainstorm memo | `pipelines/idea-brainstorm.pipeline.md` | `idea-brief`、`idea-signal-mapper`、`idea-direction-generator`、`idea-memo-writer` |
+| 做 tutorial / 教程 | `pipelines/tutorial.pipeline.md` | `tutorial-spec`、`concept-graph`、`module-planner`、`tutorial-module-writer` |
+| 做 systematic review | `pipelines/systematic-review.pipeline.md` | `protocol-writer`、`screening-manager`、`extraction-form`、`synthesis-writer` |
+| 做 peer review / 审稿 | `pipelines/peer-review.pipeline.md` | `manuscript-ingest`、`claims-extractor`、`evidence-auditor`、`rubric-writer` |
+| 重构中文毕业论文 | `pipelines/graduate-paper-pipeline.md` | `thesis-workspace-init`、`thesis-question-list`、`thesis-chapter-reconstructor`、`thesis-tex-writeback` |
 
-把下面这句话丢给 Codex（或 Claude Code）即可：
+## 2. 运行与仓库基础能力
 
-> 给我写一个 agent 的 latex-survey
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `_template_reference_first` | 内部模板：把 skill 改造成 reference-first 结构 | 你在新建或重构 skill | 不是用户侧产物；目标是 `SKILL.md + references/ + assets/ + minimal scripts/` |
+| `workspace-init` | 初始化标准 workspace 骨架 | 任何新 run 的 C0 | `STATUS.md`、`UNITS.csv`、`CHECKPOINTS.md`、`DECISIONS.md`、基础目录 |
+| `pipeline-router` | 根据目标选择 pipeline，并写入 `PIPELINE.lock.md` | 需求不够清楚，或需要显式锁定流程 | `PIPELINE.lock.md`、HITL 问题、`DECISIONS.md` 更新 |
+| `human-checkpoint` | 记录人工签字 / 勾选 `Approve C*` | pipeline 因 checkpoint 被挡住时 | 只改 `DECISIONS.md` |
+| `unit-planner` | 从 pipeline 模板生成或更新 `UNITS.csv` | 需要把流程具体化成 work units | `UNITS.csv`、必要时更新 `STATUS.md` / `CHECKPOINTS.md` |
+| `unit-executor` | 严格执行一个可运行 unit | 你想一步一步可审计推进 | 只推进一个 unit，对应工件会被更新 |
+| `research-pipeline-runner` | 端到端跑整条 research pipeline | 用户想“直接继续跑 / 自动推进” | 在 `workspaces/<name>/` 下持续产出完整流程工件 |
+| `artifact-contract-auditor` | 检查 workspace 是否满足 pipeline 合同 | 交付前、回归时、或想确认是否缺文件 | `output/CONTRACT_REPORT.md` |
 
-可选（更稳）：显式指定 pipeline 文件（避免 router 选错）：
+## 3. 检索、候选池与语料准备
 
-> 用 `pipelines/arxiv-survey-latex.pipeline.md` 给我写一个 agent 的 latex-survey（启用 strict 质量门；C2 自动同意）
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `keyword-expansion` | 扩展或收敛检索词 | 检索覆盖不足、噪声太大、主题别名很多时 | 更新 `queries.md` |
+| `literature-engineer` | 多路召回 + 元信息规范化 | 需要做较完整的文献池，而不只是少量 arXiv 结果 | `papers/papers_raw.jsonl`、`papers/retrieval_report.md` |
+| `arxiv-search` | 轻量 arXiv 检索或导入 | 只想快速拉一批 arXiv metadata，或有离线 export | `papers/papers_raw.jsonl` |
+| `dedupe-rank` | 去重、排序、形成 core set | 检索后要收敛到可管理的论文集合时 | `papers/papers_dedup.jsonl`、`papers/core_set.csv` |
+| `survey-seed-harvest` | 从已有 survey/review 提取 taxonomy seeds | 想用已有 survey 作为 taxonomy 的起步材料 | `outline/taxonomy.yml` seed |
+| `agent-survey-corpus` | 下载/抽取少量 agent survey 作为风格参考语料 | 想学习真实 survey 的组织和文风 | `ref/agent-surveys/` |
 
-常用对话控制：
-- “继续跑 / 继续执行 / 继续” → 继续执行 `UNITS.csv` 里的下一个可运行 unit
-- “C2 同意，继续” → 通过大纲审批后进入写作阶段（如果你希望停在 C2，就不要同意）
+## 4. Survey 结构规划（C2 / NO PROSE）
 
-## 0-6 Stages（通用）
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `taxonomy-builder` | 从 core set 生成 2+ 层 taxonomy | survey / snapshot 需要稳定的主题树时 | `outline/taxonomy.yml` |
+| `chapter-skeleton` | 先做 H2 级 chapter skeleton | 想先稳定章节级结构，再细分 H3 | `outline/chapter_skeleton.yml` |
+| `section-bindings` | 先把 papers 绑定到章节级 section | 想先看每章是否“吃得饱” | `outline/section_bindings.jsonl`、`outline/section_binding_report.md` |
+| `section-briefs` | 为每个章节生成 chapter-level brief | 已有 section bindings，需要章节级写作计划时 | `outline/section_briefs.jsonl` |
+| `outline-builder` | 把 taxonomy 转成 bullets-only 大纲 | 需要进入正式 mapping 之前 | `outline/outline.yml` |
+| `outline-budgeter` | 压缩过碎的大纲，控制 H2/H3 数量 | outline 太碎、章节太多、像目录生成器时 | 更新 `outline/outline.yml` |
+| `section-mapper` | 把 core papers 分配到每个小节 | 需要显式检查 coverage 时 | `outline/mapping.tsv` |
+| `outline-refiner` | 对 outline + mapping 做 planner 诊断 | 需要看覆盖率、热点复用、结构冗余时 | `outline/coverage_report.md`、`outline/outline_state.jsonl` |
+| `subsection-briefs` | 为每个 H3 生成写作意图卡 | 想让后续写作围绕具体 axes / clusters / plan 展开 | `outline/subsection_briefs.jsonl` |
+| `chapter-briefs` | 为每个 H2 生成章节导读卡 | 已经有 H3 级 briefs，想加强 H2 throughline 时 | `outline/chapter_briefs.jsonl` |
 
-### Stage 0 — Init（C0）
+## 5. Survey 证据、引用与表格（C3-C4 / NO PROSE）
 
-- `workspace-init`：初始化 workspace 模板（`STATUS.md/UNITS.csv/CHECKPOINTS.md/DECISIONS.md` + 目录骨架）
-- `pipeline-router`：当需求不清晰时选择 pipeline、写入 `PIPELINE.lock.md`、生成/整理 HITL 问题
-- `idea-brief`：找 research idea / 选题：锁定 ideation brief（scope/constraints/rubric/query buckets）→ `output/IDEA_BRIEF.md` + `queries.md`
-- `human-checkpoint`：人类签字/审批 skill（勾选 `DECISIONS.md` 的 `Approve C*`，用于解锁后续 stages）
-- `unit-planner`：从 pipeline/模板生成或更新 workspace 的 `UNITS.csv`
-- `unit-executor`：严格“一次只跑一个 unit”（按 `UNITS.csv` 与依赖执行）
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `pdf-text-extractor` | 下载 PDF 并抽取全文文本 | 需要 fulltext evidence，而不仅是 abstract 时 | `papers/fulltext_index.jsonl`、`papers/fulltext/*.txt` |
+| `paper-notes` | 为 core set 写结构化 notes，并沉淀 evidence bank | survey 要从“有 paper”走向“可写证据”时 | `papers/paper_notes.jsonl`、`papers/evidence_bank.jsonl` |
+| `citation-verifier` | 生成 BibTeX 并补 verification records | prose 或 LaTeX 之前必须准备可追溯 citations | `citations/ref.bib`、`citations/verified.jsonl` |
+| `evidence-binder` | 把 evidence IDs 绑定到每个 subsection | 想让 writer 只使用 section-scoped 证据时 | `outline/evidence_bindings.jsonl`、`outline/evidence_binding_report.md` |
+| `evidence-draft` | 生成 per-H3 evidence packs | 准备正式写作前，要把 claims / comparisons / eval / limitations 显式化 | `outline/evidence_drafts.jsonl` |
+| `anchor-sheet` | 从 evidence packs 提取数字/benchmark/limitation 锚点 | 想让写作更具体，而不是空泛综述时 | `outline/anchor_sheet.jsonl` |
+| `schema-normalizer` | 规范化 briefs / packs / bindings 的 JSONL 接口 | 多个 skill 之间字段漂移、join 不稳时 | `output/SCHEMA_NORMALIZATION_REPORT.md` |
+| `writer-context-pack` | 把 briefs + evidence + anchors + allowed cites 合成写作上下文包 | 想让 writer 读到的是稳定、完整的 per-H3 context 时 | `outline/writer_context_packs.jsonl` |
+| `evidence-selfloop` | 先诊断证据缺口，再把问题路由回上游 | C4 看起来薄、写作前想挡住空洞 prose 时 | `output/EVIDENCE_SELFLOOP_TODO.md` |
+| `claim-matrix-rewriter` | 从 evidence packs 重写 claim-evidence index | 现有 claim matrix 仍然太模板化时 | `outline/claim_evidence_matrix.md` |
+| `claim-evidence-matrix` | 传统 claim-evidence matrix 生成器 | 需要一个较直接的 claim→evidence 对照表时 | `outline/claim_evidence_matrix.md` |
+| `table-schema` | 先定义 survey 表格应该回答什么问题 | 想做 evidence-first 表格，而不是先凭感觉填表 | `outline/table_schema.md` |
+| `table-filler` | 把 schema 填成内部索引表 | 已有 schema 和 evidence packs，需要 planning/debug tables 时 | `outline/tables_index.md` |
+| `appendix-table-writer` | 把内部表转成读者可见的 Appendix 表格 | 已有证据与 schema，希望交付可发表附录表时 | `outline/tables_appendix.md`、`output/TABLES_APPENDIX_REPORT.md` |
+| `survey-visuals` | 生成非 prose 的时间线/图规格 | survey 需要 timeline、figure spec、visual artifacts 时 | `outline/timeline.md`、`outline/figures.md` 或等价文件 |
 
-### Stage 1 — Retrieval / Core set（C1）
+## 6. Survey 写作、文风与自循环（C5）
 
-- `keyword-expansion`：扩展/收敛 `queries.md`（同义词、缩写、排除词）
-- `literature-engineer`（Network: online/snowball 可选）：多路召回（imports/online/snowball）+ 元信息规范化 → `papers/papers_raw.jsonl` + `papers/retrieval_report.md`
-- `arxiv-search`（Network: online 可选）：轻量 arXiv 检索/导入（不做 snowball/覆盖桶；适合快速取一个小集合）
-- `dedupe-rank`：去重/排序 → `papers/papers_dedup.jsonl` + `papers/core_set.csv`
-- `survey-seed-harvest`：从 survey/review 论文提取 taxonomy seeds → `outline/taxonomy.yml`（用于 bootstrap）
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `transition-weaver` | 生成 H2/H3 之间的轻量过渡句 | 章节之间像“段落孤岛”，需要承接关系时 | `outline/transitions.md` |
+| `grad-paragraph` | 单段写作 micro-skill：张力→对比→评测锚点→限制 | 想写出更像 survey 的单段，而不是泛泛总结时 | 通常写入 `sections/S*.md` |
+| `snapshot-writer` | 写 1 页 literature snapshot | 不需要完整 survey，只需要速览时 | `output/SNAPSHOT.md` |
+| `front-matter-writer` | 写 Abstract / Intro / Related Work / Discussion / Conclusion | 草稿像拼接小节，需要 paper-level shell 时 | `sections/abstract.md`、front matter files、`output/FRONT_MATTER_REPORT.md` |
+| `chapter-lead-writer` | 为 H2 写章节导读段 | H2 下有多个 H3，但整章缺少导向时 | `sections/S<sec_id>_lead.md` |
+| `subsection-writer` | 按 H2/H3 拆分写作到 `sections/` | 想避免一口气生成整篇 draft 时 | `sections/*.md`、`sections/sections_manifest.jsonl` |
+| `prose-writer` | 直接从 outline + evidence 写 `output/DRAFT.md` | 已批准结构，且想用 monolithic draft 路径时 | `output/DRAFT.md` |
+| `writer-selfloop` | 只重写失败 sections，直到过 gate | C5 被 writer 质量门挡住时 | `output/WRITER_SELFLOOP_TODO.md`、更新 `sections/*.md` |
+| `section-logic-polisher` | 修 section 内部逻辑、桥接与 paragraph islands | 小节内部像堆段落，缺 thesis 和顺序时 | `output/SECTION_LOGIC_REPORT.md` |
+| `argument-selfloop` | 检查论证动作、前提一致性、口径漂移 | prose 流畅但论证空洞，或不同段前提不一致时 | `output/ARGUMENT_SELFLOOP_TODO.md`、`output/ARGUMENT_SKELETON.md` |
+| `paragraph-curator` | 多候选段落的选择、评价、融合 | 小节越来越长、重复越来越多时 | `output/PARAGRAPH_CURATION_REPORT.md` |
+| `subsection-polisher` | 对单个 H3 局部润色 | 不想动全稿，只想修一个失败小节时 | 更新对应 `sections/S*.md` |
+| `section-merger` | 把 `sections/` 合并成 `output/DRAFT.md` | 分 section 写完后准备合并总稿时 | `output/DRAFT.md`、`output/MERGE_REPORT.md` |
+| `post-merge-voice-gate` | 合并后检查 planner talk / transition 泄漏 | merge 完后 draft 读起来仍像“写作说明书”时 | `output/POST_MERGE_VOICE_REPORT.md` |
+| `draft-polisher` | 对合并稿做去套话与连贯性润色 | 想修整稿的 generator voice，但不改 citations 时 | 更新 `output/DRAFT.md` |
+| `global-reviewer` | 做全局一致性回看 | 想看术语、章节呼应、scope consistency 时 | `output/GLOBAL_REVIEW.md` |
+| `pipeline-auditor` | 对 survey 流程做 PASS/FAIL 审计 | 交付前、回归时、想查模板味/引用健康时 | `output/AUDIT_REPORT.md` |
+| `deliverable-selfloop` | 对最终交付物做诊断→修复→复检循环 | snapshot/tutorial/systematic/peer-review 等成品要收敛到 PASS 时 | `output/DELIVERABLE_SELFLOOP_TODO.md` |
+| `terminology-normalizer` | 统一术语与同义词策略 | 同一概念在不同章节叫法不一致时 | 更新 draft / sections |
+| `redundancy-pruner` | 去掉跨章节重复 boilerplate | 多个 section 重复同一段结构或免责声明时 | 更新 draft / sections |
+| `style-harmonizer` | 去槽位句式、统一 paper voice | 草稿整体有“生成器节奏”时 | 更新 `sections/*.md` |
+| `opener-variator` | 只改 subsection 开头，降低 opener 重复 | 多个 H3 都是同一类开头句时 | 更新 `sections/S*.md` |
+| `limitation-weaver` | 保留局限性但去掉僵硬计数式模板 | 多个小节都出现 “Two limitations...” 这类句式时 | 更新 `sections/S*.md` |
+| `evaluation-anchor-checker` | 检查数字/评测断言是否带最小协议上下文 | 出现脱离 task/metric/constraint 的数字结论时 | 更新 `sections/*.md` 或 `output/DRAFT.md` |
+| `citation-anchoring` | 检查润色后 citations 是否跨小节漂移 | 怀疑 polish 把 claim→evidence 锚点弄乱时 | 回归报告，不主改正文 |
+| `citation-diversifier` | 给每个 H3 做 citation budget | unique citations 太低、过度复用少量 cite 时 | `output/CITATION_BUDGET_REPORT.md` |
+| `citation-injector` | 按 citation budget 安全注入引用 | 已有 citation budget，想增密但不加新事实时 | `output/CITATION_INJECTION_REPORT.md`、更新 draft |
 
-### Stage 2 — Structure（C2）[NO PROSE]
+## 7. Idea Brainstorm
 
-- `taxonomy-builder`：核心集合 → `outline/taxonomy.yml`（≥2 层、可映射）
-- `outline-builder`：taxonomy → `outline/outline.yml`（bullets-only）
-- `outline-budgeter`（可选）：合并过碎大纲，控制 H2/H3 预算（paper-like 6–8 个 H2；少而厚）→ `outline/outline.yml` + `outline/OUTLINE_BUDGET_REPORT.md`
-- `section-mapper`：core set → `outline/mapping.tsv`（小节覆盖率）
-- `outline-refiner`：planner pass 诊断（覆盖率/复用热点/轴是否泛化）→ `outline/coverage_report.md` + `outline/outline_state.jsonl`
-- `concept-graph`：教程概念依赖图 → `outline/concept_graph.yml`
-- `module-planner`：概念图 → `outline/module_plan.yml`
-- `exercise-builder`：为模块补齐可验证练习（更新 module plan）
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `idea-brief` | 把 brainstorm 目标锁成一个结构化 brief | 主题输入很散、需要先定 scope / audience / constraints 时 | `output/trace/IDEA_BRIEF.md`、`queries.md` |
+| `idea-signal-mapper` | 把 literature signals 显式化 | 已有 taxonomy + notes，想把 tensions / missing pieces 摊开时 | `output/trace/IDEA_SIGNAL_TABLE.md` |
+| `idea-direction-generator` | 从 signals 生成讨论型 research directions | 需要一组可比较的候选方向，而不是 proposal prose 时 | `output/trace/IDEA_DIRECTION_POOL.md` |
+| `idea-screener` | 对 direction pool 打分筛选 | 候选方向太多，需要按 discussion value / distinctness 收敛时 | `output/trace/IDEA_SCREENING_TABLE.md` |
+| `idea-shortlist-curator` | 收敛成 3-5 个 shortlist directions | 已有 screening table，要形成可讨论 shortlist 时 | `output/trace/IDEA_SHORTLIST.md` |
+| `idea-memo-writer` | 把 shortlist 写成最终 memo | 已确定 shortlist，准备形成最终 discussion memo 时 | `output/REPORT.md`、`output/APPENDIX.md`、`output/REPORT.json` |
 
-### Stage 3 — Evidence（C3）[NO PROSE]
+## 8. Tutorial / 教程
 
-- `pdf-text-extractor`（Network: fulltext 可选）：下载/抽取全文 → `papers/fulltext_index.jsonl` + `papers/fulltext/*.txt`
-- `paper-notes`：结构化论文笔记 + 证据库 → `papers/paper_notes.jsonl` + `papers/evidence_bank.jsonl`
-- `subsection-briefs`：为每个 H3 生成写作意图卡（scope_rule/rq/axes/clusters/paragraph_plan）→ `outline/subsection_briefs.jsonl`
-- `chapter-briefs`：为每个含 H3 的 H2 生成“章节导读卡”（throughline/key_contrasts/lead plan；NO PROSE）→ `outline/chapter_briefs.jsonl`
-- `claims-extractor`：从单篇论文/稿件提取 claims → `output/CLAIMS.md`
-- `manuscript-ingest`：审稿输入：把被审稿件导入成纯文本 → `output/PAPER.md`（供 claims-extractor 做可追溯定位）
-- `evidence-auditor`：审稿：证据缺口审计 → `output/MISSING_EVIDENCE.md`
-- `novelty-matrix`：审稿：新颖性矩阵 → `output/NOVELTY_MATRIX.md`
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `tutorial-spec` | 定义教程目标、受众、先修、running example | tutorial 起步阶段，先锁 scope 时 | `output/TUTORIAL_SPEC.md` |
+| `concept-graph` | 生成概念依赖图 | 想把知识点排序成 prerequisite graph 时 | `outline/concept_graph.yml` |
+| `module-planner` | 把概念图变成模块序列 | 已有 concept graph，要形成教学模块时 | `outline/module_plan.yml` |
+| `exercise-builder` | 为每个模块补可验证练习 | 模块有了，但还没有“做什么、怎么验收”时 | 更新 `outline/module_plan.yml` |
+| `tutorial-module-writer` | 写完整教程内容 | spec 和 module plan 已批准，准备写教程正文时 | `output/TUTORIAL.md` |
 
-### Stage 4 — Citations / Evidence packs（C4）[NO PROSE]
+## 9. Systematic Review / 系统综述
 
-- `citation-verifier`（Network: verify 可选）：生成 BibTeX + verification 记录 → `citations/ref.bib` + `citations/verified.jsonl`
-- `evidence-binder`：把 subsection→evidence_id 绑定成“证据计划”（writer 只能按 ID 取证据）→ `outline/evidence_bindings.jsonl` + `outline/evidence_binding_report.md`
-- `evidence-draft`：把 notes→“可写证据包”（逐小节 claim candidates / concrete comparisons / eval / limitations）→ `outline/evidence_drafts.jsonl`
-- `anchor-sheet`：从 evidence packs 提取“可写锚点”（数字/benchmark/limitation；NO PROSE）→ `outline/anchor_sheet.jsonl`
-- `schema-normalizer`：规范化 JSONL interface（补齐 ids/titles；`citations` 统一为 raw bibkey；NO PROSE）→ `output/SCHEMA_NORMALIZATION_REPORT.md`
-- `writer-context-pack`：把 briefs + evidence + anchors + allowed cites 合并成 per-H3 写作上下文包（NO PROSE）→ `outline/writer_context_packs.jsonl`
-- `evidence-selfloop`：证据自循环 TODO（读 bindings+packs，写出上游修复路径；把缺口挡在 C5 之前）→ `output/EVIDENCE_SELFLOOP_TODO.md`
-- `claim-matrix-rewriter`：从 evidence packs 重写“claim→evidence 索引”（避免模板 claim）→ `outline/claim_evidence_matrix.md`
-- `table-schema`（survey/deep 默认）：先定义表格 schema（问题/列/证据字段）→ `outline/table_schema.md`
-- `table-filler`（survey/deep 默认）：填“索引表”（planning/debug；不进终稿）→ `outline/tables_index.md`
-- `appendix-table-writer`（survey/deep 默认）：写“可发表 Appendix 表”（干净+高密度；进终稿 Appendix）→ `outline/tables_appendix.md`
-- `survey-visuals`（可选）：非 prose 的时间线/图规格 → `outline/timeline.md` + `outline/figures.md`
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `protocol-writer` | 写 systematic review protocol | 系统综述真正开始前，先锁检索/纳排/提取规则时 | `output/PROTOCOL.md` |
+| `screening-manager` | 记录纳排筛选决策 | protocol 已批准，进入 screening 时 | `papers/screening_log.csv` |
+| `extraction-form` | 按 schema 提取研究信息 | 完成 screening，进入 data extraction 时 | `papers/extraction_table.csv` |
+| `bias-assessor` | 给 extraction table 补偏倚/质量评估 | systematic review 需要 bias / quality 字段时 | 更新 `papers/extraction_table.csv` |
+| `synthesis-writer` | 基于 extraction table 写综合文本 | 数据提取完成，要形成 systematic synthesis 时 | `output/SYNTHESIS.md` |
 
-### Stage 5 — Writing（C5）[PROSE after approvals]
+## 10. Peer Review / 审稿
 
-**Paper Voice Skills** (enforce generator-voice-free prose):
-- `transition-weaver`：生成 H2/H3 过渡句映射（不新增事实/引用；输出 content sentences only）→ `outline/transitions.md`
-- `style-harmonizer`：去槽位句式/去同质化（不改事实/不改 citation keys；只做局部句式改写）→ 更新 `sections/*.md`
-- `opener-variator`：只改 H3 开头段（去 overview/旁白 + 降低 opener cadence 重复），让全稿更像“作者写的”→ 更新 `sections/S*.md`
-- `limitation-weaver`：保留局限性但去掉“Two limitations…”这类计数式槽位句式（不改 citation keys）→ 更新 `sections/S*.md`
-- `evaluation-anchor-checker`：数字/评测断言的最小协议上下文检查（task+metric+constraint；缺上下文就降级，不猜）→ 更新 `sections/*.md`（或 post-merge 的 `output/DRAFT.md`）
-- `section-logic-polisher`：写作逻辑自检（thesis + 连接词密度 + paragraph islands），在 merge 前做局部修复 → `output/SECTION_LOGIC_REPORT.md`
-- `argument-selfloop`：论证自循环（逐段论证动作 + 前提/口径一致性 ledger；拦截“流畅但空洞/前提漂移”），产物为中间态（禁止进正文）→ `output/ARGUMENT_SELFLOOP_TODO.md` + `output/SECTION_ARGUMENT_SUMMARIES.jsonl` + `output/ARGUMENT_SKELETON.md`
-- `paragraph-curator`：选段→评价→多候选→择优→融合（减少冗余、让小节“收敛”而不是只变长；不改 citation keys）→ `output/PARAGRAPH_CURATION_REPORT.md` + `sections/paragraphs_curated.refined.ok`
-- `post-merge-voice-gate`：合并后口吻门（把 transitions 视为“注入正文的高频文本源”）：拦截 planner talk / slash-list，并路由回最早责任产物（通常是 `outline/transitions.md`）→ `output/POST_MERGE_VOICE_REPORT.md`
-- `draft-polisher`：对 `output/DRAFT.md` 做去套话 + 连贯性润色（不改变 citation keys 与语义；去 planner talk）
-- `global-reviewer`：全局一致性回看（术语/章节呼应/结论回扣 RQ；generator voice 检测），输出 `output/GLOBAL_REVIEW.md`
-- `pipeline-auditor`：回归审计（PASS/FAIL）：ellipsis/模板句/引用健康/证据绑定/pipeline voice → `output/AUDIT_REPORT.md`
-- `deliverable-selfloop`：交付物自循环门（snapshot/tutorial/systematic/peer-review）：诊断→修复→复检，直到 PASS → `output/DELIVERABLE_SELFLOOP_TODO.md`
-- `idea-signal-mapper`：找 research idea：把 taxonomy + notes 变成 research signals 表（claim / tension / missing piece / possible axis）→ `output/trace/IDEA_SIGNAL_TABLE.md`
-- `idea-direction-generator`：找 research idea：从 signals 生成 12-24 条 discussion-ready research directions → `output/trace/IDEA_DIRECTION_POOL.md`
-- `idea-screener`：找 research idea：把 direction pool 压成讨论导向的评分筛选表（discussion value / distinctness / thesis potential）→ `output/trace/IDEA_SCREENING_TABLE.md`
-- `idea-shortlist-curator`：找 research idea：基于筛选表收敛成 3-5 条更适合 PI/PhD 讨论的 shortlist → `output/trace/IDEA_SHORTLIST.md`
-- `idea-memo-writer`：找 research idea：把 shortlist 写成最终的 brainstorm memo + appendix + structured report → `output/REPORT.md`
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `manuscript-ingest` | 把被审稿件转成纯文本 | 需要先把 PDF/稿件落成可追溯文本时 | `output/PAPER.md` |
+| `claims-extractor` | 抽取稿件中的 claims / contributions / assumptions | 审稿前想显式列出作者在说什么时 | `output/CLAIMS.md` |
+| `evidence-auditor` | 审稿视角的证据缺口审计 | 想逐条检查 claims 是否被证据支持时 | `output/MISSING_EVIDENCE.md` |
+| `novelty-matrix` | 做 novelty / prior-work 对照矩阵 | 想看稿件与相关工作的 overlap / delta 时 | `output/NOVELTY_MATRIX.md` |
+| `rubric-writer` | 写最终 referee-style review report | claims / evidence gaps / novelty 都准备好时 | `output/REVIEW.md` |
 
-**Core Writing Skills**:
-- `grad-paragraph`：研究生段落 micro-skill（张力→对比→评测锚点→限制），用于写出"像综述"的正文段落（通常嵌入 `sections/S*.md` 的写作流程）
-- `snapshot-writer`：写 1 页 snapshot（bullets-first + paper pointers；不需要 evidence packs/BibTeX）→ `output/SNAPSHOT.md`（用于 `lit-snapshot`）
-- `front-matter-writer`：写 front matter（Abstract/Introduction/Related Work/Discussion/Conclusion；paper voice；单次 evidence policy；高引用密度）→ `sections/abstract.md` + `sections/S*.md`
-- `chapter-lead-writer`：写每个含 H3 的 H2 章节导读（不加新事实；不写旁白；2–3 段预告对比轴）→ `sections/S<sec_id>_lead.md`
-- `subsection-writer`：按 H2/H3 拆分写作到 `sections/`（可独立 QA；evidence-bounded）→ `sections/sections_manifest.jsonl` + `sections/S*.md`
-- `writer-selfloop`：写作自循环（严格 sections gate → `output/WRITER_SELFLOOP_TODO.md`；FAIL code 路由到最早责任产物；只改失败小节直到 PASS）→ 更新 `sections/*.md`
-- `subsection-polisher`：局部小节润色（pre-merge；结构化段落 + 去模板；不改 citation keys）
-- `section-merger`：把 `sections/` + `outline/transitions.md` 按 `outline/outline.yml` 合并 → `output/DRAFT.md` + `output/MERGE_REPORT.md`
-- `prose-writer`：从已批准的 outline+evidence 写 `output/DRAFT.md`（仅用已验证 citation keys）
+## 11. Build / LaTeX / 交付层
 
-**Global Editing Skills**:
-- `terminology-normalizer`：全局术语一致性（canonical terms + synonym policy；不改 citations）
-- `redundancy-pruner`：全局去重复/去套话（集中证据声明、去重复模板段落；不改 citations）
-- `citation-anchoring`：引用锚定回归（防润色把引用挪到别的小节导致 claim→evidence 错位）
-- `citation-diversifier`：引用预算与去重增密（NO NEW FACTS）：按 H3 给出未使用且 in-scope 的可加 citation keys → `output/CITATION_BUDGET_REPORT.md`
-- `citation-injector`：按预算把 in-scope 引用"安全注入"进 draft（NO NEW FACTS；避免 citation dump）→ `output/CITATION_INJECTION_REPORT.md`
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `latex-scaffold` | 把 Markdown draft scaffold 成 LaTeX 项目 | survey 已完成 prose，准备进入 PDF 交付时 | `latex/main.tex` |
+| `latex-compile-qa` | 编译 LaTeX 并输出 QA 报告 | 想确认 PDF 是否可交付，或需要定位 build failures 时 | `latex/main.pdf`、`output/LATEX_BUILD_REPORT.md` |
 
-**Specialized Writing Pipelines**:
-- `tutorial-spec`：教程规格说明 → `output/TUTORIAL_SPEC.md`（C1）
-- `tutorial-module-writer`：模块化教程内容 → `output/TUTORIAL.md`（C3）
-- `protocol-writer`：系统综述协议 → `output/PROTOCOL.md`（C1）
-- `synthesis-writer`：系统综述综合写作 → `output/SYNTHESIS.md`（C4）
-- `rubric-writer`：审稿 rubic 报告 → `output/REVIEW.md`（C3）
+## 12. Graduate Paper / 中文毕业论文
 
-### Stage 6 — Build / QA / Packaging（可选）
+| Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
+|---|---|---|---|
+| `thesis-workspace-init` | 初始化中文毕业论文工作区，并明确材料缺口 | 开始 thesis 重构前，需要先把模板、旧稿、PDF、bib 归位时 | `codex_md/material_index.md`、`codex_md/material_readiness.md`、`codex_md/missing_info.md` |
+| `thesis-question-list` | 维护本轮 thesis 问题单、优先级和验收口径 | 不想盲改全文，而是想围绕本轮核心问题推进时 | `codex_md/question_list.md` |
+| `thesis-source-role-mapper` | 把来源材料映射成“在毕业论文里的角色” | 已完成材料盘点，要决定哪些内容属于哪一章、承担什么作用时 | `codex_md/chapter_role_map.md` |
+| `thesis-chapter-reconstructor` | 围绕 thesis 主线重构章节叙事 | 原材料更像 paper，而不是 thesis chapter 时 | 重构后的章节 markdown、`codex_md/chapter_rewrite_rules.md` |
+| `thesis-markdown-aligner` | 在 markdown 层统一主线、术语、符号、指标、证据边界 | 章节已经能看，但整篇 thesis 还不一致时 | `codex_md/00_thesis_outline.md`、术语表、符号表 |
+| `thesis-visual-layout-planner` | 提前规划图表、版式和图文关系 | 图表很多、排版复杂，想先做版面预演时 | `codex_md/figure_plan.md`、`tmp_layout*/` |
+| `thesis-tex-writeback` | 把稳定的 markdown 内容回写到 `chapters/*.tex` | 结构在中间层已收敛，准备同步到交付层时 | 更新 `chapters/*.tex`、同步 TeX 内容 |
+| `thesis-frontmatter-sync` | 同步摘要、附录、致谢、成果等非正文部分 | 正文逐步稳定后，想避免 front matter 最后临时补写时 | front matter 对应 `.tex` 文件 |
+| `thesis-citation-enhance-review` | 补强并核验 thesis 中的引用支撑 | 事实性描述、定义、方法对比需要更稳的 citation 支撑时 | 引用补强记录、更新后的 bib / cite 使用 |
+| `thesis-compile-review` | 编译 thesis，并把 warning / 模板 / 数据问题写回问题单 | 准备收口到可提交版本时 | `output/THESIS_BUILD_REPORT.md`、review checklist 更新 |
+| `thesis-style-polisher` | 做最终中文论文风格润色和去 AI 味 | 结构、证据、数据、编译都已稳定后 | 更自然的中文终稿 |
 
-- `artifact-contract-auditor`：workspace 合同审计（DONE outputs + pipeline target_artifacts；回归基线）→ `output/CONTRACT_REPORT.md`
-- `latex-scaffold`：把 Markdown draft scaffold 成 LaTeX → `latex/main.tex`
-- `latex-compile-qa`：编译 LaTeX + QA 报告 → `latex/main.pdf` + `output/LATEX_BUILD_REPORT.md`
-- `agent-survey-corpus`：下载/抽取几篇 agent survey 作为写作风格参考（arXiv PDFs → `ref/agent-surveys/`）
+## 13. 常见组合链（先选链，再选 skill）
 
-## 触发词（中英文）→ Skill
+### Survey / PDF
 
-**Pipeline Control**:
-- "运行 pipeline / 继续执行 / 一键跑完 / kickoff" → `research-pipeline-runner`
-- "contract audit / artifact contract / missing artifacts / 完整性检查 / CONTRACT_REPORT" → `artifact-contract-auditor`
-- "选 pipeline / 不确定该用哪个流程 / workflow router" → `pipeline-router`
-- "初始化 workspace / 创建模板 / artifacts" → `workspace-init`
+`literature-engineer -> dedupe-rank -> taxonomy-builder -> chapter-skeleton -> section-bindings -> section-briefs -> outline-builder -> section-mapper -> paper-notes -> subsection-briefs -> citation-verifier -> evidence-binder -> evidence-draft -> anchor-sheet -> writer-context-pack -> subsection-writer -> writer-selfloop -> section-merger -> draft-polisher -> pipeline-auditor -> latex-scaffold -> latex-compile-qa`
 
-**C1: Retrieval**:
-- "arxiv / 检索 / 拉论文 / metadata retrieval / 多路召回 / snowball" → `literature-engineer`（必要时退化用 `arxiv-search`）
-- "去重 / 排序 / core set / 精选论文" → `dedupe-rank`
+### Idea Brainstorm
 
-**C2: Structure (NO PROSE)**:
-- "taxonomy / 分类 / 主题树 / 综述结构" → `taxonomy-builder`
-- "outline / 大纲 / bullets-only" → `outline-builder`
-- "outline budget / 大纲预算 / 合并小节 / H3 太多" → `outline-budgeter`
-- "mapping / 映射 / coverage / 覆盖率" → `section-mapper`
-- "planner pass / coverage report / 大纲诊断 / 复用热点 / axes 泛化" → `outline-refiner`
+`idea-brief -> literature-engineer -> dedupe-rank -> taxonomy-builder -> paper-notes -> idea-signal-mapper -> idea-direction-generator -> idea-screener -> idea-shortlist-curator -> idea-memo-writer`
 
-**C3: Evidence (NO PROSE)**:
-- "pdf / fulltext / 下载 / 抽取全文" → `pdf-text-extractor`
-- "paper notes / 论文笔记 / 结构化阅读" → `paper-notes`
-- "subsection briefs / 写作意图卡 / 小节卡片" → `subsection-briefs`
-- "chapter briefs / 章节导读 / H2 卡片" → `chapter-briefs`
-- "claim matrix / 证据矩阵 / claim-evidence matrix" → `claim-matrix-rewriter`（survey 默认）, `claim-evidence-matrix`（legacy）
+### Tutorial
 
-**C4: Citations/Evidence (NO PROSE)**:
-- "bibtex / citation / 引用 / 参考文献" → `citation-verifier`
-- "evidence pack / evidence draft / 证据草稿 / 对比维度" → `evidence-draft`
-- "evidence binding / evidence ids / 证据绑定 / subsection→证据计划" → `evidence-binder`
-- "anchor sheet / 写作锚点 / 数字锚点 / evidence hooks" → `anchor-sheet`
-- "writer context pack / 写作上下文包 / per-H3 context" → `writer-context-pack`
-- "evidence gaps / binding gaps / blocking_missing / 证据缺口 / 证据自循环" → `evidence-selfloop`
-- "tables / 表格 / schema-first tables / 表格填充" → `table-schema`, `table-filler`
-- "timeline / figures / 可视化" → `survey-visuals`
+`tutorial-spec -> concept-graph -> module-planner -> exercise-builder -> tutorial-module-writer`
 
-**C5: Writing (PROSE)**:
-- "写综述 / 写 draft / prose" → `prose-writer`
-- "snapshot / 速览 / SNAPSHOT.md / one-page snapshot" → `snapshot-writer`
-- "研究生段落 / 论证段 / 段落结构（对比+限制+评测锚点）" → `grad-paragraph`
-- "分小节写 / per-section / per-subsection / sections/" → `subsection-writer`
-- "过渡句 / transitions / 章节承接" → `transition-weaver`
-- "合并草稿 / merge sections / section merger / 拼接草稿" → `section-merger`
+### Systematic Review
 
-**C5: Paper Voice (generator-voice-free)**:
-- "段落逻辑 / thesis / connectors / paragraph islands / 小节主线" → `section-logic-polisher`
-- "润色 / 去套话 / coherence / polish draft / 去 planner talk" → `draft-polisher`
-- "全局回看 / global review / 术语一致性 / 章节呼应" → `global-reviewer`
-- "audit / regression / 质量回归 / 证据绑定检查 / pipeline voice" → `pipeline-auditor`
+`protocol-writer -> literature-engineer -> dedupe-rank -> screening-manager -> extraction-form -> bias-assessor -> synthesis-writer`
 
-**C5: Citation Management**:
-- "引用太少 / unique citations too low / citation budget / 增加引用" → `citation-diversifier`
-- "引用注入 / apply citation budget / inject citations / 按预算加引用" → `citation-injector`
-- "引用锚定 / 引用漂移 / citation anchoring / regression" → `citation-anchoring`
+### Peer Review
 
-**C5: Global Editing**:
-- "自循环 / quality gate loop / 改到 PASS / rewrite failing sections" → `writer-selfloop`
-- "论证自循环 / argument self-loop / 论证链路 / 前提一致性 / premise drift" → `argument-selfloop`
-- "小节润色 / pre-merge polish / per-subsection polish" → `subsection-polisher`
-- "术语统一 / glossary / terminology" → `terminology-normalizer`
-- "去重复 / boilerplate removal / redundancy" → `redundancy-pruner`
+`manuscript-ingest -> claims-extractor -> evidence-auditor -> novelty-matrix -> rubric-writer`
 
-**C6: Build/QA**:
-- "contract audit / artifact contract / CONTRACT_REPORT / 完整性检查" → `artifact-contract-auditor`
-- "LaTeX / PDF / 编译" → `latex-scaffold`, `latex-compile-qa`
-- "agent survey corpus / 学习综述写法 / 下载 survey" → `agent-survey-corpus`
+### Graduate Paper
 
-**Specialized Pipelines**:
-- "系统综述 / PRISMA / protocol" → `protocol-writer`, `screening-manager`, `extraction-form`, `bias-assessor`, `synthesis-writer`
-- "教程 / tutorial / running example" → `tutorial-spec`, `concept-graph`, `module-planner`, `exercise-builder`, `tutorial-module-writer`
-- "审稿 / peer review / referee report" → `claims-extractor`, `evidence-auditor`, `novelty-matrix`, `rubric-writer`
+`thesis-workspace-init -> thesis-question-list -> thesis-source-role-mapper -> thesis-chapter-reconstructor -> thesis-markdown-aligner -> thesis-visual-layout-planner -> thesis-tex-writeback -> thesis-frontmatter-sync -> thesis-citation-enhance-review -> thesis-compile-review -> thesis-style-polisher`
 
-## 输入文件 → Skill
+## 14. 维护者提醒
 
-- `queries.md` → `keyword-expansion`, `literature-engineer`, `arxiv-search`, `pdf-text-extractor`（evidence_mode）
-- `papers/papers_raw.jsonl` → `dedupe-rank`
-- `papers/papers_dedup.jsonl` → `taxonomy-builder`（可选辅助输入）
-- `papers/core_set.csv` → `taxonomy-builder`, `section-mapper`, `pdf-text-extractor`, `paper-notes`
-- `papers/core_set.csv` → `snapshot-writer`
-- `outline/taxonomy.yml` → `outline-builder`
-- `outline/outline.yml` → `section-mapper`, `table-schema`, `transition-weaver`, `prose-writer`
-- `outline/outline.yml` → `snapshot-writer`
-- `outline/OUTLINE_BUDGET_REPORT.md` → `outline-refiner`（可选：解释大纲 merge 变更）
-- `outline/mapping.tsv` → `pdf-text-extractor`, `paper-notes`
-- `papers/paper_notes.jsonl` → `citation-verifier`
-- `papers/evidence_bank.jsonl` → `evidence-binder`, `evidence-draft`（可选增强）
-- `outline/subsection_briefs.jsonl` → `evidence-draft`, `table-schema`, `transition-weaver`, `prose-writer`
-- `outline/chapter_briefs.jsonl` → `subsection-writer`（写 H2 lead 用）
-- `outline/evidence_bindings.jsonl` → `evidence-draft`, `pipeline-auditor`
-- `outline/evidence_drafts.jsonl` → `claim-matrix-rewriter`, `table-filler`, `prose-writer`
-- `outline/anchor_sheet.jsonl` → `subsection-writer`（写作锚点）
-- `outline/writer_context_packs.jsonl` → `subsection-writer`, `writer-selfloop`（C4→C5 bridge，上下文包）
-- `outline/table_schema.md` → `table-filler`
-- `outline/transitions.md` → `prose-writer`
-- `outline/transitions.md` → `section-merger`（自动插入过渡句）
-- `sections/sections_manifest.jsonl` → `section-merger`
-- `output/DRAFT.md` → `draft-polisher`, `global-reviewer`
-- `output/CITATION_BUDGET_REPORT.md` → `citation-injector`
-- `output/citation_anchors.prepolish.jsonl` → `draft-polisher`（baseline）, `citation-anchoring`
-
-## 输出文件 → Skill
-
-- `papers/papers_raw.jsonl` → `literature-engineer`, `arxiv-search`
-- `papers/retrieval_report.md` → `literature-engineer`
-- `papers/papers_dedup.jsonl`, `papers/core_set.csv` → `dedupe-rank`
-- `outline/taxonomy.yml` → `taxonomy-builder` / `survey-seed-harvest`（bootstrap）
-- `outline/outline.yml` → `outline-builder`
-- `outline/mapping.tsv` → `section-mapper`
-- `papers/fulltext_index.jsonl` → `pdf-text-extractor`
-- `papers/paper_notes.jsonl` → `paper-notes`
-- `papers/evidence_bank.jsonl` → `paper-notes`
-- `outline/subsection_briefs.jsonl` → `subsection-briefs`
-- `outline/coverage_report.md`, `outline/outline_state.jsonl` → `outline-refiner`
-- `outline/evidence_bindings.jsonl`, `outline/evidence_binding_report.md` → `evidence-binder`
-- `outline/evidence_drafts.jsonl` → `evidence-draft`
-- `outline/anchor_sheet.jsonl` → `anchor-sheet`
-- `outline/writer_context_packs.jsonl` → `writer-context-pack`
-- `outline/claim_evidence_matrix.md` → `claim-matrix-rewriter`
-- `citations/ref.bib`, `citations/verified.jsonl` → `citation-verifier`
-- `outline/table_schema.md` → `table-schema`
-- `outline/tables_index.md` → `table-filler`
-- `outline/tables_appendix.md` → `appendix-table-writer`
-- `outline/timeline.md`, `outline/figures.md` → `survey-visuals`
-- `outline/transitions.md` → `transition-weaver`
-- `output/DRAFT.md` → `prose-writer`, `draft-polisher`
-- `output/SNAPSHOT.md` → `snapshot-writer`
-- `output/EVIDENCE_SELFLOOP_TODO.md` → `evidence-selfloop`
-- `output/WRITER_SELFLOOP_TODO.md` → `writer-selfloop`
-- `output/CITATION_BUDGET_REPORT.md` → `citation-diversifier`
-- `output/CITATION_INJECTION_REPORT.md` → `citation-injector`
-- `output/CONTRACT_REPORT.md` → `artifact-contract-auditor`
-- `output/citation_anchors.prepolish.jsonl` → `draft-polisher`（baseline）, `citation-anchoring`
-- `output/GLOBAL_REVIEW.md` → `global-reviewer`
-- `output/AUDIT_REPORT.md` → `pipeline-auditor`
-- `output/MERGE_REPORT.md` → `section-merger`
-- `latex/main.tex`, `latex/main.pdf` → `latex-scaffold`, `latex-compile-qa`
-
-## 常见失败场景（症状 → 处理）
-
-**P0 (Blocking Issues)**:
-- **RC1: 缺少报告文件** (e.g., `SECTION_LOGIC_REPORT.md`, `GLOBAL_REVIEW.md` 不存在) → 报告类 skills 必须写输出（即使 PASS）；检查 skill 是否跳过了 write 步骤
-- **RC2: 失败信息未落盘** (`STATUS.md` 显示 BLOCKED 但无错误日志) → 确保 `output/QUALITY_GATE.md` 和 `output/RUN_ERRORS.md` 存在（append-only）
-- **RC3: "NO PROSE" 边界泄漏** (`outline/transitions.md` 含 planner talk) → 重跑 `transition-weaver`，确保输出 content sentences only（不要 construction notes）
-- **RC4: DECISIONS 检查点绑定失效** (`DECISIONS.md` C0 block 显示旧 workspace 路径) → 手动更新 workspace 路径为当前目录名
-
-**P1 (Paper Voice Issues)**:
-- **RC5: Briefs 太泛化** (`thesis`/`contrast_hook` 是 "mechanism/data/eval" 级别抽象) → 补齐 `tension_statement`（具体张力）+ `evaluation_anchor_minimal`（task+metric+constraint）
-- **RC6: Writer 指导不完整** (`writer_context_packs.jsonl` 只有 prohibitions，无正面示例) → 添加 `paper_voice_palette`（opener archetypes, synthesis alternatives）
-- **RC7: Evidence binding 过于均匀** (每个 H3 都是 1 limitation + 1 method + 10 results) → 添加 `binding_rationale` + `binding_gaps` 说明小节特定策略
-
-**Common Operational Issues**:
-- "无网络/网络受限" → `literature-engineer` 走 `papers/imports/` 离线多路导入（必要时退化用 `arxiv-search --input`）；`pdf-text-extractor` 用 `evidence_mode: abstract`
-- "输出像模板/TODO 太多（strict 被挡）" → 按对应 `SKILL.md` 的 Quality checklist 逐条补齐后再标 `DONE`
-- "`papers/fulltext_index.jsonl` 为空" → 检查 `papers/core_set.csv` 是否含 `pdf_url/arxiv_id`；或退回 abstract 模式
-- "引用缺 `verified.jsonl`" → 先生成记录（标注 needs manual verification），网络可用时再 `verify-only`
-- "LaTeX 编译失败" → 先跑 `latex-compile-qa` 生成报告，再按报告修复缺包/缺引用
-- "Draft 含 generator voice" (e.g., "After X, Y makes the bridge explicit via") → 跑 `draft-polisher` + `global-reviewer`；检查 `pipeline-auditor` 的 pipeline voice 检查
-- "Unique citations 太低" (< 目标阈值) → 跑 `citation-diversifier` 生成预算报告，再跑 `citation-injector` 安全注入
-- "Citations 跨小节漂移" (润色后引用挪到别的 H3) → 跑 `citation-anchoring` 回归检查；对比 `output/citation_anchors.prepolish.jsonl`
-
-## Skill Interaction Patterns (常见技能链)
-
-**Evidence-First Survey (arxiv-survey-latex)**:
-```
-C1: literature-engineer → dedupe-rank
-C2: taxonomy-builder → outline-builder → outline-budgeter (optional) → section-mapper → outline-refiner
-C3: pdf-text-extractor → paper-notes → subsection-briefs → chapter-briefs
-C4: citation-verifier → evidence-binder → evidence-draft → anchor-sheet → schema-normalizer → writer-context-pack → evidence-selfloop → claim-matrix-rewriter
-C4 (if FAIL): evidence-selfloop → (fix briefs/notes/bindings/packs) → rerun C4
-C5: subsection-writer → writer-selfloop → section-logic-polisher → transition-weaver → section-merger → draft-polisher → global-reviewer → pipeline-auditor
-C5 (if FAIL): follow `output/WRITER_SELFLOOP_TODO.md`; if unique cites low → citation-diversifier → citation-injector → rerun auditor
-C6: latex-scaffold → latex-compile-qa → artifact-contract-auditor
-```
-
-**Quick Snapshot (lit-snapshot)**:
-```
-C1: arxiv-search → dedupe-rank
-C2: taxonomy-builder → outline-builder
-C3: snapshot-writer → artifact-contract-auditor
-```
-
-**Systematic Review (systematic-review)**:
-```
-C1: protocol-writer
-C2: literature-engineer → dedupe-rank
-C3: screening-manager
-C4: extraction-form → bias-assessor
-C5: synthesis-writer → artifact-contract-auditor
-```
-
-**Tutorial (tutorial)**:
-```
-C1: tutorial-spec
-C2: concept-graph → module-planner → exercise-builder
-C3: tutorial-module-writer → artifact-contract-auditor
-```
-
-**Peer Review (peer-review)**:
-```
-C1: claims-extractor
-C2: evidence-auditor → novelty-matrix
-C3: rubric-writer → artifact-contract-auditor
-```
-
-## Network 相关（需要或受益于网络）
-
-**必需网络** (online-only):
-- `literature-engineer` (online/snowball modes)
-- `arxiv-search` (online mode)
-- `pdf-text-extractor` (fulltext download)
-- `citation-verifier` (auto-verification)
-
-**可离线运行** (offline-friendly):
-- `literature-engineer` (import mode: `papers/imports/*.jsonl`)
-- `arxiv-search` (import mode: `--input <export.*>`)
-- `citation-verifier` (record-now/verify-later: `verification_status=offline_generated`)
-- `pdf-text-extractor` (abstract-only mode: `evidence_mode: abstract`)
-- All C2-C5 structure/evidence/writing skills (no network required)
-
-**Offline Fallback Strategy**:
-1. C1: Use `papers/imports/` for pre-downloaded metadata (arXiv exports, Semantic Scholar dumps)
-2. C3: Set `queries.md` `evidence_mode: abstract` (skip fulltext download)
-3. C4: Generate citations with `verification_status=offline_generated`, verify later when online
-4. C5: All writing skills work offline (use abstract-level evidence)
+- 如果一个 skill 的职责不清、产物不清，优先回到它自己的 `SKILL.md`、`references/` 和 `assets/` 修，而不是只在这个索引里补一句话。
+- 如果你要新建 skill，先看 `SKILLS_STANDARD.md` 和 `_template_reference_first`。
+- `graduate-paper` 这组 thesis skills 当前更偏方法框架和 reference-first 包，而不是全部都已成熟脚本化。

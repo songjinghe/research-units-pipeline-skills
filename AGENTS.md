@@ -1,24 +1,20 @@
-# Working agreements (research-units-pipeline)
+# research-units-pipeline: repo-global note
 
-## Prime directive
-- This repo uses **UNITS** (work units) as the execution contract (not Issues).
-- Always work artifact-first: update `STATUS.md`, `UNITS.csv`, `CHECKPOINTS.md`, `DECISIONS.md`.
-- Follow checkpoints: **NO PROSE** until the required checkpoints are satisfied and any required HUMAN sign-off is recorded in `DECISIONS.md`.
-- Never create workspace artifacts in the repo root; use `workspaces/<name>/`.
+This file is intentionally minimal.
 
-## Units contract
-- Only mark a unit `DONE` when its acceptance criteria are satisfied and outputs exist.
-- If scope grows, add new units (new rows) and keep `UNITS.csv` valid CSV.
-- Use `BLOCKED` when a unit is waiting for a human checkpoint or a dependency.
+## Why this file still exists
 
-## Skills usage
-- Prefer repo skills under `.codex/skills/`.
-- If a required capability is missing, propose a new skill folder with `SKILL.md` (do not proceed ad-hoc).
+- It is currently used as a repo-root marker by local tooling.
+- Do not delete or rename it until repo-root discovery is migrated away from `AGENTS.md`.
 
-## Citations (when applicable)
-- Every BibTeX entry must have a verification record in `citations/verified.jsonl` (at minimum: `url`, `date`, `title`).
+## Canonical contracts live elsewhere
 
-## Human-in-the-loop
-- Stop at declared human checkpoints.
-- Write a concise question list into `DECISIONS.md` and wait for explicit sign-off before proceeding.
-- Default to a single approval checkpoint when possible (survey flow: `C2`); avoid asking for repeated confirmations unless the user requests tighter control.
+- Workflow execution contracts live in `pipelines/*.pipeline.md`.
+- UNITS/checkpoint conventions live in `templates/UNITS.*.csv`, `templates/units.schema.md`, and `SKILLS_STANDARD.md`.
+- Skill-specific behavior lives in `.codex/skills/<skill>/SKILL.md`.
+
+## Repo-global working rules
+
+- Keep generated run artifacts under `workspaces/<name>/`; do not scatter workspace outputs in the repo root.
+- Prefer repo skills under `.codex/skills/`; if a capability is missing, add or refactor a skill instead of doing the work ad hoc.
+- For executable pipelines, follow the pipeline's artifact contract, checkpoint contract, and approval flow rather than restating them here.

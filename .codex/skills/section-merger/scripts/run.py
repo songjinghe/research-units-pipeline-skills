@@ -103,7 +103,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, ensure_dir, load_yaml, parse_semicolon_list
@@ -228,8 +235,11 @@ def main() -> int:
     transitions_text = _read_text(workspace / "outline" / "transitions.md")
     h3_trans, h2_trans = _parse_transitions(transitions_text)
 
-    # By default, do not inject between-H2 narrator transitions into the paper body.
-    # If you really want H2->H2 transitions inserted, create: outline/transitions.insert_h2.ok
+    # By default, do not inject generated transitions into the paper body.
+    # Transition maps remain useful as optional support artifacts, but automatic
+    # insertion often reintroduces narration-shaped prose. If you really want
+    # generated transitions inserted, opt in explicitly with marker files.
+    insert_h3_transitions = (workspace / "outline" / "transitions.insert_h3.ok").exists()
     insert_h2_transitions = (workspace / "outline" / "transitions.insert_h2.ok").exists()
 
     out_lines: list[str] = [f"# {title}", ""]
@@ -260,7 +270,7 @@ def main() -> int:
                 out_lines.append(_read_text(workspace / body_rel).strip())
                 out_lines.append("")
 
-                if j + 1 < len(subs):
+                if insert_h3_transitions and j + 1 < len(subs):
                     nxt = subs[j + 1]["id"]
                     t = h3_trans.get((sid, nxt), "").strip()
                     if t:

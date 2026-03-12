@@ -8,6 +8,35 @@ from pathlib import Path
 from typing import Any
 
 
+def _assert_h3_cutover_ready(*, workspace: Path, consumer: str) -> None:
+    from tooling.common import read_jsonl
+
+    state_path = workspace / "outline" / "outline_state.jsonl"
+    if not state_path.exists() or state_path.stat().st_size <= 0:
+        return
+
+    records = [rec for rec in read_jsonl(state_path) if isinstance(rec, dict)]
+    if not records:
+        return
+
+    latest = records[-1]
+    cutover_keys = {"structure_phase", "h3_status", "approval_status", "reroute_target", "retry_budget_remaining"}
+    if not any(key in latest for key in cutover_keys):
+        return
+
+    h3_status = str(latest.get("h3_status") or "").strip().lower()
+    if h3_status == "stable":
+        return
+
+    structure_phase = str(latest.get("structure_phase") or "").strip() or "unknown"
+    reroute_target = str(latest.get("reroute_target") or "").strip() or "none"
+    raise SystemExit(
+        f"{consumer} is blocked until stable H3 ids exist: "
+        f"`outline/outline_state.jsonl` reports h3_status={h3_status or 'missing'} "
+        f"(structure_phase={structure_phase}, reroute_target={reroute_target})."
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
@@ -17,12 +46,26 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.common import ensure_dir, now_iso_seconds, parse_semicolon_list, read_jsonl, write_jsonl
+    from tooling.common import ensure_dir, latest_outline_state, load_workspace_pipeline_spec, now_iso_seconds, parse_semicolon_list, read_jsonl, write_jsonl
 
     workspace = Path(args.workspace).resolve()
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is not None and str(spec.structure_mode or "").strip() == "section_first":
+        state = latest_outline_state(workspace)
+        if not state:
+            raise SystemExit("Missing outline_state.jsonl; run the section-first C2 planner pass before anchor-sheet.")
+        if str(state.get("structure_phase") or "").strip() != "decomposed" or str(state.get("h3_status") or "").strip() != "stable":
+            raise SystemExit("Section-first cutover not ready: `outline_state.jsonl` must report `structure_phase: decomposed` and `h3_status: stable` before anchor-sheet.")
     inputs = parse_semicolon_list(args.inputs) or [
         "outline/evidence_drafts.jsonl",
         "citations/ref.bib",
@@ -36,6 +79,8 @@ def main() -> int:
     freeze_marker = out_path.parent / "anchor_sheet.refined.ok"
     if out_path.exists() and out_path.stat().st_size > 0 and freeze_marker.exists():
         return 0
+
+    _assert_h3_cutover_ready(workspace=workspace, consumer="anchor-sheet")
 
     packs = read_jsonl(packs_path)
     if not packs:

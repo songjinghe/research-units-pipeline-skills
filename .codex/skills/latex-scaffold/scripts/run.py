@@ -15,7 +15,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, ensure_dir, parse_semicolon_list
@@ -40,6 +47,8 @@ def main() -> int:
             "",
             # xelatex-friendly defaults; keep English-looking front matter unless CJK is present.
             ("" if use_ctex else r"\usepackage{fontspec}"),
+            r"\usepackage{newunicodechar}",
+            r"\newunicodechar{π}{\ensuremath{\pi}}",
             r"\usepackage[a4paper,margin=1in]{geometry}",
             r"\usepackage{hyperref}",
             r"\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}",
@@ -74,6 +83,7 @@ def main() -> int:
         ]
     )
 
+    _assert_no_placeholder_residue(tex, context=str(out_path))
     atomic_write_text(out_path, tex)
     return 0
 
@@ -133,6 +143,30 @@ _CITE_BLOCK = re.compile(r"\[@([^\]]+)\]")
 _INLINE_CODE = re.compile(r"`([^`]+)`")
 _BOLD = re.compile(r"\*\*([^*]+)\*\*")
 _ITALIC = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)")
+_PLACEHOLDER_RESIDUE = re.compile(r"(?:@@LATEXPH\d+@@|(?:__|\\_\\_)LATEX(?:_|\\_)PH(?:_|\\_)\d+(?:__|\\_\\_))")
+
+
+def _assert_no_placeholder_residue(text: str, *, context: str) -> None:
+    match = _PLACEHOLDER_RESIDUE.search(text or "")
+    if not match:
+        return
+    start, end = match.span()
+    excerpt = (text or "")[max(0, start - 80):min(len(text or ""), end + 80)].replace("\n", " ")
+    raise ValueError(f"Unresolved LaTeX placeholder residue in {context}: {match.group(0)} | excerpt: {excerpt}")
+
+
+def _restore_placeholders(text: str, placeholders: dict[str, str]) -> str:
+    restored = text
+    for _ in range(len(placeholders) + 1):
+        changed = False
+        for token, repl in placeholders.items():
+            if token in restored:
+                restored = restored.replace(token, repl)
+                changed = True
+        if not changed:
+            break
+    _assert_no_placeholder_residue(restored, context="inline conversion")
+    return restored
 
 
 def _convert_inline(text: str) -> str:
@@ -141,7 +175,7 @@ def _convert_inline(text: str) -> str:
 
     def _ph(repl: str) -> str:
         nonlocal idx
-        token = f"__LATEX_PH_{idx}__"
+        token = f"@@LATEXPH{idx}@@"
         idx += 1
         placeholders[token] = repl
         return token
@@ -183,9 +217,7 @@ def _convert_inline(text: str) -> str:
     text = _ITALIC.sub(_italic, text)
 
     escaped = _escape_latex(text)
-    for token, repl in placeholders.items():
-        escaped = escaped.replace(_escape_latex(token), repl)
-    return escaped
+    return _restore_placeholders(escaped, placeholders)
 
 
 def _markdown_to_latex(md: str) -> str:
@@ -330,7 +362,9 @@ def _markdown_to_latex(md: str) -> str:
 
     _close_itemize()
     _close_abstract()
-    return "\n".join(out).strip() + "\n"
+    body = "\n".join(out).strip() + "\n"
+    _assert_no_placeholder_residue(body, context="markdown body conversion")
+    return body
 
 
 def _is_table_header(line: str) -> bool:
@@ -374,21 +408,62 @@ def _render_table(lines: list[str], *, convert_inline, caption: str | None = Non
     if ncols >= 3 and re.search(r"\b(refs?|citations?)\b", header_join):
         # Keep the refs column compact; let the other columns share the remaining width.
         colspec = ("Y" * (ncols - 1)) + "l"
-    out: list[str] = []
     in_table_env = bool(caption)
-    lab = ""
-    if label:
-        lab = re.sub(r"[^a-z0-9]+", "", str(label).lower())
+    lab = re.sub(r"[^a-z0-9]+", "", str(label or "").lower()) if label else ""
 
+    row_text_budget = max(len(" ".join(row)) for row in rows) if rows else 0
+    chunk_size = 0
+    if in_table_env:
+        if row_text_budget >= 260:
+            chunk_size = 2
+        elif row_text_budget >= 180 and len(rows) >= 5:
+            chunk_size = 3
+        elif len(rows) >= 7:
+            chunk_size = 4 if row_text_budget >= 120 else 5
+
+    if not chunk_size:
+        return _render_table_chunk(
+            header=header,
+            rows=rows,
+            colspec=colspec,
+            convert_inline=convert_inline,
+            caption=caption,
+            label=lab,
+            in_table_env=in_table_env,
+        )
+
+    out: list[str] = []
+    chunks = [rows[i:i + chunk_size] for i in range(0, len(rows), chunk_size)]
+    for idx, chunk in enumerate(chunks, start=1):
+        chunk_caption = caption if idx == 1 else f"{caption} (continued)"
+        chunk_label = lab if idx == 1 else ""
+        out.extend(
+            _render_table_chunk(
+                header=header,
+                rows=chunk,
+                colspec=colspec,
+                convert_inline=convert_inline,
+                caption=chunk_caption,
+                label=chunk_label,
+                in_table_env=in_table_env,
+            )
+        )
+        if idx != len(chunks):
+            out.extend(["", r"\clearpage", ""])
+    return out
+
+
+def _render_table_chunk(*, header: list[str], rows: list[list[str]], colspec: str, convert_inline, caption: str | None, label: str, in_table_env: bool) -> list[str]:
+    out: list[str] = []
     if in_table_env:
         out.append(r"\begin{table}[t]")
         out.append(r"\centering")
-        out.append(r"\small")
-        out.append(r"\setlength{\tabcolsep}{4pt}")
-        out.append(r"\renewcommand{\arraystretch}{1.15}")
+        out.append(r"\scriptsize")
+        out.append(r"\setlength{\tabcolsep}{2.5pt}")
+        out.append(r"\renewcommand{\arraystretch}{1.0}")
         out.append(r"\caption{" + convert_inline(caption or "") + "}")
-        if lab:
-            out.append(r"\label{tab:" + lab + "}")
+        if label:
+            out.append(r"\label{tab:" + label + "}")
     else:
         out.append(r"\begin{center}")
 

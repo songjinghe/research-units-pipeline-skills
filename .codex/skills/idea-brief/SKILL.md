@@ -9,25 +9,16 @@ description: |
   **Guardrail**: do not invent papers/citations; do not start retrieval here; keep the brief structured (no long prose).
 ---
 
-# Idea Brief (SSOT for brainstorm ideation)
+# Idea Brief
 
-Goal: turn a fuzzy research-idea request into an auditable **brainstorm contract** that downstream steps can follow without drift.
+Turn a fuzzy ideation request into an auditable brainstorm contract for the later ideation stack.
 
-This skill does **not** retrieve papers. It only locks:
-- topic + audience + constraints + exclusions,
-- the discussion rubric,
-- the query buckets,
-- the target artifact shape,
-into `output/trace/IDEA_BRIEF.md` and `queries.md`.
+This skill does **not** retrieve papers.
+It only locks topic, audience, constraints, exclusions, rubric, query buckets, and target artifact shape into:
 
-The brief should also define the later ideation stack:
-- each lead direction must be a distinct thesis line, not the same hidden-variable template with different nouns
-- the final memo must expose explicit rank logic, quick kill criteria, and a paper-specific reading guide
-- signal table
-- direction pool
-- screening table
-- shortlist
-- final brainstorm memo
+- `output/trace/IDEA_BRIEF.md`
+- `queries.md`
+- `DECISIONS.md`
 
 ## Inputs
 - `GOAL.md`
@@ -39,23 +30,21 @@ The brief should also define the later ideation stack:
 - `queries.md`
 - `DECISIONS.md`
 
-## Required sections
-- Goal
-- Scope
-- Audience
-- Constraints
-- Exclusions
-- Rubric
-- Targets
-- Focus lenses after C2
-- Query buckets
-- Table policy
-- Open questions
-
-
 ## Execution notes
 
 This skill starts from `GOAL.md`, then refines the topic/constraints into `output/trace/IDEA_BRIEF.md`, updates `queries.md`, and records blockers or approvals in `DECISIONS.md`.
+
+Read `references/overview.md` before changing the package shape or the brief contract.
+`assets/brief_contract.json` is the machine-readable source for:
+
+- required brief sections
+- goal / audience framing
+- rubric rows
+- query bucket templates
+- default exclusions
+- focus placeholder
+- shared table/open-question text
+- decisions bootstrap text
 
 ## Script
 

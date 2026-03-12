@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -39,27 +40,45 @@ def _uniq(items: list[str]) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
     for item in items:
-        v = str(item or '').strip()
-        if not v or v in seen:
+        value = str(item or '').strip()
+        if not value or value in seen:
             continue
-        seen.add(v)
-        out.append(v)
+        seen.add(value)
+        out.append(value)
     return out
 
 
-def _cites(keys: list[str], n: int) -> str:
-    ks = _uniq(keys)[:n]
-    return ' '.join(f'[@{k}]' for k in ks)
+def _cites(keys: list[str]) -> str:
+    ks = _uniq(keys)
+    return f"[@{'; '.join(ks)}]" if ks else ''
+
+
+def _cite_range(keys: list[str], start: int, stop: int) -> str:
+    return _cites(keys[start:stop])
+
+
+def _sanitize_goal_text(text: str) -> str:
+    s = ' '.join(str(text or '').strip().split())
+    if not s:
+        return ''
+    s = re.sub(r'(?i)\bwith\b[^.]{0,160}\b(?:latex|pdf|output|writeup|draft|paper)\b.*$', '', s).strip(' ,;:-')
+    s = re.sub(r'(?i)\b(?:latex|pdf)\s*/\s*(?:latex|pdf)\s+output\b.*$', '', s).strip(' ,;:-')
+    s = re.sub(r'(?i)\b(?:survey|review|overview)\b(?:\s+paper)?$', '', s).strip(' ,;:-')
+    return s or 'the approved survey topic'
 
 
 def _goal_text(path: Path) -> str:
     if not path.exists():
         return 'the approved survey topic'
-    lines = [ln.strip() for ln in path.read_text(encoding='utf-8', errors='ignore').splitlines() if ln.strip() and not ln.startswith('#')]
-    return lines[0] if lines else 'the approved survey topic'
+    lines = [
+        ln.strip()
+        for ln in path.read_text(encoding='utf-8', errors='ignore').splitlines()
+        if ln.strip() and not ln.startswith('#')
+    ]
+    return _sanitize_goal_text(lines[0] if lines else '')
 
 
-def _parse_stats(retrieval_path: Path, core_path: Path, queries_path: Path) -> tuple[str, str, str]:
+def _parse_stats(retrieval_path: Path, core_path: Path, queries_path: Path) -> tuple[str, str, str, str]:
     time_window = 'recent years'
     candidate_pool = 'a large candidate pool'
     evidence_mode = 'abstract-level evidence'
@@ -76,25 +95,26 @@ def _parse_stats(retrieval_path: Path, core_path: Path, queries_path: Path) -> t
                 time_window = f'{left}–{right}'
             elif left:
                 time_window = f'since {left}'
-    core_size = 'a 300-paper core set'
+    core_set_size = 'a 300-paper core set'
     if core_path.exists():
         rows = max(0, sum(1 for _ in core_path.open(encoding='utf-8', errors='ignore')) - 1)
         if rows > 0:
-            core_size = f'a {rows}-paper core set'
+            core_set_size = f'a {rows}-paper core set'
     if queries_path.exists():
         q = queries_path.read_text(encoding='utf-8', errors='ignore')
         m = re.search(r'(?im)^-\s*evidence_mode\s*:\s*([^#\n]+)', q)
         if m:
-            evidence_mode = m.group(1).strip()
-    return time_window, candidate_pool, f'{core_size} with {evidence_mode}'
-
-
-def _cite_range(keys: list[str], start: int, stop: int, n: int) -> str:
-    return _cites(keys[start:stop], n)
+            raw_mode = m.group(1).strip().strip('"').strip("'").lower()
+            if raw_mode == 'fulltext':
+                evidence_mode = 'full-text evidence'
+            elif raw_mode == 'abstract':
+                evidence_mode = 'abstract-level evidence'
+            elif raw_mode:
+                evidence_mode = raw_mode
+    return time_window, candidate_pool, core_set_size, evidence_mode
 
 
 def _detect_domain(workspace: Path) -> str | None:
-    """Return a domain id if workspace text matches a domain template, else None."""
     package_root = Path(__file__).resolve().parents[1]
     domain_dir = package_root / 'assets' / 'domain_templates'
     if not domain_dir.is_dir():
@@ -107,102 +127,285 @@ def _detect_domain(workspace: Path) -> str | None:
     corpus = ' '.join(corpus_parts)
     if not corpus.strip():
         return None
-    import glob as _glob
-    for pack_path in sorted(Path(f) for f in _glob.glob(str(domain_dir / '*.json'))):
+    for pack_path in sorted(domain_dir.glob('*.json')):
         pack = _load_json(pack_path)
         triggers = pack.get('topic_triggers') or {}
-        group_a = [t.lower() for t in (triggers.get('trigger_group_a') or [])]
-        group_b = [t.lower() for t in (triggers.get('trigger_group_b') or [])]
+        group_a = [str(t).lower() for t in (triggers.get('trigger_group_a') or []) if str(t).strip()]
+        group_b = [str(t).lower() for t in (triggers.get('trigger_group_b') or []) if str(t).strip()]
         if not group_a or not group_b:
             continue
-        has_a = any(t in corpus for t in group_a)
-        has_b = any(t in corpus for t in group_b)
-        if has_a and has_b:
-            return pack.get('domain_id') or pack_path.stem
+        if any(t in corpus for t in group_a) and any(t in corpus for t in group_b):
+            return str(pack.get('domain_id') or pack_path.stem).strip() or pack_path.stem
     return None
 
 
 def _load_domain_overlay(domain_id: str) -> dict[str, Any]:
-    """Load a domain template overlay by id.  Returns {} if not found."""
     package_root = Path(__file__).resolve().parents[1]
-    domain_path = package_root / 'assets' / 'domain_templates' / f'{domain_id}.json'
-    return _load_json(domain_path)
+    return _load_json(package_root / 'assets' / 'domain_templates' / f'{domain_id}.json')
 
 
 def _merge_template_bank(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
-    """Overlay domain paragraphs onto a generic base template bank."""
     merged = dict(base)
-    for key in ('introduction_paragraphs', 'related_work_paragraphs',
-                'abstract_sentences', 'discussion_paragraphs', 'conclusion_paragraphs'):
+    if isinstance(overlay.get('hook_banks'), dict):
+        hook_banks = dict(base.get('hook_banks') or {})
+        for section_name, section_bank in overlay.get('hook_banks', {}).items():
+            if isinstance(section_bank, dict):
+                hook_banks[str(section_name)] = section_bank
+        merged['hook_banks'] = hook_banks
+    for key in ('abstract_sentences', 'discussion_paragraphs', 'conclusion_paragraphs', 'introduction_paragraphs', 'related_work_paragraphs'):
         if key in overlay:
             merged[key] = overlay[key]
+    if isinstance(overlay.get('headings'), dict):
+        headings = dict(base.get('headings') or {})
+        headings.update({str(k): v for k, v in overlay.get('headings', {}).items()})
+        merged['headings'] = headings
     return merged
 
 
-def _template_values(*, goal: str, candidate_pool: str, evidence_note: str, time_window: str, all_keys: list[str]) -> dict[str, str]:
+def _chapter_path_text(chapter_titles: list[str]) -> str:
+    titles = [re.sub(r'\s+', ' ', str(t or '').strip()) for t in chapter_titles if str(t or '').strip()]
+    if not titles:
+        return 'the main comparison chapters'
+    if len(titles) == 1:
+        return titles[0]
+    if len(titles) == 2:
+        return f'{titles[0]} and {titles[1]}'
+    if len(titles) == 3:
+        return f'{titles[0]}, {titles[1]}, and {titles[2]}'
+    tail = titles[-1].lower() if titles[-1] else 'later deployment issues'
+    return f'{titles[0]}, {titles[1]}, {titles[2]}, and later chapters on {tail}'
+
+
+def _series_text(items: list[str]) -> str:
+    values = [re.sub(r'\s+', ' ', str(item or '').strip()) for item in items if str(item or '').strip()]
+    if not values:
+        return ''
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 2:
+        return f'{values[0]} and {values[1]}'
+    return f"{', '.join(values[:-1])}, and {values[-1]}"
+
+
+def _chapter_theme_phrase(title: str) -> str:
+    low = re.sub(r'\s+', ' ', str(title or '').strip().lower())
+    if not low:
+        return ''
+    if 'problem settings' in low or 'embodiment' in low:
+        return 'problem settings and embodiment assumptions'
+    if 'model' in low or 'policy' in low or 'architecture' in low:
+        return 'model and policy design'
+    if 'data' in low or 'training' in low or 'post-training' in low:
+        return 'data, supervision, and post-training strategy'
+    if 'evaluation' in low or 'deployment' in low or 'safety' in low:
+        return 'evaluation, safety, and deployment constraints'
+    return low.replace('&', 'and')
+
+
+def _chapter_contexts(outline: Any, chapter_briefs: list[dict[str, Any]], *, intro_id: str, related_id: str) -> list[dict[str, str]]:
+    briefs_by_sec = {}
+    for rec in chapter_briefs:
+        sid = str(rec.get('section_id') or '').strip()
+        if sid:
+            briefs_by_sec[sid] = rec
+
+    chapters: list[dict[str, str]] = []
+    if not isinstance(outline, list):
+        return chapters
+
+    for sec in outline:
+        if not isinstance(sec, dict):
+            continue
+        sid = str(sec.get('id') or '').strip()
+        title = re.sub(r'\s+', ' ', str(sec.get('title') or '').strip())
+        if not sid or not title:
+            continue
+        low = title.lower()
+        if sid in {intro_id, related_id} or low in {'discussion', 'conclusion'}:
+            continue
+        brief = briefs_by_sec.get(sid) or {}
+        throughline = [str(x).strip() for x in (brief.get('throughline') or []) if str(x).strip()]
+        key_contrasts = [str(x).strip() for x in (brief.get('key_contrasts') or []) if str(x).strip()]
+        focus_summary = ', '.join(throughline[:2]) if throughline else title.lower()
+        key_contrast = key_contrasts[0] if key_contrasts else title.lower()
+        chapters.append(
+            {
+                'section_id': sid,
+                'chapter_title': title,
+                'chapter_title_lower': title.lower(),
+                'chapter_theme': _chapter_theme_phrase(title),
+                'chapter_focus_summary': focus_summary,
+                'chapter_key_contrast': key_contrast,
+            }
+        )
+    return chapters
+
+
+def _global_values(*, goal: str, time_window: str, candidate_pool: str, core_set_size: str, evidence_mode: str, chapter_contexts: list[dict[str, str]]) -> dict[str, str]:
+    chapter_titles = [chapter['chapter_title'] for chapter in chapter_contexts if chapter.get('chapter_title')]
+    title_join = _chapter_path_text(chapter_titles)
+    chapter_themes = [chapter.get('chapter_theme', '') for chapter in chapter_contexts if chapter.get('chapter_theme')]
+
+    lens_bits: list[str] = []
+    compare_bits: list[str] = []
+    for chapter in chapter_contexts:
+        focus = str(chapter.get('chapter_focus_summary') or '').strip()
+        contrast = str(chapter.get('chapter_key_contrast') or '').strip()
+        if focus and focus not in lens_bits:
+            lens_bits.append(focus)
+        if contrast and contrast not in compare_bits:
+            compare_bits.append(contrast)
+    lens_summary = '; '.join(lens_bits[:4]) if lens_bits else 'mechanism, protocol, transfer, and deployment conditions'
+    comparison_summary = ', '.join(compare_bits[:3]) if compare_bits else 'mechanism, protocol, and limitations'
+    theme_summary = _series_text(chapter_themes) if chapter_themes else 'problem settings, model design, data strategy, and evaluation constraints'
+    if chapter_themes:
+        if len(chapter_themes) == 1:
+            chapter_flow_summary = chapter_themes[0]
+        elif len(chapter_themes) == 2:
+            chapter_flow_summary = f'from {chapter_themes[0]} to {chapter_themes[1]}'
+        else:
+            chapter_flow_summary = f"from {chapter_themes[0]}, through {', '.join(chapter_themes[1:-1])}, to {chapter_themes[-1]}"
+    else:
+        chapter_flow_summary = 'from problem settings, through design and data choices, to evaluation and deployment constraints'
+
     return {
         'goal': goal,
-        'candidate_pool': candidate_pool,
-        'evidence_note': evidence_note,
         'time_window': time_window,
-        'cite_0_4': _cite_range(all_keys, 0, 4, 4),
-        'cite_4_8': _cite_range(all_keys, 4, 8, 4),
-        'cite_8_12': _cite_range(all_keys, 8, 12, 4),
-        'cite_0_5': _cite_range(all_keys, 0, 5, 5),
-        'cite_5_10': _cite_range(all_keys, 5, 10, 5),
-        'cite_10_15': _cite_range(all_keys, 10, 15, 5),
-        'cite_15_20': _cite_range(all_keys, 15, 20, 5),
-        'cite_20_25': _cite_range(all_keys, 20, 25, 5),
-        'cite_25_30': _cite_range(all_keys, 25, 30, 5),
-        'cite_30_35': _cite_range(all_keys, 30, 35, 5),
-        'cite_35_40': _cite_range(all_keys, 35, 40, 5),
-        'cite_0_6': _cite_range(all_keys, 0, 6, 6),
-        'cite_6_12': _cite_range(all_keys, 6, 12, 6),
-        'cite_12_18': _cite_range(all_keys, 12, 18, 6),
-        'cite_18_24': _cite_range(all_keys, 18, 24, 6),
-        'cite_24_30': _cite_range(all_keys, 24, 30, 6),
-        'cite_30_36': _cite_range(all_keys, 30, 36, 6),
-        'cite_36_42': _cite_range(all_keys, 36, 42, 6),
-        'cite_42_48': _cite_range(all_keys, 42, 48, 6),
-        'cite_48_54': _cite_range(all_keys, 48, 54, 6),
-        'cite_54_60': _cite_range(all_keys, 54, 60, 6),
-        'cite_12_16': _cite_range(all_keys, 12, 16, 4),
-        'cite_16_20': _cite_range(all_keys, 16, 20, 4),
-        'cite_20_24': _cite_range(all_keys, 20, 24, 4),
+        'candidate_pool': candidate_pool,
+        'core_set_size': core_set_size,
+        'evidence_mode': evidence_mode,
+        'evidence_note': f'{core_set_size} using {evidence_mode}',
+        'chapter_titles_joined': title_join,
+        'chapter_path': title_join,
+        'scope_boundary': title_join,
+        'lens_summary': lens_summary,
+        'comparison_summary': comparison_summary,
+        'theme_summary': theme_summary,
+        'chapter_flow_summary': chapter_flow_summary,
     }
 
 
-def _render_lines(lines: list[str], values: dict[str, str]) -> list[str]:
+def _stem_key(text: str) -> str:
+    words = re.findall(r"[A-Za-z0-9']+", re.sub(r'\s+', ' ', str(text or '').strip().lower()))[:4]
+    return ' '.join(words)
+
+
+def _render_choice(raw: Any, values: dict[str, str], *, seed_key: str, stem_counts: dict[str, int]) -> str:
+    if isinstance(raw, list):
+        options = [str(item or '').strip() for item in raw if str(item or '').strip()]
+    else:
+        single = str(raw or '').strip()
+        options = [single] if single else []
+    if not options:
+        return ''
+
+    digest = hashlib.sha1(seed_key.encode('utf-8', errors='ignore')).hexdigest()
+    start = int(digest[:12], 16) % len(options)
+    ordered = options[start:] + options[:start]
+    best = ordered[0].format_map(values)
+    best_stem = _stem_key(best)
+    best_count = stem_counts.get(best_stem, 0) if best_stem else 0
+
+    for option in ordered:
+        candidate = option.format_map(values)
+        stem = _stem_key(candidate)
+        count = stem_counts.get(stem, 0) if stem else 0
+        if count < best_count:
+            best = candidate
+            best_stem = stem
+            best_count = count
+        if stem and count == 0:
+            best = candidate
+            best_stem = stem
+            break
+
+    if best_stem:
+        stem_counts[best_stem] = stem_counts.get(best_stem, 0) + 1
+    return re.sub(r'\s+', ' ', best).strip()
+
+
+def _render_lines(lines: list[Any], values: dict[str, str], *, seed_prefix: str) -> list[str]:
+    stem_counts: dict[str, int] = {}
     rendered: list[str] = []
-    for raw in lines:
-        text = str(raw or '').strip()
-        if not text:
-            continue
-        rendered.append(text.format_map(values))
+    for idx, raw in enumerate(lines):
+        line = _render_choice(raw, values, seed_key=f'{seed_prefix}:{idx}:{values.get("goal", "")}', stem_counts=stem_counts)
+        if line:
+            rendered.append(line)
     return rendered
 
 
-def _render_paragraph_section(*, heading: str, paragraphs: list[str], values: dict[str, str]) -> str:
-    rendered = _render_lines(paragraphs, values)
-    return heading + '\n\n' + '\n\n'.join(rendered).rstrip() + '\n'
+def _render_hook_job(job_name: str, hook_spec: dict[str, Any], values: dict[str, str], *, cite_text: str, seed_prefix: str, stem_counts: dict[str, int]) -> str:
+    part_order = [str(x).strip() for x in (hook_spec.get('part_order') or []) if str(x).strip()]
+    if not part_order:
+        part_order = [str(k) for k in hook_spec.keys() if str(k) != 'part_order']
+    local_values = dict(values)
+    local_values['cite'] = cite_text
+    parts: list[str] = []
+    for idx, part in enumerate(part_order):
+        rendered = _render_choice(hook_spec.get(part), local_values, seed_key=f'{seed_prefix}:{job_name}:{part}:{idx}', stem_counts=stem_counts)
+        if rendered:
+            parts.append(rendered)
+    text = ' '.join(parts).strip()
+    if text and text[-1] not in '.!?':
+        text += '.'
+    return text
 
 
-def _render_sentence_section(*, heading: str, sentences: list[str], values: dict[str, str]) -> str:
-    rendered = _render_lines(sentences, values)
-    return heading + '\n\n' + ' '.join(rendered).strip() + '\n'
+def _render_job_graph(section_name: str, section_contract: dict[str, Any], hook_bank: dict[str, Any], values: dict[str, str], *, all_keys: list[str], chapter_contexts: list[dict[str, str]]) -> str:
+    paragraphs: list[str] = []
+    jobs = section_contract.get('jobs') or []
+    stem_counts: dict[str, int] = {}
+    for spec_index, spec in enumerate(jobs, start=1):
+        if not isinstance(spec, dict):
+            continue
+        job_name = str(spec.get('job') or '').strip()
+        if not job_name or job_name not in hook_bank:
+            continue
+        width = max(1, int(spec.get('cite_width') or 6))
+        start = max(0, int(spec.get('cite_start') or 0))
+        stride = max(1, int(spec.get('cite_stride') or width))
+        if str(spec.get('repeat_from') or '').strip() == 'chapters':
+            limit = max(0, int(spec.get('limit') or len(chapter_contexts)))
+            for chapter_index, chapter in enumerate(chapter_contexts[:limit]):
+                local_values = dict(values)
+                local_values.update(chapter)
+                cite_text = _cite_range(all_keys, start + chapter_index * stride, start + chapter_index * stride + width)
+                paragraph = _render_hook_job(job_name, hook_bank[job_name], local_values, cite_text=cite_text, seed_prefix=f'{section_name}:{spec_index}:{chapter_index}', stem_counts=stem_counts)
+                if paragraph:
+                    paragraphs.append(paragraph)
+            continue
+        cite_text = _cite_range(all_keys, start, start + width)
+        paragraph = _render_hook_job(job_name, hook_bank[job_name], values, cite_text=cite_text, seed_prefix=f'{section_name}:{spec_index}', stem_counts=stem_counts)
+        if paragraph:
+            paragraphs.append(paragraph)
+    if not paragraphs:
+        raise SystemExit(f'No paragraphs rendered for {section_name}.')
+    return '\n\n'.join(paragraphs).rstrip() + '\n'
 
 
-def _lint_reader_facing(*, label: str, text: str) -> None:
+def _lint_reader_facing(*, label: str, text: str, contract: dict[str, Any]) -> None:
     checks = [
-        (r"(?i)\bthis pipeline\b", "pipeline narration"),
-        (r"(?i)\bacross the pipeline\b", "pipeline narration"),
-        (r"(?i)\bworkspace\b", "workspace narration"),
-        (r"(?i)\bstage\s*C\d+\b", "stage narration"),
-        (r"(?i)\bapprove\s*C\d+\b", "approval narration"),
+        (r'(?i)\bthis pipeline\b', 'pipeline narration'),
+        (r'(?i)\bacross the pipeline\b', 'pipeline narration'),
+        (r'(?i)\bworkspace\b', 'workspace narration'),
+        (r'(?i)\bstage\s*C\d+\b', 'stage narration'),
+        (r'(?i)\bapprove\s+C\d+\b', 'approval narration'),
+        (r'(?i)\bfor this run\b', 'run-local narration'),
+        (r'(?i)\bthis review\b', 'deictic review narration'),
+        (r'(?i)\bthis survey\b', 'deictic survey narration'),
+        (r'(?i)\bevidence-first treatment\b', 'internal method phrasing'),
+        (r'(?i)\bthe discussion below\b', 'slide-like narration'),
+        (r'(?i)\bwhat follows\b', 'slide-like narration'),
+        (r'(?i)\bthe remaining sections\b', 'outline narration'),
+        (r'(?i)\bthat methodology note appears once here\b', 'meta methodology narration'),
+        (r'(?i)\bevidence assembled here\b', 'meta evidence narration'),
     ]
+    forbidden = [str(x).strip() for x in ((contract.get('voice_guardrails') or {}).get('forbidden_stems') or []) if str(x).strip()]
+    for stem in forbidden:
+        checks.append((rf'(?i)\b{re.escape(stem)}\b', f'forbidden contract stem `{stem}`'))
     for pattern, name in checks:
         if re.search(pattern, text):
-            raise SystemExit(f"Reader-facing {label} contains forbidden {name}: {pattern}")
+            raise SystemExit(f'Reader-facing {label} contains forbidden {name}: {pattern}')
 
 
 def main() -> int:
@@ -214,7 +417,14 @@ def main() -> int:
     parser.add_argument('--checkpoint', default='')
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / 'AGENTS.md').exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, decisions_has_approval, ensure_dir, load_yaml, now_iso_seconds, parse_semicolon_list, upsert_checkpoint_block
@@ -239,19 +449,11 @@ def main() -> int:
 
     outline = load_yaml(workspace / 'outline' / 'outline.yml') if (workspace / 'outline' / 'outline.yml').exists() else []
     goal = _goal_text(workspace / 'GOAL.md')
-    time_window, candidate_pool, evidence_note = _parse_stats(workspace / 'papers' / 'retrieval_report.md', workspace / 'papers' / 'core_set.csv', workspace / 'queries.md')
-
-    packs = _load_jsonl(workspace / 'outline' / 'writer_context_packs.jsonl')
-    all_keys: list[str] = []
-    for rec in packs:
-        for field in ['allowed_bibkeys_selected', 'allowed_bibkeys_chapter', 'allowed_bibkeys_global']:
-            for key in rec.get(field) or []:
-                all_keys.append(str(key).strip())
-        for rec2 in rec.get('anchor_facts') or []:
-            if isinstance(rec2, dict):
-                for key in rec2.get('citations') or []:
-                    all_keys.append(str(key).strip())
-    all_keys = _uniq(all_keys)
+    time_window, candidate_pool, core_set_size, evidence_mode = _parse_stats(
+        workspace / 'papers' / 'retrieval_report.md',
+        workspace / 'papers' / 'core_set.csv',
+        workspace / 'queries.md',
+    )
 
     intro_id = '1'
     related_id = '2'
@@ -266,6 +468,29 @@ def main() -> int:
             if sid and 'related' in title:
                 related_id = sid
 
+    chapter_briefs = _load_jsonl(workspace / 'outline' / 'chapter_briefs.jsonl')
+    chapter_contexts = _chapter_contexts(outline, chapter_briefs, intro_id=intro_id, related_id=related_id)
+    values = _global_values(
+        goal=goal,
+        time_window=time_window,
+        candidate_pool=candidate_pool,
+        core_set_size=core_set_size,
+        evidence_mode=evidence_mode,
+        chapter_contexts=chapter_contexts,
+    )
+
+    packs = _load_jsonl(workspace / 'outline' / 'writer_context_packs.jsonl')
+    all_keys: list[str] = []
+    for rec in packs:
+        for field in ('allowed_bibkeys_selected', 'allowed_bibkeys_chapter', 'allowed_bibkeys_global'):
+            for key in rec.get(field) or []:
+                all_keys.append(str(key).strip())
+        for fact in rec.get('anchor_facts') or []:
+            if isinstance(fact, dict):
+                for key in fact.get('citations') or []:
+                    all_keys.append(str(key).strip())
+    all_keys = _uniq(all_keys)
+
     intro_path = sections_dir / f'S{intro_id}.md'
     related_path = sections_dir / f'S{related_id}.md'
     abstract_path = sections_dir / 'abstract.md'
@@ -277,9 +502,13 @@ def main() -> int:
 
     package_root = Path(__file__).resolve().parents[1]
     template_asset_path = package_root / 'assets' / 'front_matter_templates.json'
+    contract_asset_path = package_root / 'assets' / 'front_matter_contract.json'
     template_bank = _load_json(template_asset_path)
+    contract = _load_json(contract_asset_path)
     if not template_bank:
         raise SystemExit(f'Missing or invalid front-matter template asset: {template_asset_path}')
+    if not contract:
+        raise SystemExit(f'Missing or invalid front-matter contract asset: {contract_asset_path}')
 
     domain_id = _detect_domain(workspace)
     if domain_id:
@@ -287,42 +516,50 @@ def main() -> int:
         if overlay:
             template_bank = _merge_template_bank(template_bank, overlay)
 
-    values = _template_values(
-        goal=goal,
-        candidate_pool=candidate_pool,
-        evidence_note=evidence_note,
-        time_window=time_window,
-        all_keys=all_keys,
-    )
-
-    intro_paragraphs = _render_lines(list(template_bank.get('introduction_paragraphs') or []), values)
-    related_paragraphs = _render_lines(list(template_bank.get('related_work_paragraphs') or []), values)
     headings = template_bank.get('headings') or {}
-    abstract = _render_sentence_section(
-        heading=str(headings.get('abstract') or '## Abstract'),
-        sentences=list(template_bank.get('abstract_sentences') or []),
-        values=values,
-    )
-    discussion = _render_paragraph_section(
-        heading=str(headings.get('discussion') or '## Discussion'),
-        paragraphs=list(template_bank.get('discussion_paragraphs') or []),
-        values=values,
-    )
-    conclusion = _render_paragraph_section(
-        heading=str(headings.get('conclusion') or '## Conclusion'),
-        paragraphs=list(template_bank.get('conclusion_paragraphs') or []),
-        values=values,
-    )
+    hook_banks = template_bank.get('hook_banks') or {}
+    section_contracts = contract.get('sections') or {}
 
-    _lint_reader_facing(label='abstract', text=abstract)
-    _lint_reader_facing(label='introduction', text='\n\n'.join(intro_paragraphs))
-    _lint_reader_facing(label='related_work', text='\n\n'.join(related_paragraphs))
-    _lint_reader_facing(label='discussion', text=discussion)
-    _lint_reader_facing(label='conclusion', text=conclusion)
+    values['candidate_pool'] = candidate_pool
+    values['core_set_size'] = core_set_size
+    values['evidence_mode'] = evidence_mode
+    values['time_window'] = time_window
+    values['evidence_note'] = f'{core_set_size} using {evidence_mode}'
+
+    abstract_values = dict(values)
+    for start, stop in ((0, 6), (6, 12), (12, 18), (18, 24), (24, 30), (0, 4), (4, 8), (8, 12), (12, 16), (16, 20), (20, 24)):
+        abstract_values[f'cite_{start}_{stop}'] = _cite_range(all_keys, start, stop)
+
+    if template_bank.get('introduction_paragraphs'):
+        intro_lines = _render_lines(list(template_bank.get('introduction_paragraphs') or []), values, seed_prefix='intro-legacy')
+        introduction = '\n\n'.join(intro_lines).rstrip() + '\n'
+    else:
+        introduction = _render_job_graph('introduction', section_contracts.get('introduction') or {}, hook_banks.get('introduction') or {}, values, all_keys=all_keys, chapter_contexts=chapter_contexts)
+
+    if template_bank.get('related_work_paragraphs'):
+        related_lines = _render_lines(list(template_bank.get('related_work_paragraphs') or []), values, seed_prefix='related-legacy')
+        related_work = '\n\n'.join(related_lines).rstrip() + '\n'
+    else:
+        related_work = _render_job_graph('related_work', section_contracts.get('related_work') or {}, hook_banks.get('related_work') or {}, values, all_keys=all_keys, chapter_contexts=chapter_contexts)
+
+    abstract_lines = _render_lines(list(template_bank.get('abstract_sentences') or []), abstract_values, seed_prefix='abstract')
+    abstract = str(headings.get('abstract') or '## Abstract') + '\n\n' + ' '.join(abstract_lines).strip() + '\n'
+
+    discussion_lines = _render_lines(list(template_bank.get('discussion_paragraphs') or []), abstract_values, seed_prefix='discussion')
+    discussion = str(headings.get('discussion') or '## Discussion') + '\n\n' + '\n\n'.join(discussion_lines).rstrip() + '\n'
+
+    conclusion_lines = _render_lines(list(template_bank.get('conclusion_paragraphs') or []), abstract_values, seed_prefix='conclusion')
+    conclusion = str(headings.get('conclusion') or '## Conclusion') + '\n\n' + '\n\n'.join(conclusion_lines).rstrip() + '\n'
+
+    _lint_reader_facing(label='abstract', text=abstract, contract=contract)
+    _lint_reader_facing(label='introduction', text=introduction, contract=contract)
+    _lint_reader_facing(label='related_work', text=related_work, contract=contract)
+    _lint_reader_facing(label='discussion', text=discussion, contract=contract)
+    _lint_reader_facing(label='conclusion', text=conclusion, contract=contract)
 
     atomic_write_text(abstract_path, abstract)
-    atomic_write_text(intro_path, '\n\n'.join(intro_paragraphs).rstrip() + '\n')
-    atomic_write_text(related_path, '\n\n'.join(related_paragraphs).rstrip() + '\n')
+    atomic_write_text(intro_path, introduction)
+    atomic_write_text(related_path, related_work)
     atomic_write_text(discussion_path, discussion)
     atomic_write_text(conclusion_path, conclusion)
 
@@ -331,7 +568,9 @@ def main() -> int:
         'section_ids': {'intro': intro_id, 'related': related_id},
         'time_window': time_window,
         'candidate_pool': candidate_pool,
-        'evidence_note': evidence_note,
+        'core_set_size': core_set_size,
+        'evidence_mode': evidence_mode,
+        'chapter_titles_joined': values.get('chapter_titles_joined', ''),
         'sections': {
             'abstract': str(abstract_path.relative_to(workspace)),
             'introduction': str(intro_path.relative_to(workspace)),
@@ -339,28 +578,17 @@ def main() -> int:
             'discussion': str(discussion_path.relative_to(workspace)),
             'conclusion': str(conclusion_path.relative_to(workspace)),
         },
-        'reference_pack': template_bank.get('reference_pack') or [
-            'references/overview.md',
-            'references/abstract_archetypes.md',
-            'references/introduction_jobs.md',
-            'references/related_work_positioning.md',
-            'references/discussion_conclusion_patterns.md',
-            'references/forbidden_stems.md',
-            'references/examples_good.md',
-            'references/examples_bad.md',
-        ],
-        'asset_pack': [
-            'assets/front_matter_context.schema.json',
-            'assets/front_matter_context_schema.json',
-            'assets/front_matter_templates.json',
-        ],
+        'reference_pack': contract.get('reference_pack') or [],
+        'asset_pack': contract.get('asset_pack') or [],
         'template_asset': 'assets/front_matter_templates.json',
         'voice_hygiene': {
             'forbid_pipeline_voice': True,
             'forbid_domain_default_fallback': True,
-            'methodology_note_max_occurrences': 1,
+            'methodology_note_max_occurrences': int(((contract.get('methodology_note_policy') or {}).get('max_occurrences') or 1)),
         },
         'citation_pool_size': len(all_keys),
+        'render_mode': 'job_graph',
+        'domain_overlay': domain_id or '',
     }
     atomic_write_text(context_path, json.dumps(context, indent=2, ensure_ascii=False) + '\n')
 
@@ -369,14 +597,16 @@ def main() -> int:
         '',
         '- Status: PASS',
         f'- Generated at: `{now_iso_seconds()}`',
+        '- Render mode: `job_graph`',
         f'- Abstract: `sections/abstract.md`',
         f'- Introduction: `sections/S{intro_id}.md`',
         f'- Related Work: `sections/S{related_id}.md`',
-        f'- Context sidecar: `output/FRONT_MATTER_CONTEXT.json`',
-        f'- Template asset: `assets/front_matter_templates.json`',
+        '- Context sidecar: `output/FRONT_MATTER_CONTEXT.json`',
+        '- Template asset: `assets/front_matter_templates.json`',
+        '- Contract asset: `assets/front_matter_contract.json`',
         '- Discussion: `sections/discussion.md`',
         '- Conclusion: `sections/conclusion.md`',
-        '- Compatibility mode: prose outputs preserved; template bank externalized into assets.',
+        '- Compatibility mode: prose outputs preserved; introduction and related work now render from hook-bank jobs instead of whole-paragraph banks.',
     ]) + '\n'
     atomic_write_text(report_path, report)
     return 0

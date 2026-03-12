@@ -29,7 +29,14 @@ def main() -> int:
     parser.add_argument("--outputs", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import ensure_decisions_approval_checklist, seed_queries_from_topic, upsert_checkpoint_block
@@ -122,7 +129,14 @@ def _kickoff(decisions_path: Path, *, goal: str, pipeline: str, workspace: Path)
 
 
 def _workspace_hint(workspace: Path) -> str:
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     try:
         return str(workspace.relative_to(repo_root))
     except Exception:
@@ -161,12 +175,12 @@ def _c2_review_block(workspace: Path, *, pipeline: str) -> str:
 
 def _c2_idea_focus_block(workspace: Path) -> str:
     taxonomy_path = workspace / "outline" / "taxonomy.yml"
-    brief_path = workspace / "output" / "IDEA_BRIEF.md"
+    brief_path = workspace / "output" / "trace" / "IDEA_BRIEF.md"
 
     taxonomy_summary = _summarize_taxonomy(taxonomy_path)
     cluster_list = _list_taxonomy_clusters(taxonomy_path)
 
-    brief_hint = "- Brief: (missing) `output/IDEA_BRIEF.md`" if not brief_path.exists() else "- Brief: `output/IDEA_BRIEF.md` (update focus + excludes if needed)"
+    brief_hint = "- Brief: (missing) `output/trace/IDEA_BRIEF.md`" if not brief_path.exists() else "- Brief: `output/trace/IDEA_BRIEF.md` (update focus + excludes if needed)"
 
     return "\n".join(
         [
@@ -180,7 +194,7 @@ def _c2_idea_focus_block(workspace: Path) -> str:
             "",
             "Decision:",
             "- Choose 1-2 focus clusters (by name) and 2-5 hard excludes.",
-            "- Optionally update `output/IDEA_BRIEF.md` to reflect the chosen focus.",
+            "- Optionally update `output/trace/IDEA_BRIEF.md` to reflect the chosen focus.",
             "- Tick `Approve C2` above to proceed (notes → idea pool → shortlist).",
             "",
         ]

@@ -6,7 +6,14 @@ from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-from tooling.common import atomic_write_text, ensure_dir, read_jsonl
+from tooling.common import (
+    atomic_write_text,
+    ensure_dir,
+    load_workspace_pipeline_spec,
+    pipeline_overridable_query_fields,
+    pipeline_query_default,
+    read_jsonl,
+)
 
 
 DEFAULT_IDEA_RUBRIC: list[tuple[str, float, str]] = [
@@ -344,6 +351,181 @@ def extract_goal_from_goal_md(path: Path) -> str:
     return lines[0] if lines else "research ideas"
 
 
+def _idea_workspace_from_brief(path: Path) -> Path | None:
+    try:
+        return path.resolve().parents[2]
+    except Exception:
+        return None
+
+
+def _require_positive_float(value: Any, *, field_name: str) -> float:
+    try:
+        parsed = float(value)
+    except Exception as exc:
+        raise ValueError(f"Missing or invalid ideation contract field: {field_name}") from exc
+    if parsed <= 0:
+        raise ValueError(f"Missing or invalid ideation contract field: {field_name}")
+    return parsed
+
+
+def _query_int_override(workspace: Path, key: str, default: int) -> int:
+    queries_path = workspace / "queries.md"
+    normalized = str(key or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if not normalized:
+        return int(default)
+    if normalized not in pipeline_overridable_query_fields(workspace):
+        return int(default)
+    if not queries_path.exists():
+        return int(default)
+    try:
+        for raw in queries_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw.strip()
+            if not line.startswith("- ") or ":" not in line:
+                continue
+            key, value = line[2:].split(":", 1)
+            key = key.strip().lower().replace(" ", "_").replace("-", "_")
+            if key != normalized:
+                continue
+            cleaned = value.split("#", 1)[0].strip().strip('"').strip("'")
+            if not cleaned:
+                raise ValueError(f"Invalid ideation override: `{normalized}` is empty in queries.md.")
+            try:
+                parsed = int(cleaned)
+            except Exception as exc:
+                raise ValueError(f"Invalid ideation override: `{normalized}` must be an integer in queries.md.") from exc
+            if parsed <= 0:
+                raise ValueError(f"Invalid ideation override: `{normalized}` must be a positive integer in queries.md.")
+            return parsed
+    except Exception:
+        raise
+    return int(default)
+
+
+def _validate_score_weights(value: Any, *, field_name: str) -> dict[str, float]:
+    required = {
+        "discussion_worthiness": 0.24,
+        "academic_value": 0.22,
+        "evidence_grounding": 0.18,
+        "direction_distinctness": 0.16,
+        "first_probe_clarity": 0.10,
+        "thesis_potential": 0.10,
+    }
+    if not isinstance(value, dict):
+        raise ValueError(f"Missing or invalid ideation contract field: {field_name}")
+    weights: dict[str, float] = {}
+    for key in required:
+        if key not in value:
+            raise ValueError(f"Missing or invalid ideation contract field: {field_name}.{key}")
+        weights[key] = _require_positive_float(value.get(key), field_name=f"{field_name}.{key}")
+    total = sum(weights.values())
+    if total <= 0:
+        raise ValueError(f"Missing or invalid ideation contract field: {field_name}")
+    return {key: round(weight / total, 6) for key, weight in weights.items()}
+
+
+def _validate_diversity_axes(value: Any, *, field_name: str) -> list[str]:
+    allowed = {"cluster", "direction_type", "program_kind"}
+    if not isinstance(value, list):
+        raise ValueError(f"Missing or invalid ideation contract field: {field_name}")
+    axes: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        axis = str(item or "").strip().lower().replace("-", "_")
+        if not axis:
+            continue
+        if axis not in allowed:
+            raise ValueError(f"Missing or invalid ideation contract field: {field_name}.{axis}")
+        if axis in seen:
+            continue
+        seen.add(axis)
+        axes.append(axis)
+    if not axes:
+        raise ValueError(f"Missing or invalid ideation contract field: {field_name}")
+    return axes
+
+
+def resolve_idea_contract(workspace: Path) -> dict[str, Any]:
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is None:
+        raise ValueError("Missing active pipeline contract.")
+    query_defaults = dict(spec.query_defaults)
+    quality_contract = dict(spec.quality_contract)
+
+    def _require_positive_int(value: Any, *, field_name: str) -> int:
+        try:
+            parsed = int(value)
+        except Exception as exc:
+            raise ValueError(f"Missing or invalid ideation contract field: {field_name}") from exc
+        if parsed <= 0:
+            raise ValueError(f"Missing or invalid ideation contract field: {field_name}")
+        return parsed
+
+    signal_policy = quality_contract.get("signal_policy") or {}
+    direction_policy = quality_contract.get("direction_policy") or {}
+    screening_policy = quality_contract.get("screening_policy") or {}
+    brief = parse_idea_brief(workspace / "output" / "trace" / "IDEA_BRIEF.md")
+    focus_clusters = [str(x).strip() for x in (brief.get("focus_clusters") or []) if str(x).strip()]
+    direction_pool_min_default = _require_positive_int(query_defaults.get("direction_pool_min"), field_name="query_defaults.direction_pool_min")
+    direction_pool_max_default = _require_positive_int(query_defaults.get("direction_pool_max"), field_name="query_defaults.direction_pool_max")
+    shortlist_size_default = _require_positive_int(query_defaults.get("idea_shortlist_size"), field_name="query_defaults.idea_shortlist_size")
+    report_top_n_default = _require_positive_int(query_defaults.get("report_top_n"), field_name="query_defaults.report_top_n")
+    idea_screen_top_n_default = _require_positive_int(query_defaults.get("idea_screen_top_n"), field_name="query_defaults.idea_screen_top_n")
+    shortlist_min = _require_positive_int(direction_policy.get("shortlist_min"), field_name="quality_contract.direction_policy.shortlist_min")
+    shortlist_max = _require_positive_int(direction_policy.get("shortlist_max"), field_name="quality_contract.direction_policy.shortlist_max")
+    keep_min = _require_positive_int(direction_policy.get("keep_min"), field_name="quality_contract.direction_policy.keep_min")
+    cluster_diversity_min = _require_positive_int(direction_policy.get("cluster_diversity_min"), field_name="quality_contract.direction_policy.cluster_diversity_min")
+    lead_diversity_target = _require_positive_int(direction_policy.get("lead_diversity_target"), field_name="quality_contract.direction_policy.lead_diversity_target")
+    lead_diversity_axes = _validate_diversity_axes(
+        direction_policy.get("lead_diversity_axes"),
+        field_name="quality_contract.direction_policy.lead_diversity_axes",
+    )
+    signal_table_min = _require_positive_int(signal_policy.get("min_rows"), field_name="quality_contract.signal_policy.min_rows")
+    keep_rank_max = _require_positive_int(screening_policy.get("keep_rank_max"), field_name="quality_contract.screening_policy.keep_rank_max")
+    maybe_rank_max = _require_positive_int(screening_policy.get("maybe_rank_max"), field_name="quality_contract.screening_policy.maybe_rank_max")
+    score_weights = _validate_score_weights(
+        screening_policy.get("score_weights"),
+        field_name="quality_contract.screening_policy.score_weights",
+    )
+    direction_pool_min = _query_int_override(workspace, "direction_pool_min", direction_pool_min_default)
+    direction_pool_max = _query_int_override(workspace, "direction_pool_max", direction_pool_max_default)
+    shortlist_size = _query_int_override(workspace, "idea_shortlist_size", shortlist_size_default)
+    report_top_n = _query_int_override(workspace, "report_top_n", report_top_n_default)
+    idea_screen_top_n = _query_int_override(workspace, "idea_screen_top_n", idea_screen_top_n_default)
+    if direction_pool_min > direction_pool_max:
+        raise ValueError(f"Invalid ideation contract: direction_pool_min ({direction_pool_min}) exceeds direction_pool_max ({direction_pool_max}).")
+    if shortlist_size < shortlist_min or shortlist_size > shortlist_max:
+        raise ValueError(
+            f"Invalid ideation contract: idea_shortlist_size ({shortlist_size}) must stay within "
+            f"[{shortlist_min}, {shortlist_max}]."
+        )
+    if report_top_n > shortlist_size:
+        raise ValueError(f"Invalid ideation contract: report_top_n ({report_top_n}) exceeds idea_shortlist_size ({shortlist_size}).")
+    if maybe_rank_max < keep_rank_max:
+        raise ValueError(
+            f"Invalid ideation contract: maybe_rank_max ({maybe_rank_max}) must be >= keep_rank_max ({keep_rank_max})."
+        )
+    if idea_screen_top_n > direction_pool_max:
+        raise ValueError(f"Invalid ideation contract: idea_screen_top_n ({idea_screen_top_n}) exceeds direction_pool_max ({direction_pool_max}).")
+    return {
+        "focus_clusters": focus_clusters,
+        "direction_pool_min": direction_pool_min,
+        "direction_pool_max": direction_pool_max,
+        "idea_screen_top_n": idea_screen_top_n,
+        "shortlist_size": shortlist_size,
+        "report_top_n": report_top_n,
+        "shortlist_min": shortlist_min,
+        "shortlist_max": shortlist_max,
+        "signal_table_min": signal_table_min,
+        "keep_min": keep_min,
+        "cluster_diversity_min": cluster_diversity_min,
+        "lead_diversity_target": lead_diversity_target,
+        "lead_diversity_axes": lead_diversity_axes,
+        "keep_rank_max": keep_rank_max,
+        "maybe_rank_max": maybe_rank_max,
+        "score_weights": score_weights,
+    }
+
+
 def parse_idea_brief(path: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8", errors="ignore") if path.exists() else ""
     out: dict[str, Any] = {
@@ -353,10 +535,6 @@ def parse_idea_brief(path: Path) -> dict[str, Any]:
         "exclusions": [],
         "constraints": [],
         "targets": {},
-        "direction_pool_min": 12,
-        "direction_pool_max": 24,
-        "shortlist_size": 5,
-        "report_top_n": 3,
     }
     cur = None
     for raw in text.splitlines():
@@ -367,7 +545,14 @@ def parse_idea_brief(path: Path) -> dict[str, Any]:
         if cur == "goal" and line.startswith("- Topic:"):
             out["goal"] = line.split(":", 1)[1].strip()
         if cur in {"focus after c2", "focus lenses after c2"} and line.startswith("- Focus clusters:"):
-            out["focus_clusters"] = [x.strip() for x in line.split(":", 1)[1].split(";") if x.strip()]
+            clusters = [x.strip() for x in line.split(":", 1)[1].split(";") if x.strip()]
+            cleaned: list[str] = []
+            for item in clusters:
+                low = item.lower()
+                if "to be filled" in low or "fill after c2" in low or "placeholder" in low:
+                    continue
+                cleaned.append(item)
+            out["focus_clusters"] = cleaned
         if cur == "query buckets" and re.match(r"^\d+\.\s+", line):
             out["query_buckets"].append(re.sub(r"^\d+\.\s+", "", line).strip())
         if cur in {"exclude terms", "exclusions"} and line.startswith("- "):
@@ -380,26 +565,6 @@ def parse_idea_brief(path: Path) -> dict[str, Any]:
             key, value = line[2:].split(":", 1)
             out["targets"][key.strip().lower().replace(" ", "_")] = value.strip()
 
-    def _pick_int(keys: list[str], default: int) -> int:
-        for key in keys:
-            raw = str(out["targets"].get(key) or "")
-            nums = re.findall(r"\d+", raw)
-            if nums:
-                return int(nums[0])
-        return default
-
-    def _pick_int_last(keys: list[str], default: int) -> int:
-        for key in keys:
-            raw = str(out["targets"].get(key) or "")
-            nums = re.findall(r"\d+", raw)
-            if nums:
-                return int(nums[-1])
-        return default
-
-    out["direction_pool_min"] = _pick_int(["direction_pool_size", "direction_pool", "idea_pool_size", "idea_pool_min"], 12)
-    out["direction_pool_max"] = _pick_int_last(["direction_pool_size", "direction_pool", "idea_pool_size", "idea_pool_max"], 24)
-    out["shortlist_size"] = _pick_int(["final_shortlist_size", "idea_shortlist_size", "shortlist_size"], 5)
-    out["report_top_n"] = _pick_int(["memo_top_n", "report_top_n", "idea_report_top_n", "idea_top3_size"], 3)
     return out
 
 
@@ -859,8 +1024,22 @@ def _thesis_potential(direction_type: str, cluster: str) -> int:
     return 4
 
 
-def score_direction_cards(cards: list[DirectionCard], *, focus_clusters: list[str]) -> list[ScreenedDirection]:
+def score_direction_cards(
+    cards: list[DirectionCard],
+    *,
+    focus_clusters: list[str],
+    keep_rank_max: int,
+    maybe_rank_max: int,
+    score_weights: dict[str, float] | None = None,
+) -> list[ScreenedDirection]:
     focus = {x.strip() for x in focus_clusters if str(x).strip()}
+    keep_rank_max = int(keep_rank_max)
+    maybe_rank_max = int(maybe_rank_max)
+    if keep_rank_max <= 0:
+        raise ValueError("Invalid ideation scoring contract: keep_rank_max must be positive.")
+    if maybe_rank_max < keep_rank_max:
+        raise ValueError("Invalid ideation scoring contract: maybe_rank_max must be >= keep_rank_max.")
+    weights = _validate_score_weights(score_weights or {}, field_name="score_direction_cards.score_weights")
     cluster_counts: dict[str, int] = {}
     program_counts: dict[str, int] = {}
     for card in cards:
@@ -883,14 +1062,19 @@ def score_direction_cards(cards: list[DirectionCard], *, focus_clusters: list[st
         first_probe_clarity = 5 if all(token in probe_blob for token in ["intervention:", "readout:", "decisive if"]) else 4 if "intervention:" in probe_blob else 3
         thesis_potential = _thesis_potential(card.direction_type, card.cluster)
         total = round(
-            discussion_worthiness * 0.24 + academic_value_score * 0.22 + evidence_grounding * 0.18 + direction_distinctness * 0.16 + first_probe_clarity * 0.10 + thesis_potential * 0.10,
+            discussion_worthiness * weights["discussion_worthiness"]
+            + academic_value_score * weights["academic_value"]
+            + evidence_grounding * weights["evidence_grounding"]
+            + direction_distinctness * weights["direction_distinctness"]
+            + first_probe_clarity * weights["first_probe_clarity"]
+            + thesis_potential * weights["thesis_potential"],
             2,
         )
         provisional.append((card, total, discussion_worthiness, academic_value_score, evidence_grounding, direction_distinctness, first_probe_clarity, thesis_potential))
     provisional.sort(key=lambda row: (-row[1], 0 if row[0].time_to_clarity == "fast" else 1, row[0].cluster, row[0].title))
     rows: list[ScreenedDirection] = []
     for idx, (card, total, dw, av, eg, dd, fp, tp) in enumerate(provisional, start=1):
-        recommendation = "keep" if idx <= 7 else "maybe" if idx <= 12 else "drop"
+        recommendation = "keep" if idx <= keep_rank_max else "maybe" if idx <= maybe_rank_max else "drop"
         strengths: list[str] = []
         if eg >= 5:
             strengths.append("concrete anchor evidence")
@@ -1024,7 +1208,7 @@ def shortlist_snapshot_table(records: list[dict[str, Any]]) -> str:
 
 
 def build_report_payload(*, topic: str, shortlist: list[dict[str, Any]], deferred: list[dict[str, Any]], trace_paths: dict[str, str]) -> dict[str, Any]:
-    top = shortlist[:3]
+    top = list(shortlist)
     takeaways: list[str] = []
     if top:
         takeaways.append("The strongest directions are the ones most likely to change how existing results are interpreted, not just add another benchmark win.")
@@ -1078,6 +1262,12 @@ def build_report_payload(*, topic: str, shortlist: list[dict[str, Any]], deferre
 
 
 def report_markdown(payload: dict[str, Any]) -> str:
+    top_dirs = payload.get("top_directions") or []
+    deferred_idx = 3 + len(top_dirs)
+    discussion_idx = deferred_idx + 1
+    uncertainty_idx = deferred_idx + 2
+    next_idx = deferred_idx + 3
+    appendix_idx = deferred_idx + 4
     lines = [
         "# Research Idea Brainstorm Memo",
         "",
@@ -1101,7 +1291,7 @@ def report_markdown(payload: dict[str, Any]) -> str:
         shortlist_snapshot_table(payload.get("top_directions") or []),
         "",
     ])
-    for idx, record in enumerate(payload.get("top_directions") or [], start=1):
+    for idx, record in enumerate(top_dirs, start=1):
         lines.extend([
             f"## {idx + 2}. Direction {idx} — {record.get('title')}",
             "",
@@ -1141,7 +1331,7 @@ def report_markdown(payload: dict[str, Any]) -> str:
             lines.append(f"- {item}")
         lines.extend(["",])
     lines.extend([
-        "## 6. Other promising but not prioritized directions",
+        f"## {deferred_idx}. Other promising but not prioritized directions",
         "",
     ])
     deferred = payload.get("deferred_directions") or []
@@ -1152,28 +1342,28 @@ def report_markdown(payload: dict[str, Any]) -> str:
         lines.append("- No additional deferred directions were retained in the current memo.")
     lines.extend([
         "",
-        "## 7. Cross-cutting discussion questions",
+        f"## {discussion_idx}. Cross-cutting discussion questions",
         "",
     ])
     for item in payload.get("discussion_questions") or []:
         lines.append(f"- {item}")
     lines.extend([
         "",
-        "## 8. Uncertainty and disagreement",
+        f"## {uncertainty_idx}. Uncertainty and disagreement",
         "",
     ])
     for item in payload.get("uncertainties") or []:
         lines.append(f"- {item}")
     lines.extend([
         "",
-        "## 9. Suggested next reading / next discussion step",
+        f"## {next_idx}. Suggested next reading / next discussion step",
         "",
     ])
     for item in payload.get("next_steps") or []:
         lines.append(f"- {item}")
     lines.extend([
         "",
-        "## 10. Appendix guide",
+        f"## {appendix_idx}. Appendix guide",
         "",
         "- `output/APPENDIX.md` for anchor-paper reading notes and deferred directions.",
         "- `output/REPORT.json` for the structured version of this memo.",

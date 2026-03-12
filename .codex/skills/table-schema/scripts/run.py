@@ -59,7 +59,14 @@ def main() -> int:
     parser.add_argument('--checkpoint', default='')
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, ensure_dir, load_yaml, parse_semicolon_list, read_jsonl
@@ -152,7 +159,7 @@ def main() -> int:
         '- Columns (example):',
         '  - Benchmark / setting',
         '  - Task family + metric (short phrases)',
-        '  - Key protocol constraints (budget/cost/latency/steps/tool access/threat model)',
+        '  - Key protocol constraints (budget/cost/latency/steps)',
         '  - Key refs (2-4 cite keys)',
         '- Evidence mapping:',
         '  - Protocol details: `outline/evidence_drafts.jsonl:evaluation_protocol` + `outline/anchor_sheet.jsonl`',

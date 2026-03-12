@@ -1,7 +1,7 @@
 {
   "fallbacks": {
-    "thesis": "{title} is best read as a comparison problem rather than a single architecture category.",
-    "tension_statement": "reported gains are often shaped by evaluation and interface assumptions as much as by the nominal agent design",
+    "thesis": "{title} should be read through the trade-offs that separate neighboring design choices, not as a flat list of methods.",
+    "tension_statement": "reported gains are often inseparable from the evaluation conditions, embodiment assumptions, and interface choices under which they are measured",
     "rq": "which design choices create the most consequential trade-offs under comparable protocols",
     "comparison_axis": "how competing designs are evaluated",
     "a_label": "one line of work",
@@ -11,18 +11,41 @@
     "anchor_text": "the subsection depends on concrete evidence rather than loose description",
     "evaluation_bullet": "reported settings change how the comparison should be interpreted",
     "limitation_text": "key protocol details are reported unevenly",
-    "lens": "execution assumptions, evaluation design, and operational constraints"
+    "lens": "task scope, interface assumptions, and evaluation constraints"
   },
   "items": {
-    "comparison": "A recurring comparison in {title_lower} concerns {axis}. {a_label} is usually supported by evidence such as {a_excerpt} {cite_a}, whereas {b_label} is tied to {b_excerpt} {cite_b}.",
-    "anchor": "Concrete anchors matter in {title_lower} because {text} {cite_all}.",
-    "evaluation": "Evaluation remains part of the substantive comparison in {title_lower} because {bullet} {cite_all}.",
-    "limitation": "A recurring limitation in {title_lower} is that {text} {cite_all}, which narrows how confidently results can be generalized across settings."
+    "comparison": [
+      "A recurrent split along {axis} runs between {a_label} and {b_label}: the former is usually supported by results showing that {a_clause}, whereas the latter is more often justified by evidence that {b_clause} {cite_all}.",
+      "Along {axis}, papers centered on {a_label} emphasize that {a_clause}, while work on {b_label} more often argues that {b_clause} {cite_all}.",
+      "Seen through {axis}, the literature separates {a_label} from {b_label} less by labels alone than by the evidence each side stresses: {a_clause} versus {b_clause} {cite_all}."
+    ],
+    "anchor": [
+      "For example, {text_clause} {cite_all}.",
+      "Representative evidence comes from reports that {text_clause} {cite_all}.",
+      "One concrete result is that {text_clause} {cite_all}."
+    ],
+    "evaluation": [
+      "These comparisons are usually reported against {bullet_clause} {cite_all}.",
+      "The benchmark context most often includes {bullet_clause} {cite_all}."
+    ],
+    "limitation": [
+      "That picture has to be read cautiously because {text_clause} {cite_all}.",
+      "The comparison becomes weaker once {text_clause} {cite_all}.",
+      "A persistent caveat is that {text_clause} {cite_all}."
+    ]
   },
   "paragraphs": {
-    "opener": "{title} becomes analytically useful only when the subsection is read through a stable analytical frame rather than as a loose method bucket. The central claim here is that {thesis} {seed_cites}. That framing matters because {tension}, and it makes the subsection's guiding question explicit: {rq}.",
-    "synthesis": "Taken together, these comparisons show that {title_lower} should be judged through {lens} rather than through isolated benchmark wins. Across the cited evidence, stronger results usually coincide with more explicit protocol choices, clearer tool contracts, and more transparent assumptions about cost or access {used_cites}.",
-    "conclusion": "The safest synthesis is therefore conservative: the literature already supports meaningful contrasts inside {title_lower}, but those contrasts stay interpretable only when the subsection keeps architecture, protocol, and limitation signals in the same frame {used_cites_tail}.",
-    "cautious_fallback": "A cautious reading is still possible: the available evidence already identifies meaningful trade-offs in {title_lower}, but stronger claims depend on better-aligned protocol details and clearer reporting assumptions {used_cites}."
+    "opener": [
+      "In {title_lower}, the key comparison is not breadth alone but which assumptions keep a reported gain interpretable: {thesis} {seed_cites}. The literature diverges most when {tension}.",
+      "{title} looks more settled than it is. Read closely, the papers support a narrower claim: {thesis} {seed_cites}. The comparison shifts whenever {tension}.",
+      "What matters in {title_lower} is less the headline result than the conditions that make it travel: {thesis} {seed_cites}. That is where the literature starts to split, because {tension}.",
+      "The literature on {title_lower} is most informative when read as a comparison problem rather than as a method list: {thesis} {seed_cites}. The hard part is that {tension}.",
+      "A useful way to read {title_lower} is to ask which claims survive a change in assumptions: {thesis} {seed_cites}. That question becomes unavoidable when {tension}.",
+      "The strongest results in {title_lower} do not speak for themselves. They have to be read through the trade-off that structures the subsection: {thesis} {seed_cites}. That trade-off sharpens once {tension}."
+    ],
+    "cautious_fallback": [
+      "Even when the evidence remains partial, {title_lower} still reveals usable trade-offs once protocol differences and failure cases are kept explicit {used_cites}.",
+      "The available evidence is still informative, but only in a bounded way: stronger claims depend on better-aligned protocol detail and clearer failure reporting {used_cites}."
+    ]
   }
 }

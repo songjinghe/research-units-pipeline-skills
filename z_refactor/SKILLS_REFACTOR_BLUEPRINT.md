@@ -1,402 +1,222 @@
-# Skills 重构蓝图
+# Skills Refactor Blueprint
 
-## 1. 文档目的
+## 1. Purpose
 
-本文档定义本仓库 `.codex/skills/` 的整体重构方向，目标不是“把现有脚本修补得更顺”，而是把 skill 体系从 **script-heavy** 调整为 **instruction/reference-heavy**。
+This document defines the current target state for the repo.
 
-这份蓝图回答四个问题：
+The active target is a repo where:
 
-- skill 的第一性原理是什么；
-- `SKILL.md`、`references/`、`assets/`、`scripts/` 分别应该承载什么；
-- 当前仓库的问题主要集中在哪些模式；
-- 应该按什么顺序逐步重构，才能在不打断现有流水线的前提下完成迁移。
+- skills are reference-first and script-thin
+- pipelines are metadata-first and single-source
+- helpers only materialize contracts instead of inventing them
+- validation is strict enough to catch drift before it reaches user-facing artifacts
 
----
+## 2. Core model
 
-## 2. 第一性原理
+### 2.1 Skill contract
 
-### 2.1 Skill 的本质
+A skill is a layered package:
 
-一个 skill 本质上不是“一个脚本目录”，而是：
+- `SKILL.md`: activation rule, workflow, guardrails, routing to references/assets
+- `references/`: method, rubric, good/bad examples, domain reasoning
+- `assets/`: machine-readable schemas, packs, templates, threshold tables
+- `scripts/`: deterministic IO, normalization, validation, manifests, external tool calls
 
-- 一套触发条件；
-- 一套工作流；
-- 一组边界与 guardrails；
-- 一份可按需加载的领域参考；
-- 少量确定性工具。
+`run.py` is not the place for:
 
-也就是说，skill 的核心价值是：
+- reader-facing prose templates
+- domain defaults
+- hidden writer logic
+- hidden fallback policy
 
-- 让 agent 在某一类任务上拥有稳定的方法论；
-- 让方法论可检查、可复用、可组合；
-- 让领域知识显式存在，而不是埋在实现细节里。
+### 2.2 Pipeline contract
 
-### 2.2 对 `run.py` 的最低化定义
+A pipeline is also layered.
 
-`run.py` 只应该做下面这些事情：
+- frontmatter: machine-readable contract
+- body prose: workflow explanation
+- `UNITS.csv`: execution contract
+- skill assets/references: fine-grained domain and probe logic
 
-- 文件发现与读写；
-- JSONL / CSV / YAML / Markdown 的确定性归一化；
-- 结构化 sidecar 生成；
-- 校验、lint、gate、manifest；
-- 外部工具调用；
-- 简单、可解释、可替换的排序/过滤。
+For the active refactor standard, the parse boundary is:
 
-`run.py` 不应该承担下面这些职责：
+- machine-readable pipeline contract lives in frontmatter only
+- machine-readable stage contract lives in a structured frontmatter field, not in Markdown prose
+- Markdown body remains explanatory and may not be the only home of behavior-changing logic
 
-- 领域默认值；
-- 大段 prose 模板；
-- domain taxonomy 正文；
-- 写作口吻；
-- opener / lead / paragraph 的句式库；
-- evidence 缺失时的 filler 文案；
-- 最终用户视角下的判断逻辑本体。
+If a value changes behavior, gate thresholds, retrieval width, writing depth, or deliverable shape, it belongs in machine-readable contract data, not only in prose.
 
-### 2.3 对 `references/` 的定义
+### 2.3 Helper contract
 
-`references/` 是“让模型思考更正确”的地方，不是“脚本辅助文件”的地方。
+Repo helpers may:
 
-应该放进 `references/` 的内容包括：
+- read the active contract
+- materialize it into workspace files
+- normalize and validate inputs
 
-- 领域知识摘要；
-- taxonomy / axes / wedge catalog；
-- 好坏样例；
-- 常见反模式；
-- decision rubric；
-- evidence quality policy；
-- prompt-facing exemplars；
-- persona-specific deliverable exemplars。
+Repo helpers may not:
 
-### 2.4 对 `assets/` 的定义
+- silently replace pipeline defaults
+- carry their own domain policy
+- create hidden survey/idea behavior that bypasses frontmatter and assets
 
-`assets/` 承载被脚本或产物直接消费的资源：
+### 2.4 Precedence model
 
-- JSON / YAML schema；
-- output 模板骨架；
-- 图规格模板；
-- 机器可读 domain packs；
-- palette / style resource；
-- 示例输入输出样本。
+The active precedence order is:
 
-### 2.5 对 `SKILL.md` 的定义
+1. pipeline frontmatter defines the canonical default contract
+2. `queries.md` is the workspace override surface, but only for fields the pipeline explicitly allows to be overridden
+3. helpers may materialize frontmatter defaults into workspace files, but may not invent values
+4. skill assets may further constrain or validate behavior, but may not silently broaden or replace the pipeline contract
 
-`SKILL.md` 应该保持精简，只保留：
+## 3. Active standards
 
-- 这个 skill 什么时候触发；
-- 解决什么问题；
-- 输入/输出是什么；
-- 工作流如何分步执行；
-- 什么时候必须 block；
-- 什么时候需要读取哪些 `references/`；
-- 哪些 `assets/` 可复用；
-- 哪些脚本只是黑箱工具，不应被全文读入。
+### 3.1 Metadata-first, not prose-first
 
----
+Pipeline prose may explain:
 
-## 3. 外部参考基线（Anthropic 风格）
+- why a stage exists
+- when to reroute or block
+- what a checkpoint means
 
-本次重构的设计基线参考两类来源：
+Pipeline prose may not be the only home for:
 
-### 3.1 本地参考仓
+- `core_size`
+- `per_subsection`
+- `draft_profile`
+- `evidence_mode`
+- citation targets
+- probe/fallback behavior
+- variant behavior
 
-可对照：
+### 3.2 Single-source, not duplicated siblings
 
-- `workspaces/_refs/anthropics-skills/skills/skill-creator/SKILL.md`
-- `workspaces/_refs/anthropics-skills/skills/mcp-builder/SKILL.md`
-- `workspaces/_refs/anthropics-skills/skills/webapp-testing/SKILL.md`
+If one pipeline is mostly another pipeline plus a small deliverable delta, it must be modeled as:
 
-这组参考体现了几个明确原则：
+- base contract
+- explicit variant override
 
-- `SKILL.md` 是主入口；
-- `scripts/` 用于 deterministic reliability；
-- `references/` 用于按需加载的领域知识；
-- `assets/` 用于模板与输出资源；
-- 优先 progressive disclosure，而不是在脚本里内嵌大量语义。
+It must not be maintained as two near-identical full specs and two near-identical units templates.
 
-### 3.2 官方公开实践
+### 3.3 Explicit probe/fallback
 
-可参考：
+Probe-like behavior is allowed when it is necessary, but it must be explicit.
 
-- Anthropic 《The Complete Guide to Building Skill for Claude》
-- Claude Prompting / Best Practices 文档中关于 examples、clear criteria、modular context 的建议
+Acceptable homes:
 
-它们共同支持的结论是：
+- pipeline contract fields
+- stage outputs and unit acceptance
+- skill `assets/` schemas and rubrics
 
-- 复杂行为应被拆成“明确的 instructions + examples + lightweight tooling”；
-- 不要把本该被模型阅读的知识，藏进脚本常量里；
-- scripts 应服务于稳定执行，而不是替代思考与示例。
+Unacceptable homes:
 
----
+- helper heuristics
+- narrative notes
+- hidden script fallbacks
 
-## 4. 当前仓库的系统性问题
+### 3.4 Latest-active-only governance
 
-### 4.1 结构失衡
+`z_refactor` should only describe:
 
-当前 `.codex/skills/` 的总体状态：
+- the current standard
+- the current open work
+- the current execution order
 
-- 非隐藏 skills 数量：`88`
-- 带 `scripts/` 的 skill：`60`
-- 带 `references/reference/ref/refs` 的 skill：`0`
-- 带 `assets/examples/templates` 的 skill：极少
+It should not carry historical closed work as if it were still active.
 
-这意味着目前整体上是：
+## 4. Current open workstreams
 
-- 过度依赖脚本；
-- 几乎没有显式领域参考层；
-- `SKILL.md` 与脚本之间的角色分工不清；
-- 很多知识实际上只能通过读 Python 才看得到。
+Detailed design inputs that remain intentionally separate:
 
-### 4.2 主要坏味道模式
+- `ANTHROPIC_SKILLS_DESIGN_PRINCIPLES.md`
+- `SURVEY_PIPELINE_STRUCTURE_DESIGN.md`
+- `SURVEY_PIPELINE_DESIGN_REVIEW.md`
+- `SURVEY_PIPELINE_CONTRACT_CROSSWALK.md`
 
-#### A. 领域硬编码
+Ownership split for those survey docs:
 
-generic skill 残留 LLM-agent 领域默认值、taxonomy、retrieval pinning、query override。
+- structure design owns the target workflow model
+- design review owns risks and migration cautions
+- contract crosswalk owns keep / move / replace / derive decisions for retained artifacts and migration cutovers
 
-典型例子：
+Redundant planning/checklist docs should be removed once their key points are absorbed into:
 
-- `front-matter-writer` 默认 `LLM agents`
-- `taxonomy-builder` 内置 tool-using LLM agents taxonomy
-- `subsection-briefs` 内置 `is_agent_domain` 和 domain-specific axes
-- `arxiv-search` / `literature-engineer` / `dedupe-rank` 内置 agent classics / survey pinning
+- this blueprint
+- `STATUS.md`
+- `UNITS.csv`
+- `CHECKPOINTS.md`
+- `DECISIONS.md`
 
-#### B. 写作模板内嵌在脚本里
+### 4.1 Pipeline contract normalization
 
-典型例子：
+Needed because the current repo still spreads behavior across:
 
-- `front-matter-writer` 在脚本中直接写 intro/abstract/discussion prose
-- `subsection-writer` 在脚本中直接生成 paragraph skeleton
-- `chapter-lead-writer` 在脚本中直接写 lead block 模板
+- pipeline prose
+- `UNITS.csv` acceptance text
+- helper fallbacks
+- skill-level fallback logic
 
-#### C. 用 filler 掩盖 evidence 稀薄
+Target:
 
-典型例子：
+- machine-readable pipeline defaults
+- machine-readable quality and stage contracts
+- validator support for those fields
 
-- `evidence-draft` 为满足门槛补统一 caution bullets
-- `paper-notes` 为不同 evidence_level 注入统一 limitation prose
+### 4.2 Survey base + LaTeX variant deduplication
 
-这会让系统“看起来更完整”，但也降低了对真实证据缺口的敏感性。
+Historical problem: `arxiv-survey-latex` used to be structurally a duplicate survey contract with a small PDF delta.
 
-#### D. pipeline / workspace 话术泄漏
+Target:
 
-reader-facing prose 中不应出现：
+- one survey base contract
+- one explicit LaTeX override
 
-- `this pipeline aims`
-- `workspace`
-- `evidence pack`
-- `stage C2/C3`
+Current state:
 
-#### E. 占位/截断符写进产物
+- this is implemented; `arxiv-survey-latex` now resolves through `variant_of` + `variant_overrides`
+- remaining work is validation and cleanup around the normalized contract, not variant dedup itself
 
-例如：
+Minimum schema expectation:
 
-- `...`
-- `…`
-- `... (N more)`
+- `variant_of` points to the base pipeline
+- `variant_overrides` contains the only allowed delta
+- scalar and list fields replace
+- mapping fields deep-merge unless explicitly replace-only
 
-这类在检测器/调试输出里可以存在，但不应出现在最终交付给读者的 artifact 中。
+### 4.3 Helper policy externalization
 
----
+Needed because generic helpers still carry survey/ideation policy.
 
-## 5. 目标 skill 结构
+Target:
 
-建议逐步把 skill 包统一成下面的结构：
+- helpers read the active pipeline contract or skill assets
+- helpers stop inventing defaults such as retrieval width or core size
 
-```text
-skill-name/
-├── SKILL.md
-├── references/
-│   ├── overview.md
-│   ├── rubrics.md
-│   ├── examples_good.md
-│   ├── examples_bad.md
-│   └── domain_pack_<domain>.md
-├── assets/
-│   ├── schema.json
-│   ├── templates/
-│   ├── examples/
-│   └── domain_pack_<domain>.yaml
-└── scripts/
-    ├── run.py
-    └── validate.py
-```
+### 4.4 Remaining compatibility debt
 
-### 最低落地要求
+Still open:
 
-对于所有 **script-heavy 且语义/读者导向明显** 的 skill：
+- writer-side prose assembly in compatibility writers
+- audit noise in `audit_skills.py`
+- workspace-contract drift in `agent-survey-corpus`
 
-- 默认应新增 `references/`（除非能明确说明为什么不需要）
-- 至少把一类“判断规则 / exemplars / 领域知识”从脚本迁出去
-- 如果 skill 会稳定产出 reader-facing 文本，强烈建议提供 `examples_good.md` 和 `examples_bad.md`
+## 5. Anti-patterns
 
----
+The following are currently forbidden by the active standard:
 
-## 6. 重构策略总览
+- prose-only defaults for active pipelines
+- duplicated variant pipelines maintained by hand
+- helper-owned survey/idea defaults
+- reader-facing prose materialized by deterministic scripts when the skill is supposed to be reference-first
+- open findings docs that are not scoped to the current active backlog
 
-### 6.1 先抽知识层，再瘦脚本层
+## 6. Success condition
 
-重构顺序必须是：
+The refactor is considered complete only when all of the following are true:
 
-1. 先把领域知识、rubric、写法范式整理进 `references/`
-2. 再让 `SKILL.md` 显式指向这些 reference
-3. 再瘦身 `run.py`
-4. 最后补 lint / gate / regression check
-
-不能反过来先删脚本逻辑，否则 skill 会短期失去稳定性。
-
-### 6.2 generic skill 与 domain pack 分离
-
-generic skill 不再硬编码某个领域。
-
-如果某个领域确实需要专门支持，应改成显式的 domain pack：
-
-- `references/domain_pack_llm_agents.md`
-- `assets/domain_pack_llm_agents.yaml`
-
-由 `SKILL.md` 或 `run.py` 根据输入条件显式选择，而不是把文案和 axes 直接写死在 Python 中。
-
-### 6.3 persona-aware 最终交付物
-
-特别是 ideation 相关 skills：
-
-最终产物应支持 persona-adaptive rendering，而不是继续用单一对称报告。
-
-内部保留统一 structured schema；外部视图根据 persona 渲染成：
-
-- PI 视角：decision memo
-- 博士生视角：thesis brief
-- RA 视角：starter project picker
-- applied scientist 视角：next experiment memo
-
----
-
-## 7. repo 级规则（强制）
-
-### 7.1 Generic skill 禁止事项
-
-generic skill 的脚本中禁止：
-
-- 默认回退为具体领域名
-- 写死大段 prose 模板
-- 写死 taxonomy 正文
-- 强制段落数（如 `while len(paragraphs) < 10`）
-- 用 filler 句达到 gate 下限
-- 输出 `this pipeline aims` 等 pipeline 话术
-- 在最终 reader-facing 报告中输出 `...` / `…`
-
-### 7.2 强制新增静态审计
-
-建议新增一个 repo-wide skill audit / lint，至少检查：
-
-- `LLM agents` / `Large language model agents` 等默认值
-- `while len(paragraphs) <`
-- `this pipeline aims`
-- `... (N more)`
-- reader-facing 产物里是否包含 `workspace`, `stage C*`, `evidence pack`
-- 哪些 skill 带 `scripts/` 但没有 `references/`
-
-### 7.3 output hygiene gate
-
-所有 reader-facing artifact 统一增加 hygiene 规则：
-
-- 禁止 ellipsis
-- 禁止 TODO/scaffold 泄漏
-- 禁止 pipeline jargon
-- 禁止 raw internal ids 直接面对最终用户（除非是内部附录）
-
----
-
-## 8. 重构分期
-
-### Phase 0：建立公共约束
-
-目标：先让后续改造有统一落脚点。
-
-动作：
-
-- 为 P0 / P1 skill 补 `references/` 目录
-- 建立 repo 级静态扫描规则
-- 建立 `domain_pack` 命名约定
-- 约定 `run.py` 的 allowed responsibilities
-
-产出：
-
-- 本文档
-- 文件级 P0/P1 清单
-- 初版 lint 规则
-
-### Phase 1：writer/planner 类去模板化
-
-目标：先清理最影响最终质量、最容易出现 reader-facing 污染的一组。
-
-重点：
-
-- `front-matter-writer`
-- `subsection-writer`
-- `chapter-lead-writer`
-- `subsection-briefs`
-- `taxonomy-builder`
-
-### Phase 2：evidence / ideation / retrieval 去领域内嵌
-
-重点：
-
-- `evidence-draft`
-- `paper-notes`
-- `survey-visuals`
-- `idea-*`
-- `arxiv-search`
-- `literature-engineer`
-- `dedupe-rank`
-
-### Phase 3：回归验证与规范固化
-
-重点：
-
-- 新增 repo-wide audit skill / lint
-- 给关键 skills 增加 regression fixtures
-- 把 `references/` 的约束写入 `SKILLS_STANDARD.md`
-
----
-
-## 9. 验收标准
-
-当以下条件满足时，可认为本轮重构达到目标：
-
-### 结构层
-
-- script-heavy 的核心技能均已有 `references/`
-- generic skills 的领域支持通过 `domain_pack` 显式加载
-- `SKILL.md` 不再承担大量领域正文
-
-### 代码层
-
-- P0 writer 类 skill 不再在脚本中直接写完整 prose 模板
-- 不再出现强制补段落数的逻辑
-- 不再依靠 filler bullets 达到 gate 下限
-
-### 输出层
-
-- 最终读者可见 artifact 中无 pipeline voice
-- 最终读者可见 artifact 中无 ellipsis / truncation markers
-- 最终产物的人设和 job-to-be-done 更清晰
-
-### 维护层
-
-- skill 的语义逻辑可通过 `SKILL.md + references/` 理解，而不必通读 Python
-- 新 skill 优先按 `reference-first` 模式设计
-
----
-
-## 10. 一句话总结
-
-这次重构要把仓库从：
-
-- “很多技能 = 很多脚本”
-
-改成：
-
-- “很多技能 = 清晰工作流 + 可读 reference + 少量确定性脚本”
-
-`run.py` 负责执行，`references/` 负责知识，`SKILL.md` 负责方法，`assets/` 负责模板。
-
-只有这样，skills 才真正符合第一性原理，也更接近 Anthropic 风格的可复用、可组合、可审计设计。
+- active pipelines use machine-readable contracts for behavior-critical defaults
+- `arxiv-survey-latex` is a true variant instead of a duplicate sibling
+- helpers no longer own pipeline policy
+- remaining compatibility writers stop assembling reader-facing prose in `run.py`
+- `audit_skills.py` is reliable enough to enforce the standard
+- smoke validation confirms the normalized survey contract works on representative topics

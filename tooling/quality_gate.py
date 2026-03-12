@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -24,14 +25,17 @@ def _draft_profile(workspace: Path) -> str:
 
     Supported values: `survey`, `deep` (default: `survey` for arxiv-survey pipelines).
     """
+    from tooling.common import pipeline_query_default
+
     profile = _pipeline_profile(workspace)
-    default = "survey" if profile == "arxiv-survey" else "default"
+    default = str(pipeline_query_default(workspace, "draft_profile", "" if profile != "arxiv-survey" else "survey") or "").strip().lower()
+    if default not in {"survey", "deep"}:
+        default = "survey" if profile == "arxiv-survey" else "default"
 
     queries_path = workspace / "queries.md"
     if not queries_path.exists():
         return default
 
-    keys = {"draft_profile", "writing_profile", "quality_profile"}
     try:
         for raw in queries_path.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = raw.strip()
@@ -39,7 +43,7 @@ def _draft_profile(workspace: Path) -> str:
                 continue
             key, value = line[2:].split(":", 1)
             key = key.strip().lower().replace(" ", "_")
-            if key not in keys:
+            if key != "draft_profile":
                 continue
             value = value.split("#", 1)[0].strip().strip('"').strip("'").strip().lower()
             if value in {"survey", "deep"}:
@@ -64,14 +68,17 @@ def _citation_target(workspace: Path) -> str:
     - This is a *policy switch* that affects the citation self-loop behavior:
       `citation-diversifier` (budget sizing) + `citation-injector` (target enforced).
     """
+    from tooling.common import pipeline_query_default
+
     profile = _pipeline_profile(workspace)
-    default = "recommended" if profile == "arxiv-survey" else "hard"
+    default = str(pipeline_query_default(workspace, "citation_target", "" if profile != "arxiv-survey" else "recommended") or "").strip().lower()
+    if default not in {"recommended", "hard"}:
+        default = "recommended" if profile == "arxiv-survey" else "hard"
 
     queries_path = workspace / "queries.md"
     if not queries_path.exists():
         return default
 
-    keys = {"citation_target", "citation_policy", "citation_goal"}
     try:
         for raw in queries_path.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = raw.strip()
@@ -79,7 +86,7 @@ def _citation_target(workspace: Path) -> str:
                 continue
             key, value = line[2:].split(":", 1)
             key = key.strip().lower().replace(" ", "_")
-            if key not in keys:
+            if key != "citation_target":
                 continue
             value = value.split("#", 1)[0].strip().strip('"').strip("'").strip().lower()
             if value in {"recommended", "rec"}:
@@ -101,12 +108,13 @@ def _global_citation_min_subsections(workspace: Path) -> int:
     This threshold lets the pipeline stay strict by default while allowing controlled flexibility.
     """
 
-    default = 4
+    from tooling.common import pipeline_query_default
+
+    default = int(pipeline_query_default(workspace, "global_citation_min_subsections", 4) or 4)
     queries_path = workspace / "queries.md"
     if not queries_path.exists():
         return default
 
-    keys = {"global_citation_min_subsections", "global_citation_threshold"}
     try:
         for raw in queries_path.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = raw.strip()
@@ -114,7 +122,7 @@ def _global_citation_min_subsections(workspace: Path) -> int:
                 continue
             key, value = line[2:].split(":", 1)
             key = key.strip().lower().replace(" ", "_")
-            if key not in keys:
+            if key != "global_citation_min_subsections":
                 continue
             value = value.split("#", 1)[0].strip().strip('"').strip("'").strip()
             if not value:
@@ -161,16 +169,292 @@ def _query_int(workspace: Path, *, keys: set[str], default: int) -> int:
 
 def _core_size(workspace: Path) -> int:
     """Core set size contract (default: A150++ = 300 for arxiv-survey pipelines)."""
+    from tooling.common import pipeline_query_default
+
     profile = _pipeline_profile(workspace)
-    default = 300 if profile == "arxiv-survey" else 0
-    return _query_int(workspace, keys={"core_size", "core_set_size", "core"}, default=default)
+    default = int(pipeline_query_default(workspace, "core_size", 300 if profile == "arxiv-survey" else 0) or 0)
+    return _query_int(workspace, keys={"core_size"}, default=default)
 
 
 def _per_subsection(workspace: Path) -> int:
     """Per-H3 mapping contract (default: A150++ = 28 for arxiv-survey pipelines)."""
+    from tooling.common import pipeline_query_default
+
     profile = _pipeline_profile(workspace)
-    default = 28 if profile == "arxiv-survey" else 3
-    return _query_int(workspace, keys={"per_subsection", "per-subsection", "per_h3"}, default=default)
+    default = int(pipeline_query_default(workspace, "per_subsection", 28 if profile == "arxiv-survey" else 3) or 0)
+    return _query_int(workspace, keys={"per_subsection"}, default=default)
+
+
+def _structure_mode(workspace: Path) -> str:
+    from tooling.common import load_workspace_pipeline_spec
+
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is None:
+        return ""
+    return str(spec.structure_mode or "").strip().lower()
+
+
+def _section_first_artifact_issues(workspace: Path, *, consumer: str) -> list[QualityIssue]:
+    if _structure_mode(workspace) != "section_first":
+        return []
+
+    required = [
+        "outline/chapter_skeleton.yml",
+        "outline/section_bindings.jsonl",
+        "outline/section_binding_report.md",
+        "outline/section_briefs.jsonl",
+    ]
+    missing: list[str] = []
+    empty: list[str] = []
+    for rel in required:
+        path = workspace / rel
+        if not path.exists():
+            missing.append(rel)
+            continue
+        if path.stat().st_size <= 0:
+            empty.append(rel)
+
+    issues: list[QualityIssue] = []
+    if missing:
+        issues.append(
+            QualityIssue(
+                code="section_first_missing_artifacts",
+                message=(
+                    f"`{consumer}` requires the section-first C2 artifacts before H3-level validation can proceed; "
+                    f"missing: {', '.join(missing)}."
+                ),
+            )
+        )
+    if empty:
+        issues.append(
+            QualityIssue(
+                code="section_first_empty_artifacts",
+                message=(
+                    f"`{consumer}` requires non-empty section-first C2 artifacts before H3-level validation can proceed; "
+                    f"empty: {', '.join(empty)}."
+                ),
+            )
+        )
+    return issues
+
+
+def _parse_section_binding_report_rows(text: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line.startswith("|") or line.startswith("|---"):
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+        if cells[0].lower() == "section" and cells[2].lower() == "status":
+            continue
+        rows.append(
+            {
+                "section": cells[0],
+                "coverage": cells[1],
+                "status": cells[2].upper(),
+                "recommendation": cells[3],
+            }
+        )
+    return rows
+
+
+def _section_first_cutover_issues(workspace: Path, *, consumer: str, require_stable_h3: bool) -> list[QualityIssue]:
+    from tooling.common import read_jsonl
+
+    if _structure_mode(workspace) != "section_first":
+        return []
+
+    state_rel = "outline/outline_state.jsonl"
+    state_path = workspace / state_rel
+    if not state_path.exists():
+        return [
+            QualityIssue(
+                code="section_first_missing_outline_state",
+                message=f"`{consumer}` requires `{state_rel}` to record section-first cutover state.",
+            )
+        ]
+    records = [r for r in read_jsonl(state_path) if isinstance(r, dict)]
+    if not records:
+        return [
+            QualityIssue(
+                code="section_first_empty_outline_state",
+                message=f"`{consumer}` requires `{state_rel}` to contain at least one cutover-state record.",
+            )
+        ]
+
+    latest = records[-1]
+    required_fields = [
+        "structure_phase",
+        "h3_status",
+        "approval_status",
+        "reroute_target",
+        "retry_budget_remaining",
+    ]
+    nonempty_fields = {
+        "structure_phase",
+        "h3_status",
+        "approval_status",
+    }
+    missing_fields: list[str] = []
+    for key in required_fields:
+        if key not in latest:
+            missing_fields.append(key)
+            continue
+        value = latest.get(key)
+        if key in nonempty_fields and isinstance(value, str) and not value.strip():
+            missing_fields.append(key)
+    issues: list[QualityIssue] = []
+    if missing_fields:
+        issues.append(
+            QualityIssue(
+                code="section_first_outline_state_missing_fields",
+                message=(
+                    f"`{state_rel}` is missing section-first cutover fields for `{consumer}`: "
+                    f"{', '.join(missing_fields)}."
+                ),
+            )
+        )
+
+    structure_phase = str(latest.get("structure_phase") or "").strip().lower()
+    h3_status = str(latest.get("h3_status") or "").strip().lower()
+    approval_status = str(latest.get("approval_status") or "").strip().lower()
+    reroute_target = str(latest.get("reroute_target") or "").strip()
+    reroute_reason = str(latest.get("reroute_reason") or "").strip()
+    retry_budget_raw = latest.get("retry_budget_remaining")
+    retry_budget_text = str(retry_budget_raw or "").strip()
+    retry_budget_value: int | None = None
+    if structure_phase in {"binding_blocked", "binding_reroute"}:
+        if not reroute_target:
+            issues.append(
+                QualityIssue(
+                    code="section_first_reroute_target_missing",
+                    message=(
+                        f"`{state_rel}` reports structure_phase={structure_phase} for `{consumer}` but leaves `reroute_target` empty."
+                    ),
+                )
+            )
+        if retry_budget_text:
+            try:
+                retry_budget_value = int(retry_budget_text)
+            except Exception:
+                issues.append(
+                    QualityIssue(
+                        code="section_first_retry_budget_invalid",
+                        message=(
+                            f"`{state_rel}` should record an integer `retry_budget_remaining` for `{consumer}` when section bindings block/reroute "
+                            f"(found {retry_budget_text!r})."
+                        ),
+                    )
+                )
+            else:
+                if retry_budget_value < 0:
+                    issues.append(
+                        QualityIssue(
+                            code="section_first_retry_budget_invalid",
+                            message=(
+                                f"`{state_rel}` reports a negative `retry_budget_remaining` for `{consumer}` "
+                                f"(found {retry_budget_value})."
+                            ),
+                        )
+                    )
+        else:
+            issues.append(
+                QualityIssue(
+                    code="section_first_retry_budget_missing",
+                    message=(
+                        f"`{state_rel}` should record `retry_budget_remaining` for `{consumer}` when section bindings block/reroute."
+                    ),
+                )
+            )
+        if approval_status == "approved":
+            issues.append(
+                QualityIssue(
+                    code="section_first_approval_state_inconsistent",
+                    message=(
+                        f"`{state_rel}` marks `{consumer}` as approved while structure_phase={structure_phase}; approval should not stay effective through a binding block/reroute."
+                    ),
+                )
+            )
+
+    if require_stable_h3:
+        if structure_phase == "binding_blocked":
+            issues.append(
+                QualityIssue(
+                    code="section_first_binding_blocked",
+                    message=(
+                        f"`{consumer}` is blocked by the section-binding gate; latest `outline_state.jsonl` has "
+                        f"structure_phase=binding_blocked, reroute_target={reroute_target or '(empty)'}, "
+                        f"retry_budget_remaining={retry_budget_text or '(empty)'}"
+                        + (f", reroute_reason={reroute_reason}" if reroute_reason else ".")
+                    ),
+                )
+            )
+        elif structure_phase == "binding_reroute":
+            issues.append(
+                QualityIssue(
+                    code="section_first_binding_reroute",
+                    message=(
+                        f"`{consumer}` is waiting on a section-binding reroute; latest `outline_state.jsonl` has "
+                        f"structure_phase=binding_reroute, reroute_target={reroute_target or '(empty)'}, "
+                        f"retry_budget_remaining={retry_budget_text or '(empty)'}"
+                        + (f", reroute_reason={reroute_reason}" if reroute_reason else ".")
+                    ),
+                )
+            )
+        elif structure_phase != "decomposed" or h3_status != "stable":
+            issues.append(
+                QualityIssue(
+                    code="section_first_h3_not_stable",
+                    message=(
+                        f"`{consumer}` requires section-first cutover to be complete before H3-level artifacts are accepted; "
+                        f"latest `outline_state.jsonl` has structure_phase={structure_phase or '(empty)'} "
+                        f"and h3_status={h3_status or '(empty)'}, expected `decomposed` + `stable`."
+                    ),
+                )
+            )
+    return issues
+
+
+def _quality_contract_int(workspace: Path, *, keys: tuple[str, ...], default: int) -> int:
+    from tooling.common import pipeline_quality_contract_value
+
+    value = pipeline_quality_contract_value(workspace, *keys, default=default)
+    try:
+        parsed = int(value)
+    except Exception:
+        return int(default)
+    return parsed if parsed > 0 else int(default)
+
+
+def _evidence_mode(workspace: Path) -> str:
+    from tooling.common import pipeline_query_default
+
+    default = str(pipeline_query_default(workspace, "evidence_mode", "abstract") or "").strip().lower()
+    if default not in {"abstract", "fulltext"}:
+        default = "abstract"
+
+    queries_path = workspace / "queries.md"
+    if not queries_path.exists():
+        return default
+
+    try:
+        for raw in queries_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw.strip()
+            if not line.startswith("- ") or ":" not in line:
+                continue
+            key, value = line[2:].split(":", 1)
+            key = key.strip().lower().replace(" ", "_")
+            if key != "evidence_mode":
+                continue
+            value = value.split("#", 1)[0].strip().strip('"').strip("'").strip().lower()
+            if value in {"abstract", "fulltext"}:
+                return value
+            return default
+    except Exception:
+        return default
+    return default
 
 
 def _check_placeholder_markers(text: str) -> bool:
@@ -314,6 +598,12 @@ def check_unit_outputs(*, skill: str, workspace: Path, outputs: list[str]) -> li
         return _check_pdf_text_extractor(workspace, outputs)
     if skill == "taxonomy-builder":
         return _check_taxonomy(workspace, outputs)
+    if skill == "chapter-skeleton":
+        return _check_chapter_skeleton(workspace, outputs)
+    if skill == "section-bindings":
+        return _check_section_bindings(workspace, outputs)
+    if skill == "section-briefs":
+        return _check_section_briefs(workspace, outputs)
     if skill == "outline-builder":
         return _check_outline(workspace, outputs)
     if skill == "section-mapper":
@@ -396,24 +686,227 @@ def check_unit_outputs(*, skill: str, workspace: Path, outputs: list[str]) -> li
     return []
 
 
+def _check_chapter_skeleton(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    from tooling.common import load_yaml
+
+    out_rel = outputs[0] if outputs else "outline/chapter_skeleton.yml"
+    path = workspace / out_rel
+    if not path.exists():
+        return [QualityIssue(code="missing_chapter_skeleton", message=f"`{out_rel}` does not exist.")]
+    data = load_yaml(path)
+    if not isinstance(data, list) or not data:
+        return [QualityIssue(code="invalid_chapter_skeleton", message=f"`{out_rel}` must be a non-empty YAML list.")]
+    missing = 0
+    for rec in data:
+        if not isinstance(rec, dict):
+            missing += 1
+            continue
+        required = ("id", "title", "rationale", "seed_topics", "target_h3_count")
+        if any(not rec.get(key) for key in required):
+            missing += 1
+            continue
+        if not isinstance(rec.get("seed_topics"), list):
+            missing += 1
+            continue
+    if missing:
+        return [QualityIssue(code="chapter_skeleton_missing_fields", message=f"`{out_rel}` has {missing} invalid chapter skeleton record(s).")]
+    return []
+
+
+def _check_section_bindings(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    from tooling.common import read_jsonl
+
+    bindings_rel = outputs[0] if outputs else "outline/section_bindings.jsonl"
+    report_rel = outputs[1] if len(outputs) >= 2 else "outline/section_binding_report.md"
+    bindings_path = workspace / bindings_rel
+    report_path = workspace / report_rel
+    if not bindings_path.exists():
+        return [QualityIssue(code="missing_section_bindings", message=f"`{bindings_rel}` does not exist.")]
+    records = [r for r in read_jsonl(bindings_path) if isinstance(r, dict)]
+    if not records:
+        return [QualityIssue(code="invalid_section_bindings", message=f"`{bindings_rel}` has no JSON objects.")]
+    missing = 0
+    invalid_status = 0
+    invalid_semantics = 0
+    derived_records: list[dict[str, Any]] = []
+    for rec in records:
+        required = ("section_id", "section_title", "paper_ids_primary", "paper_ids_support", "coverage_count", "status", "blocking_gaps", "decomposition_recommendation")
+        if any(key not in rec for key in required):
+            missing += 1
+            continue
+        if not isinstance(rec.get("paper_ids_primary"), list) or not isinstance(rec.get("paper_ids_support"), list):
+            missing += 1
+            continue
+        if not isinstance(rec.get("blocking_gaps"), list):
+            missing += 1
+            continue
+        status = str(rec.get("status") or "").strip().upper()
+        binding_status = str(rec.get("binding_status") or "").strip().upper()
+        recommendation = str(rec.get("decomposition_recommendation") or "").strip().lower()
+        blocking_gaps = rec.get("blocking_gaps") or []
+        if status not in {"PASS", "BLOCKED", "REROUTE"}:
+            invalid_status += 1
+            continue
+        if binding_status and binding_status not in {"PASS", "BLOCKED", "REROUTE"}:
+            invalid_status += 1
+            continue
+        if binding_status and binding_status != status:
+            invalid_semantics += 1
+            continue
+        if recommendation not in {"decompose", "hold_or_merge"}:
+            invalid_semantics += 1
+            continue
+        if status == "PASS" and (blocking_gaps or recommendation != "decompose"):
+            invalid_semantics += 1
+            continue
+        if status == "BLOCKED" and not blocking_gaps:
+            invalid_semantics += 1
+            continue
+        if status == "REROUTE" and (blocking_gaps or recommendation == "decompose"):
+            invalid_semantics += 1
+            continue
+        derived_records.append(
+            {
+                "section_id": str(rec.get("section_id") or "").strip(),
+                "binding_status": binding_status or status,
+                "decomposition_recommendation": recommendation,
+                "blocking_gaps": list(blocking_gaps),
+            }
+        )
+    if missing:
+        return [QualityIssue(code="section_bindings_missing_fields", message=f"`{bindings_rel}` has {missing} invalid section-binding record(s).")]
+    if invalid_status:
+        return [QualityIssue(code="section_bindings_invalid_status", message=f"`{bindings_rel}` has {invalid_status} record(s) with unknown binding status (expected PASS/BLOCKED/REROUTE).")]
+    if invalid_semantics:
+        return [QualityIssue(code="section_bindings_invalid_semantics", message=f"`{bindings_rel}` has {invalid_semantics} record(s) where status, blocking_gaps, and decomposition_recommendation disagree.")]
+    if not report_path.exists():
+        return [QualityIssue(code="missing_section_binding_report", message=f"`{report_rel}` does not exist.")]
+    report = report_path.read_text(encoding="utf-8", errors="ignore")
+    rows = _parse_section_binding_report_rows(report)
+    if "| Section |" not in report or "| Status |" not in report or not rows:
+        return [QualityIssue(code="invalid_section_binding_report", message=f"`{report_rel}` is missing the section binding summary table.")]
+    by_section_id: dict[str, dict[str, Any]] = {}
+    for rec in derived_records:
+        section_id = str(rec.get("section_id") or "").strip()
+        if section_id:
+            by_section_id[section_id] = rec
+    if len(rows) != len(derived_records):
+        return [
+            QualityIssue(
+                code="section_binding_report_row_mismatch",
+                message=(
+                    f"`{report_rel}` should report one status row per section binding "
+                    f"(report rows={len(rows)}, binding rows={len(derived_records)})."
+                ),
+            )
+        ]
+    bad_statuses = sorted({str(row.get("status") or "").strip().upper() for row in rows if str(row.get("status") or "").strip().upper() not in {"PASS", "BLOCKED", "REROUTE"}})
+    if bad_statuses:
+        return [
+            QualityIssue(
+                code="section_binding_report_bad_status",
+                message=f"`{report_rel}` contains unsupported binding statuses: {', '.join(bad_statuses)}.",
+            )
+        ]
+    inconsistent: list[str] = []
+    for row in rows:
+        label = str(row.get("section") or "").strip()
+        section_id = label.split(" ", 1)[0].strip()
+        rec = by_section_id.get(section_id) or {}
+        binding_status = str(rec.get("binding_status") or "").strip().upper()
+        report_status = str(row.get("status") or "").strip().upper()
+        recommendation = str(rec.get("decomposition_recommendation") or "").strip().lower()
+        blocking_gaps = rec.get("blocking_gaps") or []
+        if binding_status != report_status:
+            inconsistent.append(f"{section_id}: report={report_status} jsonl={binding_status or 'missing'}")
+            continue
+        if report_status == "PASS" and (blocking_gaps or recommendation != "decompose"):
+            inconsistent.append(f"{section_id}: PASS with non-decompose semantics")
+        if report_status == "BLOCKED" and not blocking_gaps:
+            inconsistent.append(f"{section_id}: BLOCKED without blocking_gaps")
+        if report_status == "REROUTE" and (blocking_gaps or recommendation == "decompose"):
+            inconsistent.append(f"{section_id}: REROUTE without hold_or_merge semantics")
+    if inconsistent:
+        return [
+            QualityIssue(
+                code="section_binding_report_drift",
+                message=(
+                    f"`{bindings_rel}` and `{report_rel}` disagree about section-binding gate state: "
+                    f"{', '.join(inconsistent[:6])}."
+                ),
+            )
+        ]
+    return []
+
+
+def _check_section_briefs(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    from tooling.common import read_jsonl
+
+    out_rel = outputs[0] if outputs else "outline/section_briefs.jsonl"
+    path = workspace / out_rel
+    if not path.exists():
+        return [QualityIssue(code="missing_section_briefs", message=f"`{out_rel}` does not exist.")]
+    records = [r for r in read_jsonl(path) if isinstance(r, dict)]
+    if not records:
+        return [QualityIssue(code="invalid_section_briefs", message=f"`{out_rel}` has no JSON objects.")]
+    missing = 0
+    for rec in records:
+        required = ("section_id", "section_title", "section_rationale", "contrast_lens", "must_cover", "target_h3_count", "subsection_seeds", "status", "decomposition_recommendation", "blocking_gaps")
+        if any(key not in rec for key in required):
+            missing += 1
+            continue
+        if not isinstance(rec.get("contrast_lens"), list) or not isinstance(rec.get("must_cover"), list) or not isinstance(rec.get("subsection_seeds"), list) or not isinstance(rec.get("blocking_gaps"), list):
+            missing += 1
+            continue
+        status = str(rec.get("status") or "").strip().upper()
+        binding_status = str(rec.get("binding_status") or "").strip().upper()
+        recommendation = str(rec.get("decomposition_recommendation") or "").strip().lower()
+        blocking_gaps = rec.get("blocking_gaps") or []
+        if status not in {"PASS", "BLOCKED", "REROUTE"}:
+            missing += 1
+            continue
+        if binding_status and binding_status not in {"PASS", "BLOCKED", "REROUTE"}:
+            missing += 1
+            continue
+        if binding_status and status != binding_status:
+            missing += 1
+            continue
+        if recommendation not in {"decompose", "hold_or_merge"}:
+            missing += 1
+            continue
+        if status == "PASS" and (blocking_gaps or recommendation != "decompose"):
+            missing += 1
+            continue
+        if status == "BLOCKED" and not blocking_gaps:
+            missing += 1
+            continue
+        if status == "REROUTE" and (blocking_gaps or recommendation == "decompose"):
+            missing += 1
+            continue
+    if missing:
+        return [QualityIssue(code="section_briefs_missing_fields", message=f"`{out_rel}` has {missing} invalid section brief record(s).")]
+    return []
+
+
 def _check_idea_brief(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    def _required_sections() -> list[str]:
+        repo_root = Path(__file__).resolve().parents[1]
+        asset_path = repo_root / ".codex" / "skills" / "idea-brief" / "assets" / "brief_contract.json"
+        data = json.loads(asset_path.read_text(encoding="utf-8"))
+        sections = data.get("required_sections")
+        if not isinstance(sections, list) or not sections:
+            raise ValueError("idea-brief required_sections is missing or empty")
+        return [f"## {str(section or '').strip()}" for section in sections if str(section or "").strip()]
+
     brief_rel = next((p for p in outputs if p.endswith("IDEA_BRIEF.md")), "output/trace/IDEA_BRIEF.md")
     path = workspace / brief_rel
     if not path.exists() or path.stat().st_size == 0:
         return [QualityIssue(code="missing_idea_brief", message=f"`{brief_rel}` is missing or empty.")]
     text = path.read_text(encoding="utf-8", errors="ignore")
-    required = [
-        "## Goal",
-        "## Scope",
-        "## Audience",
-        "## Constraints",
-        "## Exclusions",
-        "## Rubric",
-        "## Targets",
-        "## Focus lenses after C2",
-        "## Query Buckets",
-        "## Table Policy",
-    ]
+    try:
+        required = _required_sections()
+    except Exception as exc:
+        return [QualityIssue(code="idea_brief_contract_unreadable", message=f"Failed to load `idea-brief` contract asset ({type(exc).__name__}: {exc}).")]
     missing = [h for h in required if h not in text]
     if missing:
         return [QualityIssue(code="idea_brief_missing_sections", message=f"`{brief_rel}` is missing required sections: {', '.join(missing)}")]
@@ -443,8 +936,38 @@ def _check_idea_brief(workspace: Path, outputs: list[str]) -> list[QualityIssue]
 
 
 def _sidecar_output_rel(outputs: list[str], *, filename: str) -> str:
-    return next((p for p in outputs if p.endswith(filename)), f"output/{filename}")
+    explicit = next((p for p in outputs if p.endswith(filename)), "")
+    if explicit:
+        return explicit
+    target_stem = Path(filename).stem
+    for output in outputs:
+        p = Path(output)
+        if p.suffix.lower() == ".md" and p.stem == target_stem:
+            return str(p.with_suffix(".jsonl"))
+    return f"output/{filename}"
 
+
+
+def _load_idea_contract_for_quality(workspace: Path) -> tuple[dict[str, Any] | None, list[QualityIssue]]:
+    from tooling.common import load_workspace_pipeline_spec
+    from tooling.ideation import resolve_idea_contract
+
+    if load_workspace_pipeline_spec(workspace) is None:
+        return None, [
+            QualityIssue(
+                code="missing_idea_pipeline_contract",
+                message="Missing or invalid active ideation pipeline contract; check `PIPELINE.lock.md` and pipeline metadata.",
+            )
+        ]
+    try:
+        return resolve_idea_contract(workspace), []
+    except Exception as exc:
+        return None, [
+            QualityIssue(
+                code="invalid_idea_pipeline_contract",
+                message=f"Failed to resolve the ideation runtime contract ({type(exc).__name__}: {exc}).",
+            )
+        ]
 
 
 def _markdown_table_data_rows(text: str, *, header_token: str) -> list[str]:
@@ -551,6 +1074,9 @@ def _check_idea_signal_table(workspace: Path, outputs: list[str]) -> list[Qualit
     path = workspace / out_rel
     if not path.exists() or path.stat().st_size == 0:
         return [QualityIssue(code="missing_idea_signal_table", message=f"`{out_rel}` is missing or empty.")]
+    contract, issues = _load_idea_contract_for_quality(workspace)
+    if issues:
+        return issues
     text = path.read_text(encoding="utf-8", errors="ignore")
     if _check_placeholder_markers(text) or "…" in text:
         return [QualityIssue(code="idea_signal_table_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
@@ -558,7 +1084,7 @@ def _check_idea_signal_table(workspace: Path, outputs: list[str]) -> list[Qualit
     if not all(h.lower() in text.lower() for h in needed):
         return [QualityIssue(code="idea_signal_table_missing_columns", message=f"`{out_rel}` should expose a signal table with the expected columns.")]
     data_rows = _markdown_table_data_rows(text, header_token="Signal ID")
-    min_rows = _query_int(workspace, keys={"signal_table_min", "signal_rows_min", "idea_signal_min"}, default=10)
+    min_rows = int(contract["signal_table_min"])
     if len(data_rows) < min_rows:
         return [QualityIssue(code="idea_signal_table_too_small", message=f"`{out_rel}` should contain at least {min_rows} signal rows (found {len(data_rows)}).")]
     sidecar_rel = _sidecar_output_rel(outputs, filename="IDEA_SIGNAL_TABLE.jsonl")
@@ -582,6 +1108,9 @@ def _check_idea_direction_pool(workspace: Path, outputs: list[str]) -> list[Qual
     path = workspace / out_rel
     if not path.exists() or path.stat().st_size == 0:
         return [QualityIssue(code="missing_idea_direction_pool", message=f"`{out_rel}` is missing or empty.")]
+    contract, issues = _load_idea_contract_for_quality(workspace)
+    if issues:
+        return issues
     text = path.read_text(encoding="utf-8", errors="ignore")
     if _check_placeholder_markers(text) or "…" in text:
         return [QualityIssue(code="idea_direction_pool_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
@@ -589,8 +1118,8 @@ def _check_idea_direction_pool(workspace: Path, outputs: list[str]) -> list[Qual
     if not all(h.lower() in text.lower() for h in needed):
         return [QualityIssue(code="idea_direction_pool_missing_columns", message=f"`{out_rel}` should expose a direction pool table with the expected columns.")]
     data_rows = _markdown_table_data_rows(text, header_token="Direction ID")
-    pool_min = _query_int(workspace, keys={"direction_pool_min", "idea_pool_min"}, default=12)
-    pool_max = _query_int(workspace, keys={"direction_pool_max", "idea_pool_max"}, default=24)
+    pool_min = int(contract["direction_pool_min"])
+    pool_max = int(contract["direction_pool_max"])
     if len(data_rows) < pool_min or len(data_rows) > pool_max:
         return [QualityIssue(code="idea_direction_pool_size_out_of_range", message=f"`{out_rel}` should contain {pool_min}-{pool_max} direction rows (found {len(data_rows)}).")]
     sidecar_rel = _sidecar_output_rel(outputs, filename="IDEA_DIRECTION_POOL.jsonl")
@@ -606,6 +1135,9 @@ def _check_idea_screening_table(workspace: Path, outputs: list[str]) -> list[Qua
     path = workspace / out_rel
     if not path.exists() or path.stat().st_size == 0:
         return [QualityIssue(code="missing_idea_screening_table", message=f"`{out_rel}` is missing or empty.")]
+    contract, issues = _load_idea_contract_for_quality(workspace)
+    if issues:
+        return issues
     text = path.read_text(encoding="utf-8", errors="ignore")
     if _check_placeholder_markers(text) or "…" in text:
         return [QualityIssue(code="idea_screening_table_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
@@ -613,7 +1145,7 @@ def _check_idea_screening_table(workspace: Path, outputs: list[str]) -> list[Qua
     if not all(h.lower() in text.lower() for h in needed):
         return [QualityIssue(code="idea_screening_table_missing_columns", message=f"`{out_rel}` should expose a scored screening table with the expected columns.")]
     data_rows = _markdown_table_data_rows(text, header_token="Direction ID")
-    min_rows = _query_int(workspace, keys={"idea_screen_top_n", "screening_min"}, default=8)
+    min_rows = int(contract["idea_screen_top_n"])
     if len(data_rows) < min_rows:
         return [QualityIssue(code="idea_screening_table_too_small", message=f"`{out_rel}` should contain at least {min_rows} screened directions (found {len(data_rows)}).")]
     sidecar_rel = _sidecar_output_rel(outputs, filename="IDEA_SCREENING_TABLE.jsonl")
@@ -625,23 +1157,36 @@ def _check_idea_screening_table(workspace: Path, outputs: list[str]) -> list[Qua
     bad = sorted({d for d in decisions if d not in {"keep", "maybe", "drop"}})
     if bad:
         issues.append(QualityIssue(code="idea_screening_table_bad_decisions", message=f"`{sidecar_rel}` contains unsupported decisions: {', '.join(bad)}."))
-    if sum(1 for d in decisions if d == "keep") < 3:
-        issues.append(QualityIssue(code="idea_screening_table_too_few_kept", message=f"`{sidecar_rel}` should mark at least 3 candidates as `keep` for the shortlist."))
+    keep_min = int(contract["keep_min"])
+    if sum(1 for d in decisions if d == "keep") < keep_min:
+        issues.append(QualityIssue(code="idea_screening_table_too_few_kept", message=f"`{sidecar_rel}` should mark at least {keep_min} candidates as `keep` for the shortlist."))
     return issues
 
 
 def _check_idea_shortlist(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    from tooling.common import load_workspace_pipeline_spec
+
     out_rel = next((p for p in outputs if p.endswith("IDEA_SHORTLIST.md")), "output/trace/IDEA_SHORTLIST.md")
     path = workspace / out_rel
     if not path.exists() or path.stat().st_size == 0:
         return [QualityIssue(code="missing_idea_shortlist", message=f"`{out_rel}` is missing or empty.")]
+    if load_workspace_pipeline_spec(workspace) is None:
+        return [QualityIssue(code="missing_idea_pipeline_contract", message="Missing or invalid active ideation pipeline contract; check `PIPELINE.lock.md` and pipeline metadata.")]
     text = path.read_text(encoding="utf-8", errors="ignore")
     if _check_placeholder_markers(text) or "…" in text:
         return [QualityIssue(code="idea_shortlist_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
+    contract, issues = _load_idea_contract_for_quality(workspace)
+    if issues:
+        return issues
     ideas = len(re.findall(r"(?m)^###\s+Direction\s+\d+\.", text))
-    if ideas < 3 or ideas > 5:
-        return [QualityIssue(code="idea_shortlist_size_out_of_range", message=f"`{out_rel}` should contain 3-5 shortlisted directions (found {ideas}).")]
-    required_labels = ["Focus axis:", "Program kind:", "Main confound:", "Time to clarity:", "One-line thesis:", "Why this is interesting:", "What the literature already suggests:", "What is still missing:", "Possible variants:", "Contribution shape:", "Why this could matter academically:", "First probes:", "What would make this weak or unconvincing:", "Quick kill criteria:", "Best fit:", "Evidence confidence:", "Anchor papers:", "Why prioritized now:"]
+    shortlist_min = int(contract["shortlist_min"])
+    shortlist_max = int(contract["shortlist_max"])
+    if ideas < shortlist_min or ideas > shortlist_max:
+        return [QualityIssue(code="idea_shortlist_size_out_of_range", message=f"`{out_rel}` should contain {shortlist_min}-{shortlist_max} shortlisted directions (found {ideas}).")]
+    expected_shortlist_size = int(contract["shortlist_size"])
+    if ideas != expected_shortlist_size:
+        return [QualityIssue(code="idea_shortlist_size_mismatch", message=f"`{out_rel}` should contain exactly {expected_shortlist_size} shortlisted directions for the active ideation contract (found {ideas}).")]
+    required_labels = ["Focus axis:", "Program kind:", "Main confound:", "Time to clarity:", "One-line thesis:", "Why this ranks here:", "Why this is interesting:", "What the literature already suggests:", "Closest prior work and why it does not settle the question:", "What is still missing:", "Possible variants:", "Contribution shape:", "Why this could matter academically:", "First probes:", "What would count as actual insight:", "What would make this weak or unconvincing:", "Quick kill criteria:", "Best fit:", "Evidence confidence:", "Anchor papers:", "Why prioritized now:"]
     missing = [lab for lab in required_labels if lab not in text]
     if missing:
         return [QualityIssue(code="idea_shortlist_missing_fields", message=f"`{out_rel}` is missing required shortlist fields: {', '.join(missing)}")]
@@ -649,7 +1194,7 @@ def _check_idea_shortlist(workspace: Path, outputs: list[str]) -> list[QualityIs
     records, issues = _load_jsonl_dict_records(workspace, sidecar_rel=sidecar_rel, code_prefix="idea_shortlist")
     if issues:
         return issues
-    issues.extend(_audit_sidecar_records(records=records, sidecar_rel=sidecar_rel, code_prefix="idea_shortlist", required_fields=["rank", "direction_id", "cluster", "direction_type", "title", "focus_axis", "main_confound", "program_kind", "contribution_shape", "time_to_clarity", "one_line_thesis", "why_interesting", "literature_suggests", "closest_prior_gap", "missing_piece", "possible_variants", "academic_value", "first_probes", "what_counts_as_insight", "weakness_conditions", "kill_criteria", "best_fit", "evidence_confidence", "paper_ids", "signal_ids", "anchor_reading_notes", "why_prioritized"], expected_rows=ideas, id_key="direction_id"))
+    issues.extend(_audit_sidecar_records(records=records, sidecar_rel=sidecar_rel, code_prefix="idea_shortlist", required_fields=["rank", "direction_id", "cluster", "direction_type", "title", "focus_axis", "main_confound", "program_kind", "contribution_shape", "time_to_clarity", "one_line_thesis", "why_interesting", "literature_suggests", "closest_prior_gap", "missing_piece", "possible_variants", "academic_value", "first_probes", "what_counts_as_insight", "weakness_conditions", "kill_criteria", "best_fit", "evidence_confidence", "paper_ids", "signal_ids", "anchor_reading_notes", "why_this_ranks_here", "why_prioritized"], expected_rows=ideas, id_key="direction_id"))
     ranks = []
     bad_ranks = 0
     for rec in records:
@@ -662,8 +1207,9 @@ def _check_idea_shortlist(workspace: Path, outputs: list[str]) -> list[QualityIs
     elif sorted(ranks) != list(range(1, len(records) + 1)):
         issues.append(QualityIssue(code="idea_shortlist_noncontiguous_ranks", message=f"`{sidecar_rel}` should rank shortlisted directions contiguously from 1 to {len(records)}."))
     clusters = {str(rec.get("cluster") or "").strip() for rec in records if str(rec.get("cluster") or "").strip()}
-    if len(clusters) < 2:
-        issues.append(QualityIssue(code="idea_shortlist_low_cluster_diversity", message=f"`{sidecar_rel}` should cover at least 2 clusters (found {len(clusters)})."))
+    cluster_diversity_min = int(contract["cluster_diversity_min"])
+    if len(clusters) < cluster_diversity_min:
+        issues.append(QualityIssue(code="idea_shortlist_low_cluster_diversity", message=f"`{sidecar_rel}` should cover at least {cluster_diversity_min} clusters (found {len(clusters)})."))
     return issues
 
 
@@ -680,10 +1226,28 @@ def _check_brainstorm_report_bundle(workspace: Path, outputs: list[str]) -> list
         return [QualityIssue(code="missing_brainstorm_appendix", message=f"`{appendix_rel}` is missing or empty.")]
     if not json_path.exists() or json_path.stat().st_size == 0:
         return [QualityIssue(code="missing_brainstorm_report_json", message=f"`{json_rel}` is missing or empty.")]
+    contract, issues = _load_idea_contract_for_quality(workspace)
+    if issues:
+        return issues
     text = report_path.read_text(encoding="utf-8", errors="ignore")
     if _check_placeholder_markers(text) or "…" in text:
         return [QualityIssue(code="brainstorm_report_placeholders", message=f"`{report_rel}` contains placeholders/ellipsis.")]
-    required_sections = ["## 0. Scope and framing", "## 1. Big-picture takeaways", "## 2. Top directions at a glance", "## 6. Other promising but not prioritized directions", "## 7. Cross-cutting discussion questions", "## 8. Uncertainty and disagreement", "## 9. Suggested next reading / next discussion step", "## 10. Appendix guide"]
+    report_top_n = int(contract["report_top_n"])
+    deferred_idx = 3 + report_top_n
+    discussion_idx = deferred_idx + 1
+    uncertainty_idx = deferred_idx + 2
+    next_idx = deferred_idx + 3
+    appendix_idx = deferred_idx + 4
+    required_sections = [
+        "## 0. Scope and framing",
+        "## 1. Big-picture takeaways",
+        "## 2. Top directions at a glance",
+        f"## {deferred_idx}. Other promising but not prioritized directions",
+        f"## {discussion_idx}. Cross-cutting discussion questions",
+        f"## {uncertainty_idx}. Uncertainty and disagreement",
+        f"## {next_idx}. Suggested next reading / next discussion step",
+        f"## {appendix_idx}. Appendix guide",
+    ]
     missing = [h for h in required_sections if h not in text]
     if missing:
         return [QualityIssue(code="brainstorm_report_missing_sections", message=f"`{report_rel}` is missing required sections: {', '.join(missing)}")]
@@ -702,20 +1266,20 @@ def _check_brainstorm_report_bundle(workspace: Path, outputs: list[str]) -> list
     if generic_phrases:
         return [QualityIssue(code="brainstorm_report_generic_language", message=f"`{report_rel}` / `{appendix_rel}` still contain generic templated language: {', '.join(generic_phrases)}")]
     direction_sections = re.findall(r"(?m)^##\s+\d+\.\s+Direction\s+\d+\s+—\s+(.+)$", text)
-    if len(direction_sections) != 3:
-        return [QualityIssue(code="brainstorm_report_wrong_direction_count", message=f"`{report_rel}` should contain exactly 3 expanded lead directions (found {len(direction_sections)}).")]
+    if len(direction_sections) != report_top_n:
+        return [QualityIssue(code="brainstorm_report_wrong_direction_count", message=f"`{report_rel}` should contain exactly {report_top_n} expanded lead directions (found {len(direction_sections)}).")]
     if re.search(r"\bP\d{4}\b", text):
         return [QualityIssue(code="brainstorm_report_leaks_internal_ids", message=f"`{report_rel}` should not expose raw `paper_id` values in the main memo.")]
     compare_rows = _markdown_table_data_rows(text, header_token="Rank")
-    if len(compare_rows) < 3:
-        return [QualityIssue(code="brainstorm_report_thin_snapshot", message=f"`{report_rel}` should include a top-directions comparison table with at least 3 rows.")]
+    if len(compare_rows) < report_top_n:
+        return [QualityIssue(code="brainstorm_report_thin_snapshot", message=f"`{report_rel}` should include a top-directions comparison table with at least {report_top_n} rows.")]
     shortlist_path = workspace / "output" / "trace" / "IDEA_SHORTLIST.jsonl"
     if shortlist_path.exists() and shortlist_path.stat().st_size > 0:
         from tooling.common import read_jsonl
         shortlist = [r for r in read_jsonl(shortlist_path) if isinstance(r, dict)]
-        expected_titles = [str(r.get("title") or "").strip() for r in shortlist[:3] if str(r.get("title") or "").strip()]
-        if len(expected_titles) == 3 and direction_sections[:3] != expected_titles:
-            return [QualityIssue(code="brainstorm_report_shortlist_mismatch", message=f"`{report_rel}` should expand the top 3 titles from `output/trace/IDEA_SHORTLIST.jsonl` in rank order.")]
+        expected_titles = [str(r.get("title") or "").strip() for r in shortlist[:report_top_n] if str(r.get("title") or "").strip()]
+        if len(expected_titles) == report_top_n and direction_sections[:report_top_n] != expected_titles:
+            return [QualityIssue(code="brainstorm_report_shortlist_mismatch", message=f"`{report_rel}` should expand the top {report_top_n} titles from `output/trace/IDEA_SHORTLIST.jsonl` in rank order.")]
     try:
         payload = json.loads(json_path.read_text(encoding="utf-8"))
     except Exception as exc:
@@ -724,10 +1288,15 @@ def _check_brainstorm_report_bundle(workspace: Path, outputs: list[str]) -> list
     missing_keys = sorted(needed_keys - set(payload.keys()))
     if missing_keys:
         return [QualityIssue(code="brainstorm_report_json_missing_keys", message=f"`{json_rel}` is missing required keys: {', '.join(missing_keys)}")]
-    for idx, rec in enumerate(payload.get("top_directions") or [], start=1):
+    top_directions = payload.get("top_directions") or []
+    if not isinstance(top_directions, list):
+        return [QualityIssue(code="brainstorm_report_json_bad_top_directions", message=f"`{json_rel}` `top_directions` should be a JSON array.")]
+    if len(top_directions) != report_top_n:
+        return [QualityIssue(code="brainstorm_report_json_wrong_direction_count", message=f"`{json_rel}` should contain exactly {report_top_n} top directions (found {len(top_directions)}).")]
+    for idx, rec in enumerate(top_directions, start=1):
         if not isinstance(rec, dict):
             return [QualityIssue(code="brainstorm_report_json_bad_top_direction", message=f"`{json_rel}` top direction #{idx} should be a JSON object.")]
-        required_rec = {"title", "focus_axis", "main_confound", "program_kind", "contribution_shape", "time_to_clarity", "first_probes", "kill_criteria", "anchor_reading_notes"}
+        required_rec = {"title", "focus_axis", "main_confound", "program_kind", "contribution_shape", "time_to_clarity", "one_line_thesis", "why_this_ranks_here", "literature_suggests", "closest_prior_gap", "missing_piece", "what_counts_as_insight", "first_probes", "kill_criteria", "anchor_reading_notes"}
         rec_missing = sorted(required_rec - set(rec.keys()))
         if rec_missing:
             return [QualityIssue(code="brainstorm_report_json_thin_top_direction", message=f"`{json_rel}` top direction #{idx} is missing fields: {', '.join(rec_missing)}")]
@@ -782,17 +1351,7 @@ def _check_pdf_text_extractor(workspace: Path, outputs: list[str]) -> list[Quali
     if not records:
         return [QualityIssue(code="empty_fulltext_index", message=f"`{out_rel}` is missing or empty.")]
 
-    mode = "abstract"
-    queries_path = workspace / "queries.md"
-    if queries_path.exists():
-        for raw in queries_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-            line = raw.strip()
-            if not line.startswith("- evidence_mode:"):
-                continue
-            value = line.split(":", 1)[1].split("#", 1)[0].strip().strip('"').strip("'").strip().lower()
-            if value:
-                mode = value
-            break
+    mode = _evidence_mode(workspace)
     if mode != "fulltext":
         # Abstract/snippet mode: do not require extracted text coverage.
         return []
@@ -1118,17 +1677,7 @@ def _check_literature_engineer(workspace: Path, outputs: list[str]) -> list[Qual
                 )
             )
         # Evidence-first: if we're not extracting full text, we need abstracts for non-hallucinated notes/drafting.
-        evidence_mode = "abstract"
-        queries_path = workspace / "queries.md"
-        if queries_path.exists():
-            for raw in queries_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-                line = raw.strip()
-                if not line.startswith("- evidence_mode:"):
-                    continue
-                value = line.split(":", 1)[1].split("#", 1)[0].strip().strip('"').strip("'").strip().lower()
-                if value:
-                    evidence_mode = value
-                break
+        evidence_mode = _evidence_mode(workspace)
         if evidence_mode != "fulltext" and missing_abstract / max(1, total) >= 0.7:
             issues.append(
                 QualityIssue(
@@ -1418,7 +1967,7 @@ def _iter_taxonomy_nodes(items: Iterable) -> Iterable[dict]:
 
 
 def _check_outline(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
-    from tooling.common import load_yaml
+    from tooling.common import load_workspace_pipeline_spec, load_yaml
 
     out_rel = outputs[0] if outputs else "outline/outline.yml"
     path = workspace / out_rel
@@ -1434,6 +1983,10 @@ def _check_outline(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
     outline = load_yaml(path) if path.exists() else None
     if not isinstance(outline, list) or not outline:
         return [QualityIssue(code="invalid_outline", message=f"`{out_rel}` is missing or not a YAML list.")]
+
+    section_first_issues = _section_first_artifact_issues(workspace, consumer=out_rel)
+    if section_first_issues:
+        return section_first_issues
 
     template_bullets = {
         "Define problem setting and terminology",
@@ -1516,7 +2069,11 @@ def _check_outline(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
                 sec_total += 1
 
         extra_global_h2 = 2  # Discussion + Conclusion are appended as global sections in C5.
-        max_final_h2 = 9 if draft_profile == "deep" else 8
+        max_final_h2 = _quality_contract_int(
+            workspace,
+            keys=("structure_policy", "max_final_h2_by_profile", draft_profile),
+            default=9 if draft_profile == "deep" else 8,
+        )
         max_outline_h2 = max(1, max_final_h2 - extra_global_h2)
 
         if sec_total > max_outline_h2:
@@ -1534,10 +2091,30 @@ def _check_outline(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
             ]
 
         # Paper-like constraint: avoid fragmenting the survey into too many tiny H3s.
-        if draft_profile == "deep":
-            max_h3 = 12
-        else:
-            max_h3 = 10
+        max_h3 = _quality_contract_int(
+            workspace,
+            keys=("structure_policy", "max_h3_by_profile", draft_profile),
+            default=12 if draft_profile == "deep" else 10,
+        )
+
+        spec = load_workspace_pipeline_spec(workspace)
+        if spec is not None and str(spec.structure_mode or "").strip().lower() == "section_first":
+            core_sections = 0
+            for section in outline:
+                if not isinstance(section, dict):
+                    continue
+                title = str(section.get("title") or "").strip().lower()
+                subs = section.get("subsections") or []
+                if title in {"introduction", "related work"}:
+                    continue
+                if isinstance(subs, list) and subs:
+                    core_sections += 1
+            target_h3 = int(getattr(spec, "core_chapter_h3_target", 0) or 0)
+            if core_sections > 0 and target_h3 > 0:
+                # The explicit section-first contract should not be self-contradictory:
+                # if the pipeline declares a target H3 budget per core chapter, the
+                # global survey H3 cap must allow that chapter plan to materialize.
+                max_h3 = max(max_h3, core_sections * target_h3)
 
         if subs_total > max_h3:
             return [
@@ -1575,6 +2152,7 @@ def _check_mapping(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
         return [QualityIssue(code="empty_mapping", message=f"`{out_rel}` has no rows.")]
 
     issues: list[QualityIssue] = []
+    issues.extend(_section_first_artifact_issues(workspace, consumer=out_rel))
 
     placeholder_rows = 0
     for row in rows:
@@ -2014,6 +2592,10 @@ def _check_subsection_briefs(workspace: Path, outputs: list[str]) -> list[Qualit
     briefs = [r for r in records if isinstance(r, dict)]
     if not briefs:
         return [QualityIssue(code="invalid_subsection_briefs", message=f"`{out_rel}` has no JSON objects.")]
+    cutover_issues = _section_first_artifact_issues(workspace, consumer=out_rel)
+    cutover_issues.extend(_section_first_cutover_issues(workspace, consumer=out_rel, require_stable_h3=True))
+    if cutover_issues:
+        return cutover_issues
 
     # Check coverage against outline subsections (best-effort).
     outline_path = workspace / "outline" / "outline.yml"
@@ -2185,34 +2767,15 @@ def _check_subsection_briefs(workspace: Path, outputs: list[str]) -> list[Qualit
             )
         )
 
-    generic_axis_norms = {
-        "core mechanism and system architecture",
-        "training and data setup",
-        "evaluation protocol",
-        "evaluation protocol benchmarks metrics human",
-        "evaluation protocol datasets metrics human",
-        "evaluation protocol datasets metrics human evaluation",
-        "compute and efficiency",
-        "compute and latency constraints",
-        "efficiency and compute",
-        "tool interface contract schemas protocols",
-        "tool selection routing policy",
-        "sandboxing permissions observability",
-        "failure modes and limitations",
-    }
+    from tooling.common import normalize_axis_label, subsection_brief_generic_axis_norms
 
-    def _norm_axis(x: str) -> str:
-        x = re.sub(r"\s+", " ", (x or "").strip().lower())
-        x = x.rstrip(" .;:，；。")
-        x = re.sub(r"\s*/\s*", " ", x)
-        x = re.sub(r"[^a-z0-9]+", " ", x)
-        return x.strip()
+    generic_axis_norms = subsection_brief_generic_axis_norms()
 
     generic_heavy: list[str] = []
     axis_signature_to_ids: dict[tuple[str, ...], list[str]] = {}
     for sid, rec in by_id.items():
         axes = [str(a).strip() for a in (rec.get("axes") or []) if str(a).strip()]
-        norm_axes = [_norm_axis(a) for a in axes]
+        norm_axes = [normalize_axis_label(a) for a in axes]
         if not norm_axes:
             continue
         generic_n = sum(1 for a in norm_axes if a in generic_axis_norms)
@@ -2393,9 +2956,11 @@ def _check_coverage_report(workspace: Path, outputs: list[str]) -> list[QualityI
 
     report_rel = outputs[0] if outputs else "outline/coverage_report.md"
     state_rel = outputs[1] if len(outputs) >= 2 else "outline/outline_state.jsonl"
+    reroute_rel = outputs[2] if len(outputs) >= 3 else "output/REROUTE_STATE.json"
 
     report_path = workspace / report_rel
     state_path = workspace / state_rel
+    reroute_path = workspace / reroute_rel
 
     if not report_path.exists():
         return [QualityIssue(code="missing_coverage_report", message=f"`{report_rel}` does not exist.")]
@@ -2434,6 +2999,27 @@ def _check_coverage_report(workspace: Path, outputs: list[str]) -> list[QualityI
     recs = [r for r in recs if isinstance(r, dict)]
     if not recs:
         return [QualityIssue(code="empty_outline_state", message=f"`{state_rel}` has no JSON records.")]
+    cutover_issues = _section_first_artifact_issues(workspace, consumer=report_rel)
+    cutover_issues.extend(_section_first_cutover_issues(workspace, consumer=report_rel, require_stable_h3=True))
+    if cutover_issues:
+        return cutover_issues
+    if _structure_mode(workspace) == "section_first":
+        if not reroute_path.exists():
+            return [QualityIssue(code="missing_reroute_state", message=f"`{reroute_rel}` does not exist.")]
+        try:
+            reroute_state = json.loads(reroute_path.read_text(encoding="utf-8", errors="ignore") or "{}")
+        except Exception as exc:
+            return [QualityIssue(code="invalid_reroute_state", message=f"`{reroute_rel}` is not valid JSON ({type(exc).__name__}: {exc}).")]
+        if not isinstance(reroute_state, dict):
+            return [QualityIssue(code="invalid_reroute_state", message=f"`{reroute_rel}` must be a JSON object.")]
+        required = {"structure_phase", "h3_status", "reroute_target", "retry_budget_remaining", "status"}
+        missing = sorted(key for key in required if key not in reroute_state)
+        if missing:
+            return [QualityIssue(code="reroute_state_missing_fields", message=f"`{reroute_rel}` is missing required fields: {', '.join(missing)}.")]
+        latest = recs[-1]
+        for key in ("structure_phase", "h3_status", "reroute_target", "retry_budget_remaining"):
+            if reroute_state.get(key) != latest.get(key):
+                return [QualityIssue(code="reroute_state_mismatch", message=f"`{reroute_rel}` is out of sync with latest `{state_rel}` for field `{key}`.")]
     return []
 
 
@@ -2791,6 +3377,10 @@ def _check_writer_context_packs(workspace: Path, outputs: list[str]) -> list[Qua
     items = [r for r in records if isinstance(r, dict)]
     if not items:
         return [QualityIssue(code="invalid_writer_context_packs", message=f"`{out_rel}` has no JSON objects.")]
+    cutover_issues = _section_first_artifact_issues(workspace, consumer=out_rel)
+    cutover_issues.extend(_section_first_cutover_issues(workspace, consumer=out_rel, require_stable_h3=True))
+    if cutover_issues:
+        return cutover_issues
 
     outline_path = workspace / "outline" / "outline.yml"
     outline = load_yaml(outline_path) if outline_path.exists() else []
@@ -4267,24 +4857,31 @@ def _check_sections_manifest(workspace: Path, outputs: list[str]) -> list[Qualit
 
                 if _pipeline_profile(workspace) == "arxiv-survey" and (is_intro or is_related):
                     draft_profile = _draft_profile(workspace)
-                    if draft_profile == "deep":
-                        if is_intro:
-                            min_cites = 40
-                            min_paras = 9
-                            min_chars = 3600
-                        else:
-                            min_cites = 55
-                            min_paras = 11
-                            min_chars = 4200
-                    else:
-                        if is_intro:
-                            min_cites = 35
-                            min_paras = 8
-                            min_chars = 3200
-                        else:
-                            min_cites = 50
-                            min_paras = 10
-                            min_chars = 3800
+                    front_kind = "introduction" if is_intro else "related_work"
+                    default_front = (
+                        {"min_cites": 40, "min_paras": 3, "min_chars": 3600}
+                        if draft_profile == "deep" and is_intro
+                        else {"min_cites": 55, "min_paras": 2, "min_chars": 4200}
+                        if draft_profile == "deep"
+                        else {"min_cites": 35, "min_paras": 2, "min_chars": 3200}
+                        if is_intro
+                        else {"min_cites": 50, "min_paras": 1, "min_chars": 3800}
+                    )
+                    min_cites = _quality_contract_int(
+                        workspace,
+                        keys=("front_matter_policy", draft_profile, front_kind, "min_cites"),
+                        default=default_front["min_cites"],
+                    )
+                    min_paras = _quality_contract_int(
+                        workspace,
+                        keys=("front_matter_policy", draft_profile, front_kind, "min_paras"),
+                        default=default_front["min_paras"],
+                    )
+                    min_chars = _quality_contract_int(
+                        workspace,
+                        keys=("front_matter_policy", draft_profile, front_kind, "min_chars"),
+                        default=default_front["min_chars"],
+                    )
 
                     if is_intro:
                         front_fix = (
@@ -4350,7 +4947,11 @@ def _check_sections_manifest(workspace: Path, outputs: list[str]) -> list[Qualit
 def _check_section_logic_polisher(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
     """Logic-level polish gate (thesis + connector density) for H3 files under `sections/`.
 
-    This is intended to run after drafting and before merge; it blocks when subsections read like paragraph islands.
+    This is intended to run after drafting and before merge.
+
+    Runtime semantics:
+    - block on a FAIL report (the checker only fails on thesis / template-opener problems)
+    - keep connector counts diagnostic-only
     """
 
     report_rel = outputs[0] if outputs else "output/SECTION_LOGIC_REPORT.md"
@@ -4368,10 +4969,17 @@ def _check_section_logic_polisher(workspace: Path, outputs: list[str]) -> list[Q
             )
         ]
 
-    # This report is now treated as a diagnostic artifact rather than a strict
-    # blocking gate. The script itself already computes the report from the
-    # current `sections/` files, so the quality gate only checks that the report
-    # exists and is not placeholder text.
+    if "- Status: PASS" not in report:
+        return [
+            QualityIssue(
+                code="section_logic_report_not_pass",
+                message=(
+                    f"`{report_rel}` is not PASS; fix paragraph-1 thesis / template-opener issues in the flagged "
+                    "H3 files and rerun `section-logic-polisher`."
+                ),
+            )
+        ]
+
     return []
 
 
@@ -4632,6 +5240,14 @@ def _check_draft(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
         "We use the following working claim to guide synthesis:",
         "Across representative works, the dominant trade-offs",
         "This section summarizes the main design patterns and empirical lessons",
+        "is best understood by comparing how adjacent designs trade off competing requirements",
+        "The subsection therefore asks",
+        "That is why the subsection returns to",
+        "What survives synthesis is a bounded conclusion",
+        "Beyond the central comparison cards",
+        "One useful contrast in",
+        "One concrete anchor in",
+        "A recurring limitation is that",
     ]
     template_hits = sum(text.count(p) for p in template_phrases)
     if template_hits >= 3:
@@ -4671,8 +5287,16 @@ def _check_draft(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
     subsection_blocks = blocks[1:] if len(blocks) > 1 else []
     if subsection_blocks:
         draft_profile = _draft_profile(workspace)
-        min_h3_cites = 14 if draft_profile == "deep" else 12
-        min_h3_chars = 6000 if draft_profile == "deep" else 5000
+        min_h3_cites = _quality_contract_int(
+            workspace,
+            keys=("subsection_policy", draft_profile, "min_unique_citations"),
+            default=14 if draft_profile == "deep" else 12,
+        )
+        min_h3_chars = _quality_contract_int(
+            workspace,
+            keys=("subsection_policy", draft_profile, "min_chars"),
+            default=6000 if draft_profile == "deep" else 5000,
+        )
         no_cite = 0
         too_short = 0
         low_cite_density = 0
@@ -5167,13 +5791,29 @@ def _check_latex_compile_qa(workspace: Path, outputs: list[str]) -> list[Quality
             )
         )
 
+    if re.search(r"(?im)^LaTeX Warning: Float too large for page", undefined_text):
+        issues.append(
+            QualityIssue(
+                code="latex_float_too_large",
+                message="LaTeX build still has `Float too large for page` warnings; shrink or split oversized tables/figures and recompile.",
+            )
+        )
+
+    if re.search(r"(?im)^Missing character:", undefined_text):
+        issues.append(
+            QualityIssue(
+                code="latex_missing_character",
+                message="LaTeX build still reports missing Unicode glyphs; add an explicit mapping or sanitize the generated TeX before recompiling.",
+            )
+        )
+
+    sample_text = ""
     try:
         import fitz  # PyMuPDF
 
         doc = fitz.open(pdf_path)
         pages = int(len(doc))
         sample_pages = min(pages, 4)
-        sample_text = ""
         for i in range(sample_pages):
             try:
                 sample_text += doc.load_page(i).get_text("text") + "\n"
@@ -5181,13 +5821,28 @@ def _check_latex_compile_qa(workspace: Path, outputs: list[str]) -> list[Quality
                 continue
         doc.close()
     except Exception as exc:
-        issues.append(
-            QualityIssue(
-                code="pdf_page_count_unavailable",
-                message=f"Could not compute PDF page count for `{pdf_rel}` ({type(exc).__name__}: {exc}).",
+        try:
+            import subprocess
+
+            pdfinfo = shutil.which("pdfinfo")
+            if not pdfinfo:
+                raise exc
+            proc = subprocess.run([pdfinfo, str(pdf_path)], capture_output=True, text=True, check=False)
+            if proc.returncode != 0:
+                raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or "pdfinfo failed")
+            m = re.search(r"(?im)^Pages:\s+(\d+)\b", proc.stdout or "")
+            if not m:
+                raise RuntimeError("pdfinfo output missing page count")
+            pages = int(m.group(1))
+        except Exception as inner_exc:
+            issues.append(
+                QualityIssue(
+                    code="pdf_page_count_unavailable",
+                    message=f"Could not compute PDF page count for `{pdf_rel}` ({type(inner_exc).__name__}: {inner_exc}).",
+                )
             )
-        )
-        return issues
+            return issues
+
 
     if pages < 8:
         issues.append(

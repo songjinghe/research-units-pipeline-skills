@@ -31,6 +31,7 @@ Optional (helps you stay aligned):
 ## Outputs
 
 Note: keep this as an openers-last pass. Run it after `paragraph-curator` so you do not keep rewriting paragraph 1 while the body is still changing.
+Current compatibility policy: the script is marker-only; substantive opener repair should happen upstream in `subsection-writer` / `chapter-lead-writer`, not through blind regex rewriting.
 
 - Updated `sections/S<sub_id>.md` files (still body-only; no headings)
 
@@ -40,7 +41,7 @@ Note: keep this as an openers-last pass. Run it after `paragraph-curator` so you
 2) Treat the flagged `sections/S*.md` list as the *only* scope for this pass.
 3) For each flagged file:
    - Optional: look up its entry in `outline/writer_context_packs.jsonl` and read `opener_mode` / `tension_statement` / `thesis` to stay aligned.
-   - Rewrite only the opener paragraph (or first 2-4 sentences). Preserve meaning and citation keys.
+   - Do the real rewrite upstream in `subsection-writer` or `chapter-lead-writer`; do not rely on blind local regex passes.
    - Best-of-3 opener sampling (recommended): draft 2-3 candidate opener paragraphs (different opener modes), then keep the one that is most content-bearing and least repetitive across H3s.
 4) Rerun `writer-selfloop` and confirm the Style Smells list shrinks.
 

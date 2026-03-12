@@ -7,3 +7,5 @@ workspaces/
 ref/**/pdfs/
 ref/**/text/
 ref/**/index.jsonl
+
+z_refactor/

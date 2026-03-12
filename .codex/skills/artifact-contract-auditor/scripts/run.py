@@ -5,7 +5,6 @@ import csv
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 
 def _parse_semicolon_list(value: str | None) -> list[str]:
@@ -32,25 +31,6 @@ def _read_pipeline_path(workspace: Path) -> str:
     return ""
 
 
-def _parse_frontmatter(pipeline_path: Path) -> dict[str, Any]:
-    text = pipeline_path.read_text(encoding="utf-8", errors="ignore")
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return {}
-    end = None
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            end = i
-            break
-    if end is None:
-        return {}
-
-    import yaml  # type: ignore
-
-    data = yaml.safe_load("\n".join(lines[1:end])) or {}
-    return data if isinstance(data, dict) else {}
-
-
 def _load_units(units_path: Path) -> list[dict[str, str]]:
     with units_path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -66,7 +46,14 @@ def main() -> int:
     p.add_argument("--checkpoint", default="")
     args = p.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, ensure_dir
@@ -82,14 +69,21 @@ def main() -> int:
     pipeline_rel = _read_pipeline_path(workspace)
     pipeline_path = (repo_root / pipeline_rel).resolve() if pipeline_rel else None
 
-    fm: dict[str, Any] = _parse_frontmatter(pipeline_path) if (pipeline_path and pipeline_path.exists()) else {}
-    targets_raw = fm.get("target_artifacts") or []
     target_artifacts: list[tuple[str, bool]] = []
-    if isinstance(targets_raw, list):
-        for x in targets_raw:
-            rel, optional = _strip_optional_marker(str(x or ""))
-            if rel:
-                target_artifacts.append((rel, optional))
+    pipeline_load_error = ""
+    if pipeline_path and pipeline_path.exists():
+        try:
+            from tooling.pipeline_spec import PipelineSpec
+
+            spec = PipelineSpec.load(pipeline_path)
+            for rel_raw in spec.target_artifacts:
+                rel, optional = _strip_optional_marker(str(rel_raw or ""))
+                if rel:
+                    target_artifacts.append((rel, optional))
+        except Exception as exc:
+            pipeline_load_error = str(exc)
+    elif pipeline_rel:
+        pipeline_load_error = f"pipeline spec not found: {pipeline_rel}"
 
     rows = _load_units(units_path)
 
@@ -140,7 +134,9 @@ def main() -> int:
 
     # Status policy.
     status = "PASS"
-    if missing_done_outputs:
+    if pipeline_load_error:
+        status = "FAIL"
+    elif missing_done_outputs:
         status = "FAIL"
     elif pipeline_complete and missing_targets:
         status = "FAIL"
@@ -158,6 +154,8 @@ def main() -> int:
     lines.append(f"- Pipeline: `{pipeline_rel or '(missing PIPELINE.lock.md)'}`")
     if pipeline_path and pipeline_path.exists():
         lines.append(f"- Pipeline spec: `{pipeline_path.relative_to(repo_root)}`")
+    if pipeline_load_error:
+        lines.append(f"- Pipeline load error: `{pipeline_load_error}`")
     lines.append("")
 
     lines.append("## A. DONE units missing required outputs")
@@ -169,7 +167,9 @@ def main() -> int:
     lines.append("")
 
     lines.append("## B. Pipeline target artifacts missing")
-    if not target_artifacts:
+    if pipeline_load_error:
+        lines.append("- (unavailable because pipeline contract failed to load)")
+    elif not target_artifacts:
         lines.append("- (no target_artifacts found in pipeline front matter)")
     elif not missing_targets:
         lines.append("- (none)")
@@ -182,6 +182,8 @@ def main() -> int:
     lines.append("")
     if status == "PASS":
         lines.append("- Workspace looks self-contained and shareable.")
+    elif pipeline_load_error:
+        lines.append("- Fix the pipeline contract or pipeline lock before trusting this report.")
     elif missing_done_outputs:
         lines.append("- Fix the contract drift: a unit is marked DONE but its outputs are missing.")
         lines.append("- Either regenerate the missing outputs (preferred) or revert the unit status to TODO/BLOCKED.")
@@ -203,7 +205,14 @@ def main() -> int:
     try:
         auditor_unit_id = current_unit_id or "U999"
         issues: list[QualityIssue] = []
-        if missing_done_outputs:
+        if pipeline_load_error:
+            issues = [
+                QualityIssue(
+                    code="contract_pipeline_load_failed",
+                    message=f"Pipeline contract failed to load for contract audit: {pipeline_load_error}",
+                )
+            ]
+        elif missing_done_outputs:
             issues = [
                 QualityIssue(
                     code="contract_done_outputs_missing",

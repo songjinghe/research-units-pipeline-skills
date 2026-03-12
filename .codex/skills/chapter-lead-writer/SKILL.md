@@ -103,6 +103,7 @@ Regardless of where the detailed method lives, this skill should produce chapter
 - introduce recurring contrasts without slash-list jargon
 - keep the evaluation or calibration lens visible at a high level
 - avoid slide narration, planner talk, and repeated stock openers
+- choose from multiple candidate lead frames when possible (lens-first / sequence-first / comparison-first) and keep the least narrated option instead of reusing one stock cadence everywhere
 
 ## Block conditions
 

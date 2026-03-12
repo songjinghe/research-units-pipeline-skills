@@ -2,6 +2,9 @@
 name: arxiv-survey
 version: 3.7
 profile: arxiv-survey
+routing_hints: [survey, review, 综述, 调研, literature review]
+routing_default: true
+routing_priority: 10
 target_artifacts:
   - STATUS.md
   - UNITS.csv
@@ -14,10 +17,15 @@ target_artifacts:
   - papers/core_set.csv
   - papers/retrieval_report.md
   - outline/taxonomy.yml
+  - outline/chapter_skeleton.yml
+  - outline/section_bindings.jsonl
+  - outline/section_binding_report.md
+  - outline/section_briefs.jsonl
   - outline/outline.yml
   - outline/mapping.tsv
   - outline/coverage_report.md
   - outline/outline_state.jsonl
+  - output/REROUTE_STATE.json
   - outline/subsection_briefs.jsonl
   - outline/chapter_briefs.jsonl
   - outline/transitions.md
@@ -68,6 +76,123 @@ target_artifacts:
   - output/CONTRACT_REPORT.md
 default_checkpoints: [C0,C1,C2,C3,C4,C5]
 units_template: templates/UNITS.arxiv-survey.csv
+contract_model: pipeline.frontmatter/v1
+structure_mode: section_first
+pre_retrieval_shell:
+  enabled: true
+  approval_surface: false
+  allowed_h2: [Introduction, Related Work, Core Chapters, Discussion, Conclusion]
+binding_layers: [chapter_skeleton, section_bindings, section_briefs, subsection_mapping]
+core_chapter_h3_target: 3
+query_defaults:
+  max_results: 1800
+  core_size: 300
+  per_subsection: 28
+  global_citation_min_subsections: 4
+  draft_profile: survey
+  citation_target: recommended
+  evidence_mode: abstract
+overridable_query_fields:
+  - keywords
+  - exclude
+  - max_results
+  - core_size
+  - per_subsection
+  - global_citation_min_subsections
+  - draft_profile
+  - citation_target
+  - enrich_metadata
+  - evidence_mode
+  - fulltext_max_papers
+  - fulltext_max_pages
+  - fulltext_min_chars
+  - time_window.from
+  - time_window.to
+quality_contract:
+  citation_policy:
+    unique_hard_floor: 150
+    unique_recommended: 165
+  structure_policy:
+    max_final_h2_by_profile:
+      survey: 8
+      deep: 9
+    max_h3_by_profile:
+      survey: 10
+      deep: 12
+  front_matter_policy:
+    survey:
+      introduction:
+        min_cites: 35
+        min_paras: 8
+        min_chars: 3200
+      related_work:
+        min_cites: 50
+        min_paras: 10
+        min_chars: 3800
+    deep:
+      introduction:
+        min_cites: 40
+        min_paras: 9
+        min_chars: 3600
+      related_work:
+        min_cites: 55
+        min_paras: 11
+        min_chars: 4200
+  subsection_policy:
+    survey:
+      min_unique_citations: 12
+      min_chars: 5000
+    deep:
+      min_unique_citations: 14
+      min_chars: 6000
+loop_policy:
+  stage_retry_budget:
+    C1: 2
+    C2: 2
+    C3: 1
+    C4: 1
+  max_reroutes: 4
+  require_human_on_retry_after_approval: true
+stages:
+  C0:
+    title: Init
+    mode: no_prose
+    required_skills: [workspace-init, pipeline-router]
+    optional_skills: []
+    produces: [STATUS.md, UNITS.csv, CHECKPOINTS.md, DECISIONS.md, GOAL.md, queries.md, output/QUALITY_GATE.md, output/RUN_ERRORS.md]
+  C1:
+    title: Retrieval & core set
+    mode: no_prose
+    required_skills: [literature-engineer, dedupe-rank]
+    optional_skills: [keyword-expansion, survey-seed-harvest]
+    produces: [papers/papers_raw.jsonl, papers/retrieval_report.md, papers/papers_dedup.jsonl, papers/core_set.csv]
+  C2:
+    title: Structure
+    mode: no_prose
+    required_skills: [taxonomy-builder, chapter-skeleton, section-bindings, section-briefs, outline-builder, section-mapper, outline-refiner, pipeline-router, human-checkpoint]
+    optional_skills: [outline-budgeter]
+    produces: [outline/taxonomy.yml, outline/chapter_skeleton.yml, outline/section_bindings.jsonl, outline/section_binding_report.md, outline/section_briefs.jsonl, outline/outline.yml, outline/mapping.tsv, outline/coverage_report.md, outline/outline_state.jsonl, output/REROUTE_STATE.json, DECISIONS.md]
+    human_checkpoint:
+      approve: scope + section skeleton + outline
+      write_to: DECISIONS.md
+  C3:
+    title: Evidence
+    mode: no_prose
+    required_skills: [pdf-text-extractor, paper-notes, subsection-briefs, chapter-briefs]
+    optional_skills: []
+    produces: [papers/fulltext_index.jsonl, papers/paper_notes.jsonl, papers/evidence_bank.jsonl, outline/subsection_briefs.jsonl, outline/chapter_briefs.jsonl]
+  C4:
+    title: Citations + evidence packs
+    mode: no_prose
+    required_skills: [citation-verifier, evidence-binder, evidence-draft, table-schema, anchor-sheet, table-filler, appendix-table-writer, schema-normalizer, writer-context-pack, evidence-selfloop, claim-matrix-rewriter]
+    optional_skills: [survey-visuals]
+    produces: [citations/ref.bib, citations/verified.jsonl, outline/evidence_bindings.jsonl, outline/evidence_binding_report.md, outline/table_schema.md, outline/tables_index.md, outline/tables_appendix.md, output/TABLES_APPENDIX_REPORT.md, outline/evidence_drafts.jsonl, outline/anchor_sheet.jsonl, output/SCHEMA_NORMALIZATION_REPORT.md, outline/writer_context_packs.jsonl, output/EVIDENCE_SELFLOOP_TODO.md, outline/claim_evidence_matrix.md]
+  C5:
+    title: Draft
+    mode: prose_allowed
+    required_skills: [front-matter-writer, chapter-lead-writer, subsection-writer, writer-selfloop, section-logic-polisher, argument-selfloop, paragraph-curator, style-harmonizer, opener-variator, transition-weaver, section-merger, post-merge-voice-gate, citation-diversifier, citation-injector, draft-polisher, global-reviewer, pipeline-auditor, artifact-contract-auditor]
+    optional_skills: [prose-writer, subsection-polisher, redundancy-pruner, terminology-normalizer, limitation-weaver, evaluation-anchor-checker, latex-scaffold, latex-compile-qa]
+    produces: [outline/transitions.md, sections/sections_manifest.jsonl, sections/h3_bodies.refined.ok, sections/paragraphs_curated.refined.ok, sections/style_harmonized.refined.ok, sections/opener_varied.refined.ok, sections/abstract.md, sections/S1.md, sections/S2.md, sections/discussion.md, sections/conclusion.md, output/WRITER_SELFLOOP_TODO.md, output/ARGUMENT_SELFLOOP_TODO.md, output/SECTION_ARGUMENT_SUMMARIES.jsonl, output/ARGUMENT_SKELETON.md, output/PARAGRAPH_CURATION_REPORT.md, output/FRONT_MATTER_REPORT.md, output/CHAPTER_LEADS_REPORT.md, output/SECTION_LOGIC_REPORT.md, output/MERGE_REPORT.md, output/DRAFT.md, output/POST_MERGE_VOICE_REPORT.md, output/CITATION_BUDGET_REPORT.md, output/CITATION_INJECTION_REPORT.md, output/GLOBAL_REVIEW.md, output/AUDIT_REPORT.md, output/CONTRACT_REPORT.md]
 ---
 
 # Pipeline: arXiv survey / review (MD-first)
@@ -110,6 +235,9 @@ Notes:
 ## Stage 2 - Structure (C2) [NO PROSE]
 required_skills:
 - taxonomy-builder
+- chapter-skeleton
+- section-bindings
+- section-briefs
 - outline-builder
 - section-mapper
 - outline-refiner
@@ -117,15 +245,24 @@ optional_skills:
 - outline-budgeter
 produces:
 - outline/taxonomy.yml
+- outline/chapter_skeleton.yml
+- outline/section_bindings.jsonl
+- outline/section_binding_report.md
+- outline/section_briefs.jsonl
 - outline/outline.yml
 - outline/mapping.tsv
 - outline/coverage_report.md
 - outline/outline_state.jsonl
+- output/REROUTE_STATE.json
 human_checkpoint:
-- approve: scope + outline
+- approve: scope + section skeleton + outline
 - write_to: DECISIONS.md
 
 Notes:
+- `chapter-skeleton` is the first retrieval-informed chapter contract; it stays chapter-level and does not emit stable H3 ids.
+- `section-bindings` measures chapter saturation before H3 decomposition and writes PASS/BLOCKED signals into `outline/section_binding_report.md`.
+- `section-briefs` turns the chapter layer into decomposition guidance plus subsection seeds; `outline-builder` then derives the first stable `outline/outline.yml` from that section layer.
+- `outline-refiner` now writes both `outline/outline_state.jsonl` and `output/REROUTE_STATE.json`; section-first reroute/block information should be read from those artifacts instead of inferred from prose notes.
 - Evidence-first expectation: each subsection should be written as a *question to answer* (RQ) plus *evidence needs* (what kind of citations/results are required), not just generic scaffold bullets.
 - Coverage default: `section-mapper` uses `queries.md:per_subsection` as the per-H3 mapping contract (A150++ default: 28) so later evidence binding and writing have enough in-scope citations to choose from.
 - Diversity expectation: mapping should not over-reuse a few papers across unrelated H3s; reserve “global” works for genuinely cross-cutting citations (controlled by `global_citation_min_subsections`).

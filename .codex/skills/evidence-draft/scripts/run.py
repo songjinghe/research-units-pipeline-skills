@@ -29,6 +29,48 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 ASSETS_DIR = PACKAGE_ROOT / "assets"
 POLICY_PATH = ASSETS_DIR / "evidence_policy.json"
 SCHEMA_PATH = ASSETS_DIR / "evidence_pack_schema.json"
+_URL_RE = re.compile(r"https?://\S+")
+_AVAILABILITY_VERB_RE = re.compile(
+    r"(?i)\b(?:is|are|was|were|will\s+be|can\s+be|has\s+been)?\s*(?:publicly\s+)?(?:available|released|open-?sourced|shared)\b"
+)
+_LEADING_SELF_REF_RE = re.compile(
+    r"(?i)^(?:to (?:address|overcome|tackle|mitigate|study|investigate|examine|understand|analyze|explore|bridge)[^,]{0,180},\s*)?"
+    r"(?:(?:in|throughout)\s+(?:this|our)\s+(?:survey|paper|work|study|article),?\s*)?"
+)
+_LEADING_CONTEXT_RE = re.compile(
+    r"(?i)^(?:building on this foundation|against this backdrop|in this context|to this end|towards this end|specifically|for example|based on this proposition|throughout [^,]{1,120}|moreover|furthermore|additionally),?\s*"
+)
+_LEADING_AUTHOR_FINDING_RE = re.compile(
+    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
+    r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|quantify|quantifies|reveal|reveals|indicate|indicates)\s+that\s+"
+)
+_LEADING_AUTHOR_PREDICATE_RE = re.compile(
+    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
+    r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|reveal|reveals|indicate|indicates)\s+"
+)
+_LEADING_AUTHOR_ACTION_RE = re.compile(
+    r"(?i)^(?:here,\s*)?(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
+    r"(?:(?:also|broadly|comprehensively)\s+)?"
+    r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|quantify|study|design|build|construct|divide)\b[^,]{0,160},\s*"
+)
+_LEADING_PARTICIPLE_RE = re.compile(
+    r"(?i)^(?:demonstrating|showing|finding|observing|revealing|indicating|suggesting)\s+that\s+"
+)
+_FRAGMENT_PARTICIPLE_RE = re.compile(r"(?i)^(?:demonstrating|showing|revealing|highlighting|indicating)\b")
+_PROMISSORY_SELF_NARRATION_RE = re.compile(
+    r"(?i)^(?:we\s+hope|we\s+aim|our\s+(?:survey|paper|work|study)\s+aims?|this\s+(?:survey|paper|work|study)\s+aims?)\b"
+)
+_LEADING_DISCOURSE_RE = re.compile(r"(?i)^(?:moreover|furthermore|additionally|in addition),\s*")
+_POST_ACTION_ARTIFACT_RE = re.compile(r"^([A-Z][A-Za-z0-9._-]{1,80}),\s+(.*)$")
+_NAMED_ARTIFACT_RE = re.compile(
+    r"(?i)^(?:here,\s*)?(?:we|the authors)\s+(?:introduce|present|propose|develop|describe)\s+([A-Z][A-Za-z0-9][^,.;:]{0,120}),\s+(.*)$"
+)
+_GENERIC_SELF_NARRATION_RE = re.compile(
+    r"(?i)^(?:here,\s*)?(?:we|our)\s+"
+    r"(?:(?:also|broadly|comprehensively)\s+)?"
+    r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|study|design|build|construct|divide)\b"
+)
+_STUDY_SELF_NARRATION_RE = re.compile(r"(?i)^(?:this|our)\s+(?:survey|paper|work|study|article)\b")
 
 
 def _load_json_asset(path: Path) -> dict[str, Any]:
@@ -87,7 +129,7 @@ def _has_numeric_evidence(evidence_snippets: list[dict[str, Any]]) -> bool:
         if not isinstance(item, dict):
             continue
         text = str(item.get("text") or "")
-        if re.search(r"\d+(?:\.\d+)?%?", text):
+        if re.search(r"\b\d+(?:\.\d+)?%?\b", text):
             return True
     return False
 
@@ -96,6 +138,47 @@ def _append_unique(items: list[str], value: str) -> None:
     text = re.sub(r"\s+", " ", str(value or "").strip())
     if text and text not in items:
         items.append(text)
+
+
+def _dedupe_preserve_order(items: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        text = str(item or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
+def _assert_h3_cutover_ready(*, workspace: Path, consumer: str) -> None:
+    from tooling.common import read_jsonl
+
+    state_path = workspace / "outline" / "outline_state.jsonl"
+    if not state_path.exists() or state_path.stat().st_size <= 0:
+        return
+
+    records = [rec for rec in read_jsonl(state_path) if isinstance(rec, dict)]
+    if not records:
+        return
+
+    latest = records[-1]
+    cutover_keys = {"structure_phase", "h3_status", "approval_status", "reroute_target", "retry_budget_remaining"}
+    if not any(key in latest for key in cutover_keys):
+        return
+
+    h3_status = str(latest.get("h3_status") or "").strip().lower()
+    if h3_status == "stable":
+        return
+
+    structure_phase = str(latest.get("structure_phase") or "").strip() or "unknown"
+    reroute_target = str(latest.get("reroute_target") or "").strip() or "none"
+    raise SystemExit(
+        f"{consumer} is blocked until stable H3 ids exist: "
+        f"`outline/outline_state.jsonl` reports h3_status={h3_status or 'missing'} "
+        f"(structure_phase={structure_phase}, reroute_target={reroute_target})."
+    )
 
 
 def main() -> int:
@@ -107,12 +190,26 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.common import ensure_dir, now_iso_seconds, parse_semicolon_list, read_jsonl, write_jsonl
+    from tooling.common import ensure_dir, latest_outline_state, load_workspace_pipeline_spec, now_iso_seconds, parse_semicolon_list, read_jsonl, write_jsonl
 
     workspace = Path(args.workspace).resolve()
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is not None and str(spec.structure_mode or "").strip() == "section_first":
+        state = latest_outline_state(workspace)
+        if not state:
+            raise SystemExit("Missing outline_state.jsonl; run the section-first C2 planner pass before evidence-draft.")
+        if str(state.get("structure_phase") or "").strip() != "decomposed" or str(state.get("h3_status") or "").strip() != "stable":
+            raise SystemExit("Section-first cutover not ready: `outline_state.jsonl` must report `structure_phase: decomposed` and `h3_status: stable` before evidence-draft.")
 
     from tooling.quality_gate import _draft_profile, _pipeline_profile
 
@@ -160,6 +257,8 @@ def main() -> int:
         if freeze_marker.exists():
             return 0
         _backup_existing(out_path)
+
+    _assert_h3_cutover_ready(workspace=workspace, consumer="evidence-draft")
 
     briefs = read_jsonl(briefs_path)
     if not briefs:
@@ -219,11 +318,13 @@ def main() -> int:
         evidence_summary = brief.get("evidence_level_summary") or {}
 
         cited_pids = _pids_from_clusters(clusters)
-        cite_keys = _cite_keys_for_pids(cited_pids, notes_by_pid=notes_by_pid, bibkeys=bibkeys)
-
-        evidence_snippets: list[dict[str, Any]] = []
         bound = bindings_by_sub.get(sub_id) or {}
         bound_eids = bound.get("evidence_ids") or []
+        bound_pids = _pids_from_bound_evidence(bound_eids, bank_by_eid=bank_by_eid) if bank_by_eid else []
+        support_pids = _dedupe_preserve_order(cited_pids + bound_pids)
+        cite_keys = _cite_keys_for_pids(support_pids, notes_by_pid=notes_by_pid, bibkeys=bibkeys)
+
+        evidence_snippets: list[dict[str, Any]] = []
         if isinstance(bound_eids, list) and bound_eids and bank_by_eid:
             for eid in bound_eids:
                 eid = str(eid or '').strip()
@@ -233,7 +334,7 @@ def main() -> int:
                 bibkey = str(it.get('bibkey') or '').strip()
                 if not bibkey or (bibkeys and bibkey not in bibkeys):
                     continue
-                snippet = str(it.get('snippet') or '').strip()
+                snippet = _sanitize_source_text(it.get('snippet') or '', sentence_limit=2)
                 if not snippet:
                     continue
                 pid = str(it.get('paper_id') or '').strip()
@@ -258,7 +359,7 @@ def main() -> int:
         else:
             evidence_snippets = _evidence_snippets(
                 workspace=workspace,
-                pids=cited_pids,
+                pids=support_pids,
                 notes_by_pid=notes_by_pid,
                 bibkeys=bibkeys,
                 limit=22,
@@ -294,7 +395,7 @@ def main() -> int:
                 _block_message(policy, "too_few_snippets", min_needed=int(thresholds.get("min_snippets") or 12), actual=snip_ok),
             )
 
-        eval_tokens = _extract_eval_tokens(pids=cited_pids, notes_by_pid=notes_by_pid)
+        eval_tokens = _extract_eval_tokens(pids=support_pids, notes_by_pid=notes_by_pid)
         wants_eval = any(t in " ".join(axes).lower() for t in ["evaluation", "benchmark", "metric", "dataset"])
         if wants_eval and not eval_tokens:
             _append_unique(blocking_missing, _block_message(policy, "missing_eval_tokens"))
@@ -341,7 +442,12 @@ def main() -> int:
             policy=policy,
         )
 
-        failures_limitations = _limitations_from_notes(cited_pids, notes_by_pid=notes_by_pid, cite_keys=cite_keys)
+        failures_limitations = _limitations_from_notes(
+            support_pids,
+            notes_by_pid=notes_by_pid,
+            cite_keys=cite_keys,
+            evidence_snippets=evidence_snippets,
+        )
         if len([item for item in failures_limitations if isinstance(item, dict) and str(item.get('bullet') or '').strip()]) < int(thresholds.get('min_limitations') or 5):
             _append_unique(downgrade_signals, _downgrade_message(policy, 'insufficient_limitations'))
             _append_unique(verify_fields, 'failure modes / known limitations')
@@ -419,6 +525,20 @@ def _pids_from_clusters(clusters: Any) -> list[str]:
     return out
 
 
+def _pids_from_bound_evidence(evidence_ids: Any, *, bank_by_eid: dict[str, dict[str, Any]]) -> list[str]:
+    out: list[str] = []
+    if not isinstance(evidence_ids, list):
+        return out
+    for eid in evidence_ids:
+        eid = str(eid or "").strip()
+        if not eid:
+            continue
+        pid = str((bank_by_eid.get(eid) or {}).get("paper_id") or "").strip()
+        if pid and pid not in out:
+            out.append(pid)
+    return out
+
+
 def _cite_keys_for_pids(pids: list[str], *, notes_by_pid: dict[str, dict[str, Any]], bibkeys: set[str]) -> list[str]:
     out: list[str] = []
     for pid in pids:
@@ -446,6 +566,110 @@ def _split_sentences(text: str) -> list[str]:
     return out
 
 
+def _is_availability_boilerplate(text: str) -> bool:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return True
+    low = s.lower()
+    has_link = bool(_URL_RE.search(s))
+    mentions_artifact = bool(
+        re.search(
+            r"(?i)\b(?:project\s+(?:website|site|web\s*page|page)|website|site|web\s*page|repository|repo|code|dataset|data|collection|resources?)\b",
+            s,
+        )
+    )
+    if has_link and mentions_artifact:
+        return True
+    if re.search(r"(?i)\b(?:encourage|invite)\s+readers?\b", s) and mentions_artifact:
+        return True
+    if re.search(r"(?i)\b(?:view|visit|see|consult|check)\b", s) and re.search(r"(?i)\b(?:github|repository|repo|website|project\s+site)\b", s):
+        return True
+    if re.search(r"(?i)\bour\s+(?:living\s+)?(?:github\s+)?repository\b", s):
+        return True
+    if "available at" in low or "can be found at" in low:
+        return mentions_artifact or has_link
+    if re.search(r"(?i)\b(?:our|the)\s+(?:code|project|repository|repo|dataset|data|collection|resources?)\b", s):
+        return has_link or bool(_AVAILABILITY_VERB_RE.search(s))
+    if re.search(r"(?i)\b(?:code|dataset|data|collection|resources?)\b", s) and _AVAILABILITY_VERB_RE.search(s):
+        return True
+    return False
+
+
+def _sanitize_source_sentence(text: str) -> str:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return ""
+    if _is_availability_boilerplate(s):
+        return ""
+
+    s = _URL_RE.sub("", s)
+    s = re.sub(r"\s+([,.;:])", r"\1", s)
+    s = re.sub(r"\(\s*\)", "", s)
+    s = re.sub(r"\s{2,}", " ", s).strip(" ,;:")
+    s = _LEADING_CONTEXT_RE.sub("", s)
+    s = _LEADING_DISCOURSE_RE.sub("", s)
+    s = _LEADING_SELF_REF_RE.sub("", s)
+    s = _LEADING_AUTHOR_FINDING_RE.sub("", s)
+    s = _LEADING_AUTHOR_PREDICATE_RE.sub("", s)
+    s = _LEADING_AUTHOR_ACTION_RE.sub("", s)
+    s = _LEADING_PARTICIPLE_RE.sub("", s)
+
+    if _PROMISSORY_SELF_NARRATION_RE.match(s) or _FRAGMENT_PARTICIPLE_RE.match(s):
+        return ""
+
+    m = _NAMED_ARTIFACT_RE.match(s)
+    if m:
+        name = re.sub(r"\s+", " ", m.group(1).strip(" ,;:"))
+        rest = re.sub(r"\s+", " ", m.group(2).strip(" ,;:"))
+        if rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
+            s = f"{name} is {rest}"
+        elif rest:
+            s = f"{name}: {rest}"
+        else:
+            s = name
+    elif _STUDY_SELF_NARRATION_RE.match(s) or _GENERIC_SELF_NARRATION_RE.match(s):
+        return ""
+
+    artifact_match = _POST_ACTION_ARTIFACT_RE.match(s)
+    if artifact_match:
+        name = artifact_match.group(1).strip()
+        rest = artifact_match.group(2).strip()
+        if rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
+            s = f"{name} is {rest}"
+        elif rest:
+            s = f"{name}: {rest}"
+
+    if s:
+        s = s[:1].upper() + s[1:]
+    s = re.sub(r"\s{2,}", " ", s).strip(" ,;:")
+    if len(s) < 16:
+        return ""
+    if s[-1] not in ".!?":
+        s = f"{s}."
+    return s
+
+
+def _sanitize_source_text(text: str, *, sentence_limit: int | None = None) -> str:
+    raw_sentences = _split_sentences(text)
+    if not raw_sentences:
+        raw_sentences = [str(text or "")]
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for sentence in raw_sentences:
+        cleaned = _sanitize_source_sentence(sentence)
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(cleaned)
+        if sentence_limit is not None and len(out) >= int(sentence_limit):
+            break
+    return " ".join(out).strip()
+
+
 def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[str, dict[str, Any]], bibkeys: set[str], limit: int) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
 
@@ -460,13 +684,16 @@ def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[s
         preferred_snippet = ""
         if isinstance(key_results, list):
             for kr in key_results:
-                kr = str(kr).strip()
-                if not kr:
+                raw_kr = str(kr).strip()
+                if not raw_kr:
                     continue
-                low = kr.lower()
+                low = raw_kr.lower()
                 if low.startswith("key quantitative results") or low.startswith("evidence level"):
                     continue
-                preferred_snippet = kr
+                cleaned = _sanitize_source_text(raw_kr, sentence_limit=1)
+                if not cleaned:
+                    continue
+                preferred_snippet = cleaned
                 break
 
         evidence_level = str(note.get("evidence_level") or "").strip().lower() or "unknown"
@@ -483,12 +710,11 @@ def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[s
             provenance.update({"source": "paper_notes", "pointer": f"papers/paper_notes.jsonl:paper_id={pid}#key_results"})
         elif evidence_level == "fulltext" and fulltext_path and fulltext_path.exists() and fulltext_path.stat().st_size > 800:
             raw = fulltext_path.read_text(encoding="utf-8", errors="ignore")[:3000]
-            sents = _split_sentences(raw)
-            text = " ".join(sents[:2]).strip()
+            text = _sanitize_source_text(raw, sentence_limit=2)
             provenance.update({"source": "fulltext", "pointer": str(fulltext_rel)})
         elif abstract:
             # Prefer a more informative sentence (e.g., numeric results / evaluation cues) over the first two sentences.
-            sents = _split_sentences(abstract)
+            sents = [s for s in (_sanitize_source_sentence(raw) for raw in _split_sentences(abstract)) if s]
             chosen = ""
             for s in sents:
                 if re.search(r"\b\d+(?:\.\d+)?%?\b", s):
@@ -497,18 +723,26 @@ def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[s
                 if re.search(r"(?i)\b(success|accuracy|score|outperform|benchmark|dataset|evaluation|human|tasks?)\b", s):
                     chosen = s
                     break
-            text = (chosen or " ".join(sents[:2]) or abstract[:360]).strip()
+            text = (chosen or " ".join(sents[:2]) or _sanitize_source_text(abstract, sentence_limit=2)).strip()
             provenance.update({"source": "abstract", "pointer": f"papers/paper_notes.jsonl:paper_id={pid}#abstract"})
         else:
             bullets = note.get("summary_bullets") or []
             if isinstance(bullets, list):
                 for b in bullets:
-                    b = str(b).strip()
-                    if len(b) >= 24 and not b.lower().startswith("evidence level") and not b.lower().startswith("main idea (from title)"):
-                        text = b
+                    raw_b = str(b).strip()
+                    if len(raw_b) < 24:
+                        continue
+                    low = raw_b.lower()
+                    if low.startswith("evidence level") or low.startswith("main idea (from title)"):
+                        continue
+                    cleaned = _sanitize_source_text(raw_b, sentence_limit=1)
+                    if cleaned:
+                        text = cleaned
                         provenance.update({"source": "paper_notes", "pointer": f"papers/paper_notes.jsonl:paper_id={pid}#summary_bullets"})
                         break
 
+        if text:
+            text = _sanitize_source_text(text, sentence_limit=2)
         if text:
             out.append(
                 {
@@ -731,7 +965,7 @@ def _comparisons(
             for kw in kws:
                 if kw and kw in low:
                     score += 1
-            if re.search(r"\d+(?:\.\d+)?%?", text):
+            if re.search(r"\b\d+(?:\.\d+)?%?\b", text):
                 score += 1
             prov = snip.get("provenance")
             if isinstance(prov, dict) and str(prov.get("evidence_level") or "").strip().lower() == "fulltext":
@@ -886,16 +1120,49 @@ def _evaluation_protocol(*, tokens: list[str], cite_keys: list[str], policy: dic
     return out[:8]
 
 
-def _limitations_from_notes(pids: list[str], *, notes_by_pid: dict[str, dict[str, Any]], cite_keys: list[str]) -> list[dict[str, Any]]:
+def _limitations_from_notes(
+    pids: list[str],
+    *,
+    notes_by_pid: dict[str, dict[str, Any]],
+    cite_keys: list[str],
+    evidence_snippets: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """Extract cite-backed limitations/failure-mode bullets (NO PROSE).
 
-    Prefer explicit `limitations` fields from notes, but fall back to scanning abstracts/results
-    for limitation language. Ensure a minimum count by adding explicit evidence-gap bullets
-    so downstream drafting stays conservative rather than over-claiming.
+    Prefer explicit `limitations` fields from notes, but fall back to scanning note fields
+    for concrete caveat language. The extractor should surface real constraints from abstracts
+    and summaries, not pad sparse packs with generic caution bullets.
     """
 
     limit_re = re.compile(
-        r"(?i)\b(?:limitation|limitations|challenge|risk|unsafe|security|attack|threat|failure|fails|fragile|uncertain|open\s+problem|future\s+work|caveat|downside)\b|受限|局限|风险|挑战|失败|安全"
+        r"(?i)\b(?:"
+        r"limit\w*|challeng\w*|risk\w*|unsafe|secur\w*|attack\w*|threat\w*|fail\w*|fragil\w*|uncertain\w*|"
+        r"open\s+problem\w*|future\s+work|caveat\w*|downside\w*|obstacle\w*|bottleneck\w*|gap\w*|disconnect\w*|"
+        r"domain\s+shift|sim-?to-?real|generalization\s+(?:gap|challenge)|hinder\w*|cost\w*|complexit\w*|"
+        r"partial\s+observability|manual\s+annotation|latency|hallucinat\w*|restrict\w*|out-of-distribution|ood|"
+        r"cascading\s+error\w*|poor\s+instruction\s+following"
+        r")\b|受限|局限|风险|挑战|失败|安全"
+    )
+    strong_negative_re = re.compile(
+        r"(?i)\b(?:"
+        r"limit\w*|risk\w*|unsafe|fail\w*|fragil\w*|gap\w*|disconnect\w*|bottleneck\w*|"
+        r"latency|cost\w*|complexit\w*|hallucinat\w*|domain\s+shift|manual\s+annotation|restrict\w*|"
+        r"out-of-distribution|ood|partial\s+observability|poor\s+instruction\s+following|cascading\s+error\w*"
+        r")\b|受限|局限|风险|失败|安全"
+    )
+    solution_re = re.compile(
+        r"(?i)^(?:to address|addressing|to overcome|we address|we mitigate|we solve|to tackle|"
+        r"we introduce|we present|we propose|towards this end|in this work,\s+we(?:\s+close)?|"
+        r"to unify these observations|to facilitate this|we close this gap)\b"
+    )
+    remedy_phrase_re = re.compile(
+        r"(?i)\b(?:we introduce|we present|we propose|we close this gap|bridges?\s+(?:a|the)\s+key\s+gap)\b"
+    )
+    positive_result_re = re.compile(
+        r"(?i)\b(?:outperform\w*|surpass\w*|superior\w*|state-of-the-art|sota|achiev\w*|excelling?|strong\s+results?)\b"
+    )
+    positive_challenge_re = re.compile(
+        r"(?i)\bchalleng\w*\s+(?:task|tasks|benchmark|benchmarks|environment|environments|setting|settings)\b"
     )
 
     out: list[dict[str, Any]] = []
@@ -911,6 +1178,20 @@ def _limitations_from_notes(pids: list[str], *, notes_by_pid: dict[str, dict[str
         seen.add(key)
         out.append({"bullet": b, "citations": citations})
 
+    def is_caveat_sentence(text: str) -> bool:
+        s = re.sub(r"\s+", " ", str(text or "").strip())
+        if not s or not limit_re.search(s):
+            return False
+        if solution_re.search(s):
+            return False
+        if remedy_phrase_re.search(s) and not strong_negative_re.search(s):
+            return False
+        if positive_challenge_re.search(s) and not strong_negative_re.search(s):
+            return False
+        if positive_result_re.search(s) and not strong_negative_re.search(s):
+            return False
+        return True
+
     for pid in pids[:40]:
         note = notes_by_pid.get(pid) or {}
         bibkey = str(note.get("bibkey") or "").strip()
@@ -922,6 +1203,9 @@ def _limitations_from_notes(pids: list[str], *, notes_by_pid: dict[str, dict[str
                 lim = str(lim or "").strip()
                 if not lim:
                     continue
+                lim = _sanitize_source_text(lim, sentence_limit=2)
+                if not lim:
+                    continue
                 low = lim.lower()
                 if low.startswith("evidence level"):
                     continue
@@ -929,23 +1213,68 @@ def _limitations_from_notes(pids: list[str], *, notes_by_pid: dict[str, dict[str
                     continue
                 if low.startswith("this work is mapped to:") or low.startswith("mapped to outline subsections:"):
                     continue
+                if not is_caveat_sentence(lim):
+                    continue
                 add(lim, cite)
 
-        # Fallback: scan abstract + key_results for limitation language.
-        for raw in [note.get("abstract") or ""]:
-            for s in _split_sentences(str(raw)):
-                s = str(s).strip()
-                if s and limit_re.search(s):
-                    add(s, cite)
+        scan_fields: list[Any] = [note.get("abstract") or "", note.get("method") or ""]
+        summary_bullets = note.get("summary_bullets") or []
+        if isinstance(summary_bullets, list):
+            scan_fields.extend(summary_bullets[:8])
+        key_results = note.get("key_results") or []
+        if isinstance(key_results, list):
+            scan_fields.extend(key_results[:8])
 
-        for raw in (note.get("key_results") or []) if isinstance(note.get("key_results"), list) else []:
+        for raw in scan_fields:
             for s in _split_sentences(str(raw)):
-                s = str(s).strip()
-                if s and limit_re.search(s):
-                    add(s, cite)
+                s = _sanitize_source_sentence(s)
+                if not is_caveat_sentence(s):
+                    continue
+                add(s, cite)
 
         if len(out) >= 10:
             break
+
+    snippet_items = evidence_snippets or []
+    for item in snippet_items[:24]:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text") or "").strip()
+        if not text:
+            continue
+        cites = [str(x).strip() for x in (item.get("citations") or []) if str(x).strip()]
+        if not cites:
+            cites = cite_keys[:2] if isinstance(cite_keys, list) else []
+        for s in _split_sentences(text):
+            s = _sanitize_source_sentence(s)
+            if not is_caveat_sentence(s):
+                continue
+            add(s, cites)
+            if len(out) >= 10:
+                break
+        if len(out) >= 10:
+            break
+
+    minimum_target = 5
+    if len(out) < minimum_target:
+        for pid in pids[:40]:
+            note = notes_by_pid.get(pid) or {}
+            bibkey = str(note.get("bibkey") or "").strip()
+            cite = [bibkey] if bibkey else (cite_keys[:2] if isinstance(cite_keys, list) else [])
+            if not cite:
+                continue
+            title = re.sub(r"\s+", " ", str(note.get("title") or "").strip())
+            level = str(note.get("evidence_level") or "").strip().lower()
+            if level not in {"abstract", "title"}:
+                continue
+            level_label = "abstract-level" if level == "abstract" else "title-only"
+            if title:
+                add(
+                    f"{title}: only {level_label} evidence is available here; verify evaluation protocol, baselines, and failure cases in the full paper before using it for strong cross-paper claims.",
+                    cite,
+                )
+            if len(out) >= minimum_target:
+                break
 
     return out[:8]
 

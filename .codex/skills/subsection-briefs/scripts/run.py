@@ -101,15 +101,21 @@ def _selected_domain_packs(*, sub_title: str, goal: str) -> list[dict[str, Any]]
         title_all = _list_strings(detect.get("title_all"))
         goal_all = _list_strings(detect.get("goal_all"))
 
-        matched = False
-        if title_any and _contains_any(title_low, title_any):
-            matched = True
+        has_goal_rules = bool(goal_any or goal_all)
+        goal_matched = False
+        title_matched = False
+
         if goal_any and _contains_any(goal_low, goal_any):
-            matched = True
-        if title_all and all(term.lower() in title_low for term in title_all):
-            matched = True
+            goal_matched = True
         if goal_all and all(term.lower() in goal_low for term in goal_all):
-            matched = True
+            goal_matched = True
+
+        if title_any and _contains_any(title_low, title_any):
+            title_matched = True
+        if title_all and all(term.lower() in title_low for term in title_all):
+            title_matched = True
+
+        matched = goal_matched or (title_matched and not has_goal_rules)
         if not matched:
             continue
 
@@ -185,6 +191,35 @@ def _first_pack_label(*, joined: str, rules: Any) -> str:
     return ""
 
 
+def _assert_h3_cutover_ready(*, workspace: Path, consumer: str) -> None:
+    from tooling.common import read_jsonl
+
+    state_path = workspace / "outline" / "outline_state.jsonl"
+    if not state_path.exists() or state_path.stat().st_size <= 0:
+        return
+
+    records = [rec for rec in read_jsonl(state_path) if isinstance(rec, dict)]
+    if not records:
+        return
+
+    latest = records[-1]
+    cutover_keys = {"structure_phase", "h3_status", "approval_status", "reroute_target", "retry_budget_remaining"}
+    if not any(key in latest for key in cutover_keys):
+        return
+
+    h3_status = str(latest.get("h3_status") or "").strip().lower()
+    if h3_status == "stable":
+        return
+
+    structure_phase = str(latest.get("structure_phase") or "").strip() or "unknown"
+    reroute_target = str(latest.get("reroute_target") or "").strip() or "none"
+    raise SystemExit(
+        f"{consumer} is blocked until stable H3 ids exist: "
+        f"`outline/outline_state.jsonl` reports h3_status={h3_status or 'missing'} "
+        f"(structure_phase={structure_phase}, reroute_target={reroute_target})."
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
@@ -194,12 +229,26 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.common import ensure_dir, load_yaml, now_iso_seconds, parse_semicolon_list, read_jsonl, read_tsv, write_jsonl
+    from tooling.common import ensure_dir, latest_outline_state, load_workspace_pipeline_spec, load_yaml, now_iso_seconds, parse_semicolon_list, read_jsonl, read_tsv, write_jsonl
 
     workspace = Path(args.workspace).resolve()
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is not None and str(spec.structure_mode or "").strip() == "section_first":
+        state = latest_outline_state(workspace)
+        if not state:
+            raise SystemExit("Missing outline_state.jsonl; run the section-first C2 planner pass before subsection-briefs.")
+        if str(state.get("structure_phase") or "").strip() != "decomposed" or str(state.get("h3_status") or "").strip() != "stable":
+            raise SystemExit("Section-first cutover not ready: `outline_state.jsonl` must report `structure_phase: decomposed` and `h3_status: stable` before subsection-briefs.")
 
     inputs = parse_semicolon_list(args.inputs) or [
         "outline/outline.yml",
@@ -222,6 +271,8 @@ def main() -> int:
         if freeze_marker.exists():
             return 0
         _backup_existing(out_path)
+
+    _assert_h3_cutover_ready(workspace=workspace, consumer="subsection-briefs")
 
     outline = load_yaml(outline_path) if outline_path.exists() else None
     if not isinstance(outline, list) or not outline:
@@ -562,28 +613,51 @@ def _evaluation_anchor_minimal(
         metric = "attack success rate"
         constraint = "policy/sandbox setting"
     elif any(k in joined for k in ["benchmark", "metric", "dataset", "evaluation"]):
-        task = "agent benchmark tasks"
+        task = "benchmark tasks"
         metric = "success rate"
         constraint = "budget/cost model"
 
     return {"task": task, "metric": metric, "constraint": constraint}
 
 
+def _clean_axis_text(x: str) -> str:
+    x = re.sub(r"\s+", " ", (x or "").strip())
+    x = x.rstrip(" .;:，；。")
+    x = re.sub(r"\s*/\s*", " / ", x)
+    return x
+
+
+def _norm_axis_text(x: str) -> str:
+    x = _clean_axis_text(x).lower()
+    x = re.sub(r"[^a-z0-9]+", " ", x)
+    return x.strip()
+
+
+def _pack_axis_inventory(packs: list[dict[str, Any]]) -> set[str]:
+    out: set[str] = set()
+    for pack in packs:
+        if not isinstance(pack, dict):
+            continue
+        for rule in pack.get("axis_rules") or []:
+            if not isinstance(rule, dict):
+                continue
+            for item in _list_strings(rule.get("items")):
+                out.add(_norm_axis_text(item))
+    return out
+
+
 def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outline_axes: list[str]) -> list[str]:
-    axes: list[str] = []
     assets = _runtime_assets()
     generic_pack = (assets.get("domain_packs") or {}).get("generic") or {}
+    domain_packs = assets.get("domain_packs") or {}
+    selected_packs = _selected_domain_packs(sub_title=sub_title, goal=goal)
 
-    def norm(x: str) -> str:
-        x = re.sub(r"\s+", " ", (x or "").strip().lower())
-        x = x.rstrip(" .;:，；。")
-        x = re.sub(r"\s*/\s*", " / ", x)
-        return x
+    pack_axes: list[str] = []
+    specific_seed_axes: list[str] = []
+    generic_seed_axes: list[str] = []
 
-    def add(x: str) -> None:
-        x = re.sub(r"\s+", " ", (x or "").strip())
-        x = x.rstrip(" .;:，；。")
-        x = re.sub(r"\s*/\s*", " / ", x)
+    def add(bucket: list[str], x: str) -> None:
+        x = _clean_axis_text(x)
         if not x:
             return
         low = x.lower()
@@ -593,22 +667,74 @@ def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outlin
         if re.search(r"(?i)\b(?:choose|pick|select|enumerate|avoid)\b", low):
             return
         # Drop ultra-generic axis tokens that are almost always scaffold leakage.
-        if norm(x) in {"mechanism", "data", "evaluation", "efficiency", "limitation", "limitations"}:
+        if _norm_axis_text(x) in {"mechanism", "data", "evaluation", "efficiency", "limitation", "limitations"}:
             return
-        if x not in axes:
-            axes.append(x)
+        if x not in bucket:
+            bucket.append(x)
 
-    # Prefer evidence_needs / outline axes as seeds, but treat generic "scaffold" axes as low priority.
+    gate_generic_axes = {
+        "core mechanism and system architecture",
+        "training and data setup",
+        "evaluation protocol",
+        "evaluation protocol benchmarks metrics human",
+        "evaluation protocol datasets metrics human",
+        "evaluation protocol datasets metrics human evaluation",
+        "compute and efficiency",
+        "compute and latency constraints",
+        "efficiency and compute",
+        "tool interface contract schemas protocols",
+        "tool selection routing policy",
+        "sandboxing permissions observability",
+        "failure modes and limitations",
+    }
+    generic_axes = set(_norm_axis_text(a) for a in (_list_strings(generic_pack.get("generic_axes")) or []))
+    generic_axes.update(gate_generic_axes)
+    generic_axes.update(
+        {
+            _norm_axis_text("training / data / supervision"),
+            _norm_axis_text("efficiency (compute, latency, cost)"),
+            _norm_axis_text("failure modes"),
+        }
+    )
+
+    selected_axis_norms = _pack_axis_inventory(selected_packs)
+    foreign_axis_norms = _pack_axis_inventory(
+        [
+            pack
+            for name, pack in domain_packs.items()
+            if name not in {"generic", *[str(p.get("name") or "").strip() for p in selected_packs]}
+        ]
+    )
+
     for a in evidence_needs:
-        add(a)
+        cleaned = _clean_axis_text(a)
+        axis_norm = _norm_axis_text(cleaned)
+        bucket = specific_seed_axes
+        if axis_norm in generic_axes or axis_norm in foreign_axis_norms:
+            bucket = generic_seed_axes
+        if axis_norm in selected_axis_norms:
+            bucket = specific_seed_axes
+        add(bucket, cleaned)
     for a in outline_axes:
-        add(a)
+        cleaned = _clean_axis_text(a)
+        axis_norm = _norm_axis_text(cleaned)
+        bucket = specific_seed_axes
+        if axis_norm in generic_axes or axis_norm in foreign_axis_norms:
+            bucket = generic_seed_axes
+        if axis_norm in selected_axis_norms:
+            bucket = specific_seed_axes
+        add(bucket, cleaned)
 
     title_low = (sub_title or "").lower()
     goal_low = (goal or "").lower()
 
-    for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
-        _apply_pack_axis_rules(pack=pack, title_low=title_low, goal_low=goal_low, add=add)
+    for pack in selected_packs:
+        _apply_pack_axis_rules(
+            pack=pack,
+            title_low=title_low,
+            goal_low=goal_low,
+            add=lambda item: add(pack_axes, item),
+        )
 
     # Final fallback: stable generic set.
     fallback_axes = _list_strings(generic_pack.get("fallback_axes")) or [
@@ -619,47 +745,16 @@ def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outlin
         "failure modes and limitations",
     ]
     for a in fallback_axes:
-        add(a)
+        add(generic_seed_axes, a)
 
-    generic = set(norm(a) for a in (_list_strings(generic_pack.get("generic_axes")) or [
-        "core mechanism and system architecture",
-        "training and data setup",
-        "evaluation protocol",
-        "evaluation protocol (benchmarks / metrics / human)",
-        "evaluation protocol (datasets / metrics / human)",
-        "evaluation protocol (datasets, metrics, human evaluation)",
-        "compute and efficiency",
-        "compute and latency constraints",
-        "efficiency and compute",
-        "tool interface contract (schemas / protocols)",
-        "tool selection / routing policy",
-        "sandboxing / permissions / observability",
-        "failure modes and limitations",
-        "failure modes and limitations.",
-    ]))
-
-    # Reorder: keep non-generic axes first so heuristics aren't crowded out by scaffold-y outline axes.
-    ordered: list[str] = []
-    for a in axes:
-        if norm(a) not in generic and a not in ordered:
-            ordered.append(a)
-    for a in axes:
-        if norm(a) in generic and a not in ordered:
-            ordered.append(a)
-
-    specific = [a for a in ordered if norm(a) not in generic]
-    generic_axes = [a for a in ordered if norm(a) in generic]
-
-    # Avoid repeating the same generic axis list in every subsection, but keep enough axes
-    # so later evidence packs can generate multiple concrete comparison cards.
-    out: list[str] = list(specific)
+    out: list[str] = []
     target = 5
-    if len(out) < target:
-        for a in generic_axes:
+    for bucket in (pack_axes, specific_seed_axes, generic_seed_axes):
+        for a in bucket:
             if a not in out:
                 out.append(a)
             if len(out) >= target:
-                break
+                return out[:target]
 
     return out[:target]
 

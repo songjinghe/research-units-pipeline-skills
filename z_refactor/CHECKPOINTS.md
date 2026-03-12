@@ -1,77 +1,44 @@
 # Checkpoints
 
-## C0 - Repo refactor contract ready
-- [x] `STATUS.md` / `UNITS.csv` / `DECISIONS.md` / `CHECKPOINTS.md` created
-- [x] pipeline/template/skills aligned to the new brainstorm-memo contract
-
-## C1 - Pipeline contract rebuilt
+## C0 - z_refactor baseline rewritten
 Criteria:
-- [x] pipeline spec reflects the new terminal artifact and stages
-- [x] units template matches the pipeline stages and outputs
+- [x] `STATUS.md`, `UNITS.csv`, `CHECKPOINTS.md`, and `DECISIONS.md` describe the current workstream rather than historical closed work
+- [x] the governance surface only tracks current standards and current open work
 
-## C2 - Skills rebuilt
+## C1 - Latest-standard contract boundaries locked
 Criteria:
-- [x] signal generation skill exists
-- [x] direction generation skill exists
-- [x] memo writer skill exists
-- [x] old top-3 expansion path removed from the active contract
+- [x] the docs clearly distinguish pipeline frontmatter vs `UNITS.csv` vs skill `assets/references`
+- [x] pipeline specs are treated as first-class contract surfaces
+- [x] Anthropic skill-design principles are summarized locally as an input to the current refactor standard
 
-## C3 - Quality gates rebuilt
+## C2 - Active backlog aligned
 Criteria:
-- [x] quality gates validate `REPORT.md` / `APPENDIX.md` / `REPORT.json`
-- [x] self-loop validates the memo-style deliverable rather than mini proposals
+- [x] only currently open workstreams remain in `UNITS.csv`
+- [x] remaining units map to the current standards in the governing docs
 
-## C4 - Validation
+## C3 - Metadata-first pipeline contract implemented
 Criteria:
-- [x] focused validation of the new pipeline path passes
-- [x] no stale `idea-finder` contract remains in active entrypoints
+- [x] retrieval-informed survey structure is documented in `z_refactor/SURVEY_PIPELINE_STRUCTURE_DESIGN.md` as the target model for the next contract migration batch
+- [x] the proposed structure has a written design review (`z_refactor/SURVEY_PIPELINE_DESIGN_REVIEW.md`) that identifies the minimum contract changes and the highest-risk migration steps before implementation starts
+- [x] the survey contract crosswalk (`z_refactor/SURVEY_PIPELINE_CONTRACT_CROSSWALK.md`) closes keep/insert/replace/derive ambiguity for the retained structure artifacts before code changes start
+- [x] parse boundary, precedence model, variant model, checkpoint placement, and stable-H3 cutover are explicit in the governing docs before `U130/U140/U150/U155`
+- [x] pipeline frontmatter exposes machine-readable defaults, quality contract, and stage contract fields
+- [x] `tooling/pipeline_spec.py` and `scripts/validate_repo.py` parse and validate those fields
 
-## C5 - Phase 0 foundations
+## C4 - Defaults normalization and ideation tightening still pending
 Criteria:
-- [x] repo-wide skill auditor exists and covers the major smell classes
-- [x] reference-first template skill exists under `.codex/skills/_template_reference_first/`
-- [x] `SKILLS_STANDARD.md` codifies `SKILL.md` / `references/` / `assets/` / `scripts/` responsibilities
-- [x] multi-agent Phase 0 review confirms the outputs align with the blueprint docs
+- [x] `arxiv-survey-latex` is an explicit variant of the survey base contract with only a small latex/pdf delta rather than a copy-on-write full-list override block
+- [ ] survey and idea helpers no longer invent defaults that can drift from the active contract
+- [x] `idea-brief` is packaged reference-first, with reusable method in `references/` and machine-readable kickoff contract in `assets/`
+- [x] ideation runtime and QA consume only explicit contract surfaces rather than hidden scoring/selection policy or duplicate local rules
+- [x] the section-first survey layer is inserted before subsection mapping and before downstream writer cleanup begins
+- [x] chapter-level section binding outcomes fail closed: `hold_or_merge` materializes as structured `REROUTE` rather than silently advancing as `PASS`
 
-## C6 - First P0 skill kickoff completed
+## C5 - Remaining Anthropic cleanup validated
 Criteria:
-- [x] at least one P0 writer/planner skill has begun migration to reference-first structure
-- [x] the kickoff preserves current pipeline compatibility and is documented by a review artifact
-
-## C7 - Remaining P0 writer/planner batch
-Criteria:
-- [x] `subsection-writer` migrated to reference-first structure
-- [x] `chapter-lead-writer` migrated to reference-first structure
-- [x] `subsection-briefs` migrated to reference-first structure
-- [x] `taxonomy-builder` migrated to reference-first structure
-- [x] batch accepted by multi-agent review and local smoke validation
-
-## C7R - Earlier-task remediation pass
-Criteria:
-- [x] `front-matter-writer` compatibility debt is reduced and its key checklist drift is reconciled or explicitly documented
-- [x] earlier milestone evidence paths are normalized into durable workspace-linked references
-- [x] migrated P0 skill checklist drift is audited and recorded in a single remediation review artifact
-- [x] stale ideation compatibility aliases are either removed or explicitly documented as intentional compatibility shims
-
-## C8 - P1/P2 next batch
-Criteria:
-- [x] `outline-builder` migrated to reference-first structure
-- [x] `evidence-draft` migrated to reference-first structure
-- [x] `paper-notes` migrated to reference-first structure
-- [x] `survey-visuals` migrated to reference-first structure
-- [x] `idea-memo-writer` migrated to reference-first structure
-- [x] retrieval/ranking domain logic externalized into explicit packs
-
-## C9 - Phase 4 system regression and standards finalization
-Criteria:
-- [x] audit baseline recorded (`docs/SKILLS_P4_AUDIT_BASELINE.md`)
-- [x] `validate_repo.py` reports 0 errors, 0 warnings
-- [x] `audit_skills.py` `script_heavy_without_references` = 0
-- [x] all skills with `scripts/run.py` have Script sections (Quick Start / All Options / Examples)
-- [x] `idea-shortlist-curator` migrated to reference-first structure
-- [x] final validation PASS (`docs/SKILLS_P4_FINAL_VALIDATION.md`)
-
-## C4R - Ideation content-thickening pass
-Criteria:
-- [x] ideation skills encode distinct thesis lines, explicit rank logic, quick kill criteria, and appendix reading-guide requirements
-- [x] smoke rerun passes `deliverable-selfloop` and `artifact-contract-auditor`
+- [x] `section-logic-polisher` acceptance and runtime gating agree on whether a `FAIL` report should block the run
+- [ ] writer-side prose assembly is removed from the remaining compatibility writers
+- [ ] reader-visible survey previews are only treated as validated when upstream writer changes still leave `WRITER_SELFLOOP_TODO.md` and `AUDIT_REPORT.md` in PASS, not merely when LaTeX compiles
+- [ ] `audit_skills.py` is trustworthy enough to act as a strict gate
+- [ ] workspace-contract drift is removed from `agent-survey-corpus`
+- [x] representative survey smoke runs pass under the normalized contract

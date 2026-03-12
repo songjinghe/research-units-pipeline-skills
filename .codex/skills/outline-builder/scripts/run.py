@@ -20,32 +20,60 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.common import dump_yaml, load_yaml, parse_semicolon_list
+    from tooling.common import backup_existing, dump_yaml, load_yaml, parse_semicolon_list, read_jsonl
 
     workspace = Path(args.workspace).resolve()
     inputs = parse_semicolon_list(args.inputs) or ["outline/taxonomy.yml"]
     outputs = parse_semicolon_list(args.outputs) or ["outline/outline.yml"]
 
-    taxonomy_path = workspace / inputs[0]
     out_path = workspace / outputs[0]
-
-    taxonomy = load_yaml(taxonomy_path) if taxonomy_path.exists() else None
-    if not isinstance(taxonomy, list) or not taxonomy:
-        raise SystemExit(f"Invalid taxonomy in {taxonomy_path}")
 
     defaults = load_yaml(DEFAULTS_PATH) if DEFAULTS_PATH.exists() else None
     if not isinstance(defaults, dict):
         raise SystemExit(f"Invalid outline defaults asset: {DEFAULTS_PATH}")
     _validate_defaults(defaults)
 
+    section_first_inputs = len(inputs) >= 2 and inputs[0].endswith("chapter_skeleton.yml") and inputs[1].endswith("section_briefs.jsonl")
+    freeze_marker = out_path.parent / "outline.refined.ok"
     if out_path.exists() and out_path.stat().st_size > 0:
+        if freeze_marker.exists():
+            return 0
         existing = out_path.read_text(encoding="utf-8", errors="ignore")
         if not _is_placeholder(existing):
-            return 0
+            backup_existing(out_path)
 
+    if section_first_inputs:
+        chapter_skeleton_path = workspace / inputs[0]
+        section_briefs_path = workspace / inputs[1]
+        outline = _outline_from_section_first_inputs(
+            chapter_skeleton_path=chapter_skeleton_path,
+            section_briefs_path=section_briefs_path,
+            defaults=defaults,
+            load_yaml=load_yaml,
+            read_jsonl=read_jsonl,
+        )
+    else:
+        taxonomy_path = workspace / inputs[0]
+        taxonomy = load_yaml(taxonomy_path) if taxonomy_path.exists() else None
+        if not isinstance(taxonomy, list) or not taxonomy:
+            raise SystemExit(f"Invalid taxonomy in {taxonomy_path}")
+        outline = _outline_from_taxonomy(taxonomy=taxonomy, defaults=defaults)
+
+    dump_yaml(out_path, outline)
+    return 0
+
+
+def _outline_from_taxonomy(*, taxonomy: list[dict[str, Any]], defaults: dict[str, Any]) -> list[dict[str, Any]]:
     outline: list[dict[str, Any]] = [
         _fixed_section(defaults=defaults, key="intro_section"),
         _fixed_section(defaults=defaults, key="related_work_section"),
@@ -86,8 +114,63 @@ def main() -> int:
         outline.append(section)
         section_no += 1
 
-    dump_yaml(out_path, outline)
-    return 0
+    return outline
+
+
+def _outline_from_section_first_inputs(
+    *,
+    chapter_skeleton_path: Path,
+    section_briefs_path: Path,
+    defaults: dict[str, Any],
+    load_yaml,
+    read_jsonl,
+) -> list[dict[str, Any]]:
+    skeleton = load_yaml(chapter_skeleton_path) if chapter_skeleton_path.exists() else None
+    if not isinstance(skeleton, list) or not skeleton:
+        raise SystemExit(f"Invalid chapter skeleton in {chapter_skeleton_path}")
+    briefs = [row for row in read_jsonl(section_briefs_path) if isinstance(row, dict)] if section_briefs_path.exists() else []
+    briefs_by_id = {str(row.get("section_id") or "").strip(): row for row in briefs}
+
+    outline: list[dict[str, Any]] = [
+        _fixed_section(defaults=defaults, key="intro_section"),
+        _fixed_section(defaults=defaults, key="related_work_section"),
+    ]
+    for chapter in skeleton:
+        if not isinstance(chapter, dict):
+            continue
+        section_id = str(chapter.get("id") or "").strip()
+        title = str(chapter.get("title") or "").strip()
+        rationale = str(chapter.get("rationale") or "").strip()
+        if not section_id or not title:
+            continue
+        brief = briefs_by_id.get(section_id) or {}
+        must_cover = [str(x).strip() for x in (brief.get("must_cover") or []) if str(x).strip()]
+        section = {
+            "id": section_id,
+            "title": title,
+            "bullets": _section_meta_bullets(title=title, hint=rationale or "; ".join(must_cover), defaults=defaults),
+            "subsections": [],
+        }
+        subsection_seeds = brief.get("subsection_seeds") or []
+        subsection_no = 1
+        for seed in subsection_seeds:
+            if not isinstance(seed, dict):
+                continue
+            child_name = str(seed.get("title") or "").strip()
+            child_desc = str(seed.get("rationale") or "").strip()
+            if not child_name:
+                continue
+            subsection_id = f"{section_id}.{subsection_no}"
+            section["subsections"].append(
+                {
+                    "id": subsection_id,
+                    "title": child_name,
+                    "bullets": _subsection_bullets(parent=title, title=child_name, hint=child_desc, defaults=defaults),
+                }
+            )
+            subsection_no += 1
+        outline.append(section)
+    return outline
 
 
 def _validate_defaults(defaults: dict[str, Any]) -> None:

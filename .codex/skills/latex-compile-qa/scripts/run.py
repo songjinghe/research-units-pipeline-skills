@@ -17,7 +17,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import ensure_dir, parse_semicolon_list
@@ -35,24 +42,10 @@ def main() -> int:
         _write_report(report_path, ok=False, message=f"Missing input: {tex_path}")
         return 0
 
-    latexmk = shutil.which("latexmk")
-    if not latexmk:
-        _write_report(report_path, ok=False, message="latexmk not found in PATH")
-        return 0
-
     ensure_dir(pdf_path.parent)
     ensure_dir(report_path.parent)
 
-    cmd = [
-        latexmk,
-        "-xelatex",
-        "-bibtex",
-        "-interaction=nonstopmode",
-        "-halt-on-error",
-        "-file-line-error",
-        tex_path.name,
-    ]
-    proc = subprocess.run(cmd, cwd=str(tex_path.parent), capture_output=True, text=True)
+    proc, engine = _compile_latex(tex_path)
 
     built_pdf = tex_path.parent / "main.pdf"
     ok = proc.returncode == 0 and built_pdf.exists()
@@ -70,6 +63,7 @@ def main() -> int:
             message="SUCCESS",
             stdout=proc.stdout,
             stderr=proc.stderr,
+            engine=engine,
             page_count=page_count,
             warnings=warnings,
         )
@@ -78,13 +72,66 @@ def main() -> int:
     _write_report(
         report_path,
         ok=False,
-        message=f"latexmk failed (exit {proc.returncode})",
+        message=f"{engine} failed (exit {proc.returncode})",
         stdout=proc.stdout,
         stderr=proc.stderr,
+        engine=engine,
         page_count=page_count,
         warnings=warnings,
     )
     return 0
+
+
+def _compile_latex(tex_path: Path) -> tuple[subprocess.CompletedProcess[str], str]:
+    latexmk = shutil.which("latexmk")
+    if latexmk:
+        cmd = [
+            latexmk,
+            "-xelatex",
+            "-bibtex",
+            "-interaction=nonstopmode",
+            "-halt-on-error",
+            "-file-line-error",
+            tex_path.name,
+        ]
+        proc = subprocess.run(cmd, cwd=str(tex_path.parent), capture_output=True, text=True)
+        return proc, "latexmk -xelatex -bibtex"
+
+    xelatex = shutil.which("xelatex")
+    bibtex = shutil.which("bibtex")
+    if xelatex and bibtex:
+        runs: list[subprocess.CompletedProcess[str]] = []
+        steps = [
+            [xelatex, "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", tex_path.name],
+            [bibtex, tex_path.stem],
+            [xelatex, "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", tex_path.name],
+            [xelatex, "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", tex_path.name],
+        ]
+        for cmd in steps:
+            proc = subprocess.run(cmd, cwd=str(tex_path.parent), capture_output=True, text=True)
+            runs.append(proc)
+            if proc.returncode != 0:
+                break
+        stdout = "\n".join([p.stdout for p in runs if p.stdout])
+        stderr = "\n".join([p.stderr for p in runs if p.stderr])
+        final = runs[-1] if runs else subprocess.CompletedProcess([], 1, "", "")
+        merged = subprocess.CompletedProcess(
+            args=steps[: len(runs)],
+            returncode=final.returncode,
+            stdout=stdout,
+            stderr=stderr,
+        )
+        return merged, "xelatex + bibtex"
+
+    missing = []
+    if not latexmk:
+        missing.append("latexmk")
+    if not xelatex:
+        missing.append("xelatex")
+    if not bibtex:
+        missing.append("bibtex")
+    proc = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr=f"Missing tools: {', '.join(missing)}")
+    return proc, "unavailable toolchain"
 
 
 def _pdf_page_count(path: Path) -> int | None:
@@ -97,6 +144,18 @@ def _pdf_page_count(path: Path) -> int | None:
         n = int(len(doc))
         doc.close()
         return n
+    except Exception:
+        pass
+
+    pdfinfo = shutil.which("pdfinfo")
+    if not pdfinfo:
+        return None
+    try:
+        proc = subprocess.run([pdfinfo, str(path)], capture_output=True, text=True, check=False)
+        if proc.returncode != 0:
+            return None
+        m = re.search(r"(?im)^Pages:\s+(\d+)\b", proc.stdout or "")
+        return int(m.group(1)) if m else None
     except Exception:
         return None
 
@@ -116,6 +175,8 @@ def _collect_warnings(*, tex_dir: Path, stdout: str, stderr: str) -> dict[str, i
         ("citation_undefined", r"(?im)^Package\s+natbib\s+Warning: Citation.+undefined"),
         ("citation_undefined", r"(?im)There were undefined citations"),
         ("reference_undefined", r"(?im)there were undefined references"),
+        ("missing_character", r"(?im)^Missing character:"),
+        ("float_too_large", r"(?im)^LaTeX Warning: Float too large for page"),
         ("overfull_hbox", r"(?im)^Overfull \\hbox"),
         ("underfull_hbox", r"(?im)^Underfull \\hbox"),
         ("rerun_references", r"(?im)Rerun to get cross-references right"),
@@ -143,6 +204,7 @@ def _write_report(
     message: str,
     stdout: str = "",
     stderr: str = "",
+    engine: str = "",
     page_count: int | None = None,
     warnings: dict[str, int] | None = None,
 ) -> None:
@@ -165,7 +227,7 @@ def _write_report(
         f"- Timestamp: `{ts}`",
         "- Entry: `latex/main.tex`",
         "- Output: `latex/main.pdf`",
-        "- Engine: `latexmk -xelatex -bibtex`",
+        f"- Engine: `{engine or 'unknown'}`",
     ]
     if page_count is not None:
         header_lines.append(f"- Page count: `{page_count}`")

@@ -18,6 +18,7 @@ Always read:
 
 Read by task:
 - `references/ranking_rubric.md` when customizing risk notes or deferral reasons
+- `assets/rationale_templates.json` when changing deterministic shortlist rationale wording or rule order
 
 ## Script Boundary
 

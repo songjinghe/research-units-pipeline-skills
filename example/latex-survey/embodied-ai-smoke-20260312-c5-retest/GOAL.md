@@ -1,0 +1,3 @@
+# Goal
+
+Embodied AI survey

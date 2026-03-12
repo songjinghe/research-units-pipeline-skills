@@ -27,6 +27,13 @@ def _examples(text: str, pattern: str, *, max_examples: int = 3, window: int = 9
     return out
 
 
+def _narrative_body(text: str) -> str:
+    if not text:
+        return ""
+    parts = re.split(r"(?m)^##\s+Appendix\b", text, maxsplit=1)
+    return parts[0]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
@@ -38,7 +45,14 @@ def main() -> int:
 
     workspace = Path(args.workspace).resolve()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, ensure_dir, parse_semicolon_list
@@ -65,6 +79,7 @@ def main() -> int:
         draft = ""
     else:
         draft = _read(draft_path)
+    draft_narrative = _narrative_body(draft)
 
     transitions = _read(trans_path) if trans_path.exists() else ""
     if not trans_path.exists() or trans_path.stat().st_size <= 0:
@@ -77,6 +92,8 @@ def main() -> int:
         ("post_merge_planner_talk_bridge_via", r"(?i)\bmakes\s+the\s+bridge\s+explicit\s+via\b", "planner-talk transition stem ('makes the bridge explicit via...')"),
         ("post_merge_planner_talk_turning", r"(?i)\bfollows\s+naturally\s+by\s+turning\b", "planner-talk transition stem ('follows naturally by turning...')"),
         ("post_merge_planner_talk_comparison_lens", r"(?i)\bcomparison\s+lens\b", "meta phrase 'comparison lens' (often reads like planning)"),
+        ("post_merge_transition_reframes_question", r"(?i)\breframes\s+the\s+same\s+chapter\s+question\s+around\b", "mechanical transition stem ('reframes the same chapter question around ...')"),
+        ("post_merge_transition_carries_discussion", r"(?i)\bcarries\s+the\s+discussion\s+forward\s+by\s+focusing\s+on\b", "mechanical transition stem ('carries the discussion forward by focusing on ...')"),
         ("post_merge_slide_navigation", r"(?i)\b(?:next,\s+we\s+move\s+from|we\s+now\s+(?:turn|move)\s+to|in\s+the\s+next\s+(?:section|subsection))\b", "slide/navigation narration"),
     ]
 
@@ -86,7 +103,7 @@ def main() -> int:
     findings: list[dict[str, object]] = []
 
     for code, pat, label in patterns:
-        if not draft or not re.search(pat, draft):
+        if not draft_narrative or not re.search(pat, draft_narrative):
             continue
         source = "transitions" if transitions and re.search(pat, transitions) else "draft"
         findings.append(
@@ -94,19 +111,19 @@ def main() -> int:
                 "code": code,
                 "label": label,
                 "source": source,
-                "examples": _examples(draft, pat),
+                "examples": _examples(draft_narrative, pat),
             }
         )
         issues.append(QualityIssue(code=code, message=f"{label} (source: {source})"))
 
-    if draft and re.search(slash_list, draft):
+    if draft_narrative and re.search(slash_list, draft_narrative):
         source = "transitions" if transitions and re.search(slash_list, transitions) else "draft"
         findings.append(
             {
                 "code": "post_merge_slash_list_axes",
                 "label": "slash-list axis markers (A/B/C)",
                 "source": source,
-                "examples": _examples(draft, slash_list),
+                "examples": _examples(draft_narrative, slash_list),
             }
         )
         issues.append(QualityIssue(code="post_merge_slash_list_axes", message=f"slash-list axis markers (source: {source})"))
@@ -175,7 +192,7 @@ def main() -> int:
     # Persist as a quality-gate record so the workspace is debuggable without reruns.
     write_quality_report(workspace=workspace, unit_id=unit_id, skill="post-merge-voice-gate", issues=issues)
 
-    return 0
+    return 2
 
 
 if __name__ == "__main__":

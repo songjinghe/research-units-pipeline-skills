@@ -31,7 +31,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import parse_semicolon_list, read_jsonl, write_jsonl
@@ -71,7 +78,7 @@ def main() -> int:
     if len(queries) == 1:
         arxiv_id = _normalize_arxiv_id_query(queries[0])
         if arxiv_id:
-            url = "http://export.arxiv.org/api/query?" + urllib.parse.urlencode({"id_list": arxiv_id})
+            url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode({"id_list": arxiv_id})
             records, _raw_count = _search_arxiv_once(url=url, queries=[arxiv_id], excludes=[], year_from=None, year_to=None)
             if not records:
                 raise SystemExit(f"No results returned for arXiv id_list={arxiv_id} (network blocked or id not found)")
@@ -324,7 +331,7 @@ def _best_effort_enrich(records: list[dict[str, Any]]) -> None:
     batch_size = 50
     for start in range(0, len(ids), batch_size):
         chunk = ids[start : start + batch_size]
-        url = "http://export.arxiv.org/api/query?" + urllib.parse.urlencode({"id_list": ",".join(chunk)})
+        url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode({"id_list": ",".join(chunk)})
         try:
             fetched, _raw_count = _search_arxiv_once(url=url, queries=[], excludes=[], year_from=None, year_to=None)
         except Exception as exc:
@@ -400,7 +407,7 @@ def _search_arxiv_paged(
 
     start = 0
     while len(all_records) < target:
-        url = "http://export.arxiv.org/api/query?" + urllib.parse.urlencode(
+        url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(
             {"search_query": q, "start": start, "max_results": page_size}
         )
         batch, raw_count = _search_arxiv_once(url=url, queries=queries, excludes=excludes, year_from=year_from, year_to=year_to)

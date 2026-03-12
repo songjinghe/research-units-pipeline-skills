@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -49,7 +51,8 @@ def _uniq(items: list[str]) -> list[str]:
 
 
 def _cite(keys: list[str], n: int = 3) -> str:
-    return ' '.join(f'[@{k}]' for k in _uniq(keys)[:n])
+    vals = _uniq(keys)[:n]
+    return f"[@{'; '.join(vals)}]" if vals else ""
 
 
 def _clean_phrase(text: str) -> str:
@@ -58,53 +61,53 @@ def _clean_phrase(text: str) -> str:
     return s.rstrip(' .;:，；。')
 
 
+def _natural_phrase(text: str) -> str:
+    s = _clean_phrase(text).replace('&', 'and')
+    s = re.sub(r'\([^)]*\)', '', s)
+    s = re.sub(r'\s+', ' ', s).strip(' ,;:')
+    low = s.lower()
+    blocked = (
+        'core mechanism and architecture',
+        'evaluation protocol',
+        'datasets, metrics, human eval',
+    )
+    if any(token in low for token in blocked):
+        return ''
+    return low if low else ''
+
+
+def _content_phrase(text: str) -> str:
+    s = _clean_phrase(text)
+    low = s.lower()
+    prefixes = [
+        'pin scope to goal:',
+        'compare approaches along:',
+        'para 1:',
+        'para 2:',
+        'para 3:',
+        'para 3 (optional):',
+    ]
+    for prefix in prefixes:
+        if low.startswith(prefix):
+            s = s.split(':', 1)[1].strip() if ':' in s else ''
+            low = s.lower()
+    meta_starts = (
+        'state the chapter',
+        'preview the h3',
+        'highlight evaluation anchors',
+    )
+    if any(low.startswith(prefix) for prefix in meta_starts):
+        return ''
+    return s
+
+
 def _skill_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
 def _compatibility_defaults() -> dict[str, Any]:
     asset_path = _skill_root() / 'assets' / 'lead_block_compatibility_defaults.json'
-    data = _load_json_asset(asset_path)
-    defaults: dict[str, Any] = {
-        'default_archetype': 'lens-first',
-        'limits': {
-            'throughline_items': 2,
-            'contrast_items': 3,
-            'subsection_preview_items': 3,
-        },
-        'joiners': {
-            'throughline': '; ',
-            'contrasts': ', ',
-            'subsection_preview': ', ',
-        },
-        'fallbacks': {
-            'section_title': 'chapter {section_id}',
-            'comparison_problem': 'adjacent subsections resolving the same system tension',
-            'recurring_contrasts': 'protocol assumptions, resource constraints, and evaluation scope',
-            'subsection_preview': 'the chapter subsections',
-        },
-        'templates': {
-            'lens-first': {
-                'paragraph_1': 'What holds {section_title} together is a shared comparison problem: {comparison_problem}{citation}.',
-                'paragraph_2': 'Across {subsection_preview}, the recurring contrasts are {recurring_contrasts}, so each subsection sharpens a different part of the same argument{citation}.',
-                'paragraph_3': 'That progression moves from {lead_start} toward {lead_end}, keeping the chapter comparative without collapsing distinct design choices into a single architecture label{citation}.',
-            }
-        },
-    }
-
-    if not data:
-        return defaults
-
-    merged = dict(defaults)
-    for key in ['limits', 'joiners', 'fallbacks', 'templates']:
-        base = defaults.get(key) or {}
-        override = data.get(key) or {}
-        if isinstance(base, dict) and isinstance(override, dict):
-            merged[key] = dict(base) | dict(override)
-        else:
-            merged[key] = override or base
-    merged['default_archetype'] = str(data.get('default_archetype') or defaults['default_archetype']).strip() or defaults['default_archetype']
-    return merged
+    return _load_json_asset(asset_path)
 
 
 def _limit(value: Any, *, fallback: int) -> int:
@@ -115,10 +118,15 @@ def _limit(value: Any, *, fallback: int) -> int:
     return num if num > 0 else fallback
 
 
-def _join_nonempty(items: list[str], *, sep: str, limit: int, fallback: str) -> str:
-    vals = [str(item).strip() for item in items if str(item).strip()]
-    joined = sep.join(vals[:limit]).strip()
-    return joined or fallback
+def _series(items: list[str], *, limit: int, fallback: str) -> str:
+    vals = [str(item).strip() for item in items if str(item).strip()][:limit]
+    if not vals:
+        return fallback
+    if len(vals) == 1:
+        return vals[0]
+    if len(vals) == 2:
+        return f'{vals[0]} and {vals[1]}'
+    return f"{', '.join(vals[:-1])}, and {vals[-1]}"
 
 
 def _citation_suffix(keys: list[str], n: int = 3) -> str:
@@ -133,6 +141,23 @@ def _render(template: str, **kwargs: str) -> str:
     return text
 
 
+def _ordered_options(seed: str, value: Any) -> list[str]:
+    if not isinstance(value, list):
+        single = str(value or '').strip()
+        return [single] if single else []
+    options = [str(item or '').strip() for item in value if str(item or '').strip()]
+    if not options:
+        return []
+    digest = hashlib.sha1(str(seed or '').encode('utf-8', errors='ignore')).hexdigest()
+    idx = int(digest[:12], 16) % len(options)
+    return options[idx:] + options[:idx]
+
+
+def _pick_template(seed: str, value: Any, fallback: str) -> str:
+    options = _ordered_options(seed, value)
+    return options[0] if options else fallback
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--workspace', required=True)
@@ -142,7 +167,14 @@ def main() -> int:
     parser.add_argument('--checkpoint', default='')
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, ensure_dir, load_yaml, now_iso_seconds
@@ -151,7 +183,6 @@ def main() -> int:
     workspace = Path(args.workspace).resolve()
     compat = _compatibility_defaults()
     limits = compat.get('limits') if isinstance(compat.get('limits'), dict) else {}
-    joiners = compat.get('joiners') if isinstance(compat.get('joiners'), dict) else {}
     fallbacks = compat.get('fallbacks') if isinstance(compat.get('fallbacks'), dict) else {}
     templates = compat.get('templates') if isinstance(compat.get('templates'), dict) else {}
     archetype = str(compat.get('default_archetype') or 'lens-first').strip() or 'lens-first'
@@ -187,52 +218,46 @@ def main() -> int:
             if not sec_id:
                 continue
             brief = briefs.get(sec_id) or {}
-            throughline = [_clean_phrase(x) for x in (brief.get('throughline') or []) if _clean_phrase(x)]
-            contrasts = [_clean_phrase(x) for x in (brief.get('key_contrasts') or []) if _clean_phrase(x)]
-            lead_plan = [_clean_phrase(x) for x in (brief.get('lead_paragraph_plan') or []) if _clean_phrase(x)]
+            throughline = [_natural_phrase(_content_phrase(x)) for x in (brief.get('throughline') or []) if _natural_phrase(_content_phrase(x))]
+            contrasts = [_natural_phrase(x) for x in (brief.get('key_contrasts') or []) if _natural_phrase(x)]
             sub_titles = [str(x.get('title') or '').strip() for x in subs if str(x.get('title') or '').strip()]
             cites = cites_by_sec.get(sec_id) or []
-            comparison_problem = _join_nonempty(
-                throughline,
-                sep=str(joiners.get('throughline') or '; '),
+            comparison_problem = _series(
+                contrasts or throughline,
                 limit=_limit(limits.get('throughline_items'), fallback=2),
-                fallback=str(fallbacks.get('comparison_problem') or 'adjacent subsections resolving the same system tension'),
+                fallback=str(fallbacks.get('comparison_problem') or 'the comparison pressure that the subsections keep reopening'),
             )
-            recurring_contrasts = _join_nonempty(
+            recurring_contrasts = _series(
                 contrasts,
-                sep=str(joiners.get('contrasts') or ', '),
                 limit=_limit(limits.get('contrast_items'), fallback=3),
                 fallback=str(fallbacks.get('recurring_contrasts') or 'protocol assumptions, resource constraints, and evaluation scope'),
             )
-            subsection_preview = _join_nonempty(
+            subsection_preview = _series(
                 sub_titles,
-                sep=str(joiners.get('subsection_preview') or ', '),
                 limit=_limit(limits.get('subsection_preview_items'), fallback=3),
                 fallback=str(fallbacks.get('subsection_preview') or 'the chapter subsections'),
             )
-            paragraphs = [
-                _render(
-                    str(template_pack.get('paragraph_1') or 'What holds {section_title} together is a shared comparison problem: {comparison_problem}{citation}.'),
-                    section_title=sec_title,
-                    comparison_problem=comparison_problem,
-                    citation=_citation_suffix(cites, 3),
+            paragraph_1 = _render(
+                _pick_template(
+                    f'lead:p1:{sec_id}:{sec_title}',
+                    template_pack.get('paragraph_1'),
+                    'What binds {section_title} together is a shared comparison problem: {comparison_problem}{citation}.',
                 ),
-                _render(
-                    str(template_pack.get('paragraph_2') or 'Across {subsection_preview}, the recurring contrasts are {recurring_contrasts}, so each subsection sharpens a different part of the same argument{citation}.'),
-                    subsection_preview=subsection_preview,
-                    recurring_contrasts=recurring_contrasts,
-                    citation=_citation_suffix(cites[3:], 3) or _citation_suffix(cites, 3),
+                section_title=sec_title,
+                comparison_problem=comparison_problem,
+                citation=_citation_suffix(cites, 4),
+            )
+            paragraph_2 = _render(
+                _pick_template(
+                    f'lead:p2:{sec_id}:{subsection_preview}',
+                    template_pack.get('paragraph_2'),
+                    'Taken together, {subsection_preview} show why {recurring_contrasts} cannot be treated as background implementation detail{citation}.',
                 ),
-            ]
-            if lead_plan:
-                paragraphs.append(
-                    _render(
-                        str(template_pack.get('paragraph_3') or 'That progression moves from {lead_start} toward {lead_end}, keeping the chapter comparative without collapsing distinct design choices into a single architecture label{citation}.'),
-                        lead_start=lead_plan[0].lower(),
-                        lead_end=lead_plan[-1].lower(),
-                        citation=_citation_suffix(cites[6:], 2) or _citation_suffix(cites, 2),
-                    )
-                )
+                subsection_preview=subsection_preview,
+                recurring_contrasts=recurring_contrasts,
+                citation=_citation_suffix(cites[4:], 4) or _citation_suffix(cites, 4),
+            )
+            paragraphs = [paragraph_1, paragraph_2]
             path = sections_dir / f"{slug_unit_id(sec_id)}_lead.md"
             atomic_write_text(path, '\n\n'.join(paragraphs).rstrip() + '\n')
             written.append(str(path.relative_to(workspace)))

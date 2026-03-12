@@ -1,0 +1,400 @@
+{
+  "name": "embodied_ai",
+  "priority": 25,
+  "detect": {
+    "goal_any": [
+      "embodied ai",
+      "embodied intelligence",
+      "embodied agent",
+      "embodied robotics",
+      "robot foundation model",
+      "vision-language-action",
+      "vla",
+      "generalist robot",
+      "robot manipulation",
+      "robot navigation"
+    ],
+    "title_any": [
+      "manipulation",
+      "navigation",
+      "policy",
+      "vision-language-action",
+      "world model",
+      "embodiment",
+      "robot",
+      "safety",
+      "deployment",
+      "benchmark"
+    ]
+  },
+  "axis_rules": [
+    {
+      "match_any": [
+        "manipulation",
+        "navigation",
+        "mobile",
+        "humanoid",
+        "task"
+      ],
+      "items": [
+        "task setting and embodiment assumptions",
+        "observation/action interface",
+        "generalization across tasks and environments"
+      ]
+    },
+    {
+      "match_any": [
+        "vision-language-action",
+        "vla",
+        "policy",
+        "action",
+        "control"
+      ],
+      "items": [
+        "policy backbone and action representation",
+        "language/vision grounding into robot actions",
+        "latency and execution stability"
+      ]
+    },
+    {
+      "match_any": [
+        "observation",
+        "sensor",
+        "interface"
+      ],
+      "items": [
+        "sensor and observation interface",
+        "action space and control granularity",
+        "embodiment-specific interface constraints"
+      ]
+    },
+    {
+      "match_any": [
+        "world model",
+        "planning",
+        "reasoning",
+        "memory",
+        "long-horizon"
+      ],
+      "items": [
+        "planning/world-model role",
+        "long-horizon state handling",
+        "failure recovery under partial observability"
+      ]
+    },
+    {
+      "match_any": [
+        "transfer",
+        "viewpoint",
+        "cross-robot",
+        "cross embodiment",
+        "cross-embodiment",
+        "calibration"
+      ],
+      "items": [
+        "transfer target (embodiment / viewpoint / environment)",
+        "adaptation mechanism and invariance",
+        "cross-embodiment generalization limits"
+      ]
+    },
+    {
+      "match_any": [
+        "train",
+        "pretrain",
+        "finetun",
+        "post-training",
+        "adapt",
+        "feedback",
+        "demonstration"
+      ],
+      "items": [
+        "data source and supervision",
+        "pretraining versus post-training",
+        "adaptation and transfer across embodiments"
+      ]
+    },
+    {
+      "match_any": [
+        "benchmark",
+        "metric",
+        "generalization"
+      ],
+      "items": [
+        "benchmark coverage and task realism",
+        "metric validity and success criteria",
+        "generalization across embodiments and environments"
+      ]
+    },
+    {
+      "match_any": [
+        "evaluation",
+        "benchmark",
+        "safety",
+        "deploy",
+        "real-world",
+        "sim2real"
+      ],
+      "items": [
+        "benchmark realism and task coverage",
+        "sim-to-real and deployment constraints",
+        "safety and reliability failure modes"
+      ]
+    },
+    {
+      "match_any": [
+        "task diversity",
+        "environment realism",
+        "transfer constraints"
+      ],
+      "items": [
+        "task diversity and environment realism",
+        "transfer constraints across embodiments and settings",
+        "coverage gaps under deployment shift"
+      ]
+    },
+    {
+      "match_any": [
+        "data quality",
+        "distribution shift",
+        "scaling"
+      ],
+      "items": [
+        "data quality and coverage bias",
+        "scaling efficiency versus data fidelity",
+        "distribution shift and robustness limits"
+      ]
+    },
+    {
+      "match_any": [
+        "failure analysis",
+        "robustness",
+        "stress testing"
+      ],
+      "items": [
+        "failure taxonomy and stress scenarios",
+        "robustness criteria under deployment shift",
+        "stress-test protocol and recovery behavior"
+      ]
+    }
+  ],
+  "bridge_rules": [
+    {
+      "match_any": [
+        "manipulation",
+        "navigation",
+        "mobile",
+        "humanoid"
+      ],
+      "items": [
+        "embodiment",
+        "task scope",
+        "robot interface"
+      ]
+    },
+    {
+      "match_any": [
+        "vision-language-action",
+        "vla",
+        "policy",
+        "action",
+        "control"
+      ],
+      "items": [
+        "policy backbone",
+        "action representation",
+        "execution stability"
+      ]
+    },
+    {
+      "match_any": [
+        "world model",
+        "planning",
+        "reasoning",
+        "memory"
+      ],
+      "items": [
+        "planning",
+        "world model",
+        "long-horizon behavior"
+      ]
+    },
+    {
+      "match_any": [
+        "evaluation",
+        "benchmark",
+        "safety",
+        "deploy",
+        "sim2real"
+      ],
+      "items": [
+        "benchmark realism",
+        "sim-to-real",
+        "deployment reliability"
+      ]
+    },
+    {
+      "match_any": [
+        "task diversity",
+        "environment realism",
+        "transfer constraints"
+      ],
+      "items": [
+        "task diversity",
+        "environment realism",
+        "transfer constraints"
+      ]
+    },
+    {
+      "match_any": [
+        "data quality",
+        "distribution shift",
+        "scaling"
+      ],
+      "items": [
+        "data quality",
+        "scaling behavior",
+        "distribution shift"
+      ]
+    },
+    {
+      "match_any": [
+        "failure analysis",
+        "robustness",
+        "stress testing"
+      ],
+      "items": [
+        "failure taxonomy",
+        "robustness stress tests",
+        "recovery behavior"
+      ]
+    }
+  ],
+  "contrast_rules": [
+    {
+      "match_any": [
+        "manipulation",
+        "navigation",
+        "mobile",
+        "humanoid"
+      ],
+      "label": "task/embodiment"
+    },
+    {
+      "match_any": [
+        "vision-language-action",
+        "vla",
+        "policy",
+        "action",
+        "control"
+      ],
+      "label": "policy/action design"
+    },
+    {
+      "match_any": [
+        "world model",
+        "planning",
+        "reasoning",
+        "memory"
+      ],
+      "label": "planning/world-model role"
+    },
+    {
+      "match_any": [
+        "evaluation",
+        "benchmark",
+        "safety",
+        "deploy",
+        "sim2real"
+      ],
+      "label": "evaluation/deployment"
+    },
+    {
+      "match_any": [
+        "task diversity",
+        "environment realism",
+        "transfer constraints"
+      ],
+      "label": "task diversity / transfer realism"
+    },
+    {
+      "match_any": [
+        "data quality",
+        "distribution shift",
+        "scaling"
+      ],
+      "label": "data scaling / shift"
+    },
+    {
+      "match_any": [
+        "failure analysis",
+        "robustness",
+        "stress testing"
+      ],
+      "label": "robustness / failure analysis"
+    }
+  ],
+  "tension_rules": [
+    {
+      "match_any": [
+        "manipulation",
+        "navigation",
+        "mobile",
+        "humanoid"
+      ],
+      "template": "In {title}, a central tension is task generality versus embodiment specificity: systems that look broadly capable often rely on interfaces, sensors, or embodiments that make transfer harder than headline results suggest."
+    },
+    {
+      "match_any": [
+        "vision-language-action",
+        "vla",
+        "policy",
+        "action",
+        "control"
+      ],
+      "template": "In {title}, a recurring tension is expressive policy conditioning versus executable control reliability: richer multimodal policies promise broader competence, but they often expose new latency, stability, or action-grounding failures."
+    },
+    {
+      "match_any": [
+        "world model",
+        "planning",
+        "reasoning",
+        "memory"
+      ],
+      "template": "In {title}, a key tension is deliberation depth versus control robustness: more planning or internal modeling can improve long-horizon reasoning, but it also raises synchronization, observability, and execution-risk questions."
+    },
+    {
+      "match_any": [
+        "evaluation",
+        "benchmark",
+        "safety",
+        "deploy",
+        "sim2real"
+      ],
+      "template": "In {title}, the main tension is benchmark success versus deployment realism: strong results in curated settings do not automatically translate into safe, reliable embodied behavior under real-world constraints."
+    },
+    {
+      "match_any": [
+        "task diversity",
+        "environment realism",
+        "transfer constraints"
+      ],
+      "template": "In {title}, the key tension is breadth versus transfer reliability: covering diverse tasks and environments improves scope, but it also exposes sharper failures when embodiments, sensors, or deployment conditions shift."
+    },
+    {
+      "match_any": [
+        "data quality",
+        "distribution shift",
+        "scaling"
+      ],
+      "template": "In {title}, a recurring tension is scale versus data fidelity: larger embodied corpora improve coverage, but noisy supervision, heterogeneous sources, and distribution shift can erode downstream robustness."
+    },
+    {
+      "match_any": [
+        "failure analysis",
+        "robustness",
+        "stress testing"
+      ],
+      "template": "In {title}, the central tension is broad stress coverage versus actionable diagnosis: wider robustness testing reveals more failure modes, but it can also blur which mechanism or deployment factor actually caused the breakdown."
+    }
+  ]
+}

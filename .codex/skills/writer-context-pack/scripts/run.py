@@ -8,6 +8,49 @@ import sys
 from pathlib import Path
 from typing import Any
 
+_URL_RE = re.compile(r"https?://\S+")
+_AVAILABILITY_VERB_RE = re.compile(
+    r"(?i)\b(?:is|are|was|were|will\s+be|can\s+be|has\s+been)?\s*(?:publicly\s+)?(?:available|released|open-?sourced|shared)\b"
+)
+_LEADING_SELF_REF_RE = re.compile(
+    r"(?i)^(?:to (?:address|overcome|tackle|mitigate|study|investigate|examine|understand|analyze|explore|bridge)[^,]{0,180},\s*)?"
+    r"(?:(?:in|throughout)\s+(?:this|our)\s+(?:survey|paper|work|study|article),?\s*)?"
+)
+_LEADING_CONTEXT_RE = re.compile(
+    r"(?i)^(?:building on this foundation|against this backdrop|in this context|to this end|towards this end|specifically|for example|based on this proposition|throughout [^,]{1,120}|moreover|furthermore|additionally),?\s*"
+)
+_LEADING_AUTHOR_FINDING_RE = re.compile(
+    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
+    r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|quantify|quantifies|reveal|reveals|indicate|indicates)\s+that\s+"
+)
+_LEADING_AUTHOR_PREDICATE_RE = re.compile(
+    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
+    r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|reveal|reveals|indicate|indicates)\s+"
+)
+_LEADING_AUTHOR_ACTION_RE = re.compile(
+    r"(?i)^(?:here,\s*)?(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
+    r"(?:(?:also|broadly|comprehensively)\s+)?"
+    r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|quantify|study|design|build|construct|divide)\b[^,]{0,160},\s*"
+)
+_LEADING_PARTICIPLE_RE = re.compile(
+    r"(?i)^(?:demonstrating|showing|finding|observing|revealing|indicating|suggesting)\s+that\s+"
+)
+_FRAGMENT_PARTICIPLE_RE = re.compile(r"(?i)^(?:demonstrating|showing|revealing|highlighting|indicating)\b")
+_PROMISSORY_SELF_NARRATION_RE = re.compile(
+    r"(?i)^(?:we\s+hope|we\s+aim|our\s+(?:survey|paper|work|study)\s+aims?|this\s+(?:survey|paper|work|study)\s+aims?)\b"
+)
+_LEADING_DISCOURSE_RE = re.compile(r"(?i)^(?:moreover|furthermore|additionally|in addition),\s*")
+_POST_ACTION_ARTIFACT_RE = re.compile(r"^([A-Z][A-Za-z0-9._-]{1,80}),\s+(.*)$")
+_NAMED_ARTIFACT_RE = re.compile(
+    r"(?i)^(?:here,\s*)?(?:we|the authors)\s+(?:introduce|present|propose|develop|describe)\s+([A-Z][A-Za-z0-9][^,.;:]{0,120}),\s+(.*)$"
+)
+_GENERIC_SELF_NARRATION_RE = re.compile(
+    r"(?i)^(?:here,\s*)?(?:we|our)\s+"
+    r"(?:(?:also|broadly|comprehensively)\s+)?"
+    r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|study|design|build|construct|divide)\b"
+)
+_STUDY_SELF_NARRATION_RE = re.compile(r"(?i)^(?:this|our)\s+(?:survey|paper|work|study|article)\b")
+
 
 def _backup_existing(path: Path) -> None:
     from tooling.common import backup_existing
@@ -29,6 +72,111 @@ def _trim(text: str, *, max_len: int = 400) -> str:
     if " " in tail:
         cut = cut.rsplit(" ", 1)[0].rstrip()
     return cut
+
+
+def _is_availability_boilerplate(text: str) -> bool:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return True
+    low = s.lower()
+    has_link = bool(_URL_RE.search(s))
+    mentions_artifact = bool(
+        re.search(
+            r"(?i)\b(?:project\s+(?:website|site|web\s*page|page)|website|site|web\s*page|repository|repo|code|dataset|data|collection|resources?)\b",
+            s,
+        )
+    )
+    if has_link and mentions_artifact:
+        return True
+    if re.search(r"(?i)\b(?:encourage|invite)\s+readers?\b", s) and mentions_artifact:
+        return True
+    if re.search(r"(?i)\b(?:view|visit|see|consult|check)\b", s) and re.search(r"(?i)\b(?:github|repository|repo|website|project\s+site)\b", s):
+        return True
+    if re.search(r"(?i)\bour\s+(?:living\s+)?(?:github\s+)?repository\b", s):
+        return True
+    if "available at" in low or "can be found at" in low:
+        return mentions_artifact or has_link
+    if re.search(r"(?i)\b(?:our|the)\s+(?:code|project|repository|repo|dataset|data|collection|resources?)\b", s):
+        return has_link or bool(_AVAILABILITY_VERB_RE.search(s))
+    if re.search(r"(?i)\b(?:code|dataset|data|collection|resources?)\b", s) and _AVAILABILITY_VERB_RE.search(s):
+        return True
+    return False
+
+
+def _sanitize_source_sentence(text: str) -> str:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return ""
+    if _is_availability_boilerplate(s):
+        return ""
+
+    s = _URL_RE.sub("", s)
+    s = re.sub(r"\s+([,.;:])", r"\1", s)
+    s = re.sub(r"\(\s*\)", "", s)
+    s = re.sub(r"\s{2,}", " ", s).strip(" ,;:")
+    s = _LEADING_CONTEXT_RE.sub("", s)
+    s = _LEADING_DISCOURSE_RE.sub("", s)
+    s = _LEADING_SELF_REF_RE.sub("", s)
+    s = _LEADING_AUTHOR_FINDING_RE.sub("", s)
+    s = _LEADING_AUTHOR_PREDICATE_RE.sub("", s)
+    s = _LEADING_AUTHOR_ACTION_RE.sub("", s)
+    s = _LEADING_PARTICIPLE_RE.sub("", s)
+
+    if _PROMISSORY_SELF_NARRATION_RE.match(s) or _FRAGMENT_PARTICIPLE_RE.match(s):
+        return ""
+
+    m = _NAMED_ARTIFACT_RE.match(s)
+    if m:
+        name = re.sub(r"\s+", " ", m.group(1).strip(" ,;:"))
+        rest = re.sub(r"\s+", " ", m.group(2).strip(" ,;:"))
+        if rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
+            s = f"{name} is {rest}"
+        elif rest:
+            s = f"{name}: {rest}"
+        else:
+            s = name
+    elif _STUDY_SELF_NARRATION_RE.match(s) or _GENERIC_SELF_NARRATION_RE.match(s):
+        return ""
+
+    artifact_match = _POST_ACTION_ARTIFACT_RE.match(s)
+    if artifact_match:
+        name = artifact_match.group(1).strip()
+        rest = artifact_match.group(2).strip()
+        if rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
+            s = f"{name} is {rest}"
+        elif rest:
+            s = f"{name}: {rest}"
+
+    if s:
+        s = s[:1].upper() + s[1:]
+    s = re.sub(r"\s{2,}", " ", s).strip(" ,;:")
+    if len(s) < 16:
+        return ""
+    if s[-1] not in ".!?":
+        s = f"{s}."
+    return s
+
+
+def _sanitize_source_text(text: str) -> str:
+    raw = re.sub(r"\s+", " ", str(text or "").strip())
+    if not raw:
+        return ""
+    parts = re.split(r"(?<=[.!?])\s+", raw)
+    if not parts:
+        parts = [raw]
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for part in parts:
+        cleaned = _sanitize_source_sentence(part)
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(cleaned)
+    return " ".join(out).strip()
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -162,6 +310,35 @@ def _load_voice_palette(*, workspace: Path, repo_root: Path) -> dict[str, Any]:
 
     return {}
 
+def _assert_h3_cutover_ready(*, workspace: Path, consumer: str) -> None:
+    from tooling.common import read_jsonl
+
+    state_path = workspace / "outline" / "outline_state.jsonl"
+    if not state_path.exists() or state_path.stat().st_size <= 0:
+        return
+
+    records = [rec for rec in read_jsonl(state_path) if isinstance(rec, dict)]
+    if not records:
+        return
+
+    latest = records[-1]
+    cutover_keys = {"structure_phase", "h3_status", "approval_status", "reroute_target", "retry_budget_remaining"}
+    if not any(key in latest for key in cutover_keys):
+        return
+
+    h3_status = str(latest.get("h3_status") or "").strip().lower()
+    if h3_status == "stable":
+        return
+
+    structure_phase = str(latest.get("structure_phase") or "").strip() or "unknown"
+    reroute_target = str(latest.get("reroute_target") or "").strip() or "none"
+    raise SystemExit(
+        f"{consumer} is blocked until stable H3 ids exist: "
+        f"`outline/outline_state.jsonl` reports h3_status={h3_status or 'missing'} "
+        f"(structure_phase={structure_phase}, reroute_target={reroute_target})."
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", required=True)
@@ -171,13 +348,27 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.common import ensure_dir, load_yaml, now_iso_seconds, parse_semicolon_list, write_jsonl
+    from tooling.common import ensure_dir, latest_outline_state, load_workspace_pipeline_spec, load_yaml, now_iso_seconds, parse_semicolon_list, write_jsonl
     from tooling.quality_gate import _global_citation_min_subsections
 
     workspace = Path(args.workspace).resolve()
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is not None and str(spec.structure_mode or "").strip() == "section_first":
+        state = latest_outline_state(workspace)
+        if not state:
+            raise SystemExit("Missing outline_state.jsonl; run the section-first C2 planner pass before writer-context-pack.")
+        if str(state.get("structure_phase") or "").strip() != "decomposed" or str(state.get("h3_status") or "").strip() != "stable":
+            raise SystemExit("Section-first cutover not ready: `outline_state.jsonl` must report `structure_phase: decomposed` and `h3_status: stable` before writer-context-pack.")
 
     inputs = parse_semicolon_list(args.inputs) or [
         "outline/outline.yml",
@@ -206,6 +397,8 @@ def main() -> int:
         return 0
     if out_path.exists() and out_path.stat().st_size > 0:
         _backup_existing(out_path)
+
+    _assert_h3_cutover_ready(workspace=workspace, consumer="writer-context-pack")
 
     outline = load_yaml(outline_path) if outline_path.exists() else []
     subsections = _iter_outline_subsections(outline)
@@ -357,6 +550,7 @@ def main() -> int:
         anchor_facts: list[dict[str, Any]] = []
         anchors_considered = 0
         anchors_dropped_no_cites = 0
+        anchors_dropped_sanitized = 0
 
         raw_limit = 16
         keep_limit = 12 if draft_profile == "deep" else 10
@@ -367,11 +561,15 @@ def main() -> int:
             if not cites:
                 anchors_dropped_no_cites += 1
                 continue
+            text = _sanitize_source_text(a.get("text") or "")
+            if not text:
+                anchors_dropped_sanitized += 1
+                continue
 
             anchor_facts.append(
                 {
                     "hook_type": str(a.get("hook_type") or "").strip(),
-                    "text": _trim(a.get("text") or "", max_len=TRIM["anchor_fact"]),
+                    "text": _trim(text, max_len=TRIM["anchor_fact"]),
                     "citations": cites,
                     "paper_id": str(a.get("paper_id") or "").strip(),
                     "evidence_id": str(a.get("evidence_id") or "").strip(),
@@ -387,6 +585,7 @@ def main() -> int:
         comparisons_considered = 0
         comparisons_dropped_no_highlights = 0
         hl_dropped_no_cites = 0
+        hl_dropped_sanitized = 0
 
         comparison_cards: list[dict[str, Any]] = []
         comp_raw_limit = 14
@@ -400,7 +599,7 @@ def main() -> int:
             cites = _normalize_cite_keys(comp.get("citations") or [], bibkeys=bibkeys)
 
             def _hl(side: str) -> list[dict[str, Any]]:
-                nonlocal hl_dropped_no_cites
+                nonlocal hl_dropped_no_cites, hl_dropped_sanitized
                 out: list[dict[str, Any]] = []
                 for hl in (comp.get(side) or [])[:3]:
                     if not isinstance(hl, dict):
@@ -409,11 +608,15 @@ def main() -> int:
                     if not hcites:
                         hl_dropped_no_cites += 1
                         continue
+                    excerpt = _sanitize_source_text(hl.get("excerpt") or "")
+                    if not excerpt:
+                        hl_dropped_sanitized += 1
+                        continue
                     out.append(
                         {
                             "paper_id": str(hl.get("paper_id") or "").strip(),
                             "evidence_id": str(hl.get("evidence_id") or "").strip(),
-                            "excerpt": _trim(hl.get("excerpt") or "", max_len=TRIM["highlight_excerpt"]),
+                            "excerpt": _trim(excerpt, max_len=TRIM["highlight_excerpt"]),
                             "citations": hcites,
                             "pointer": str(hl.get("pointer") or "").strip(),
                         }
@@ -468,6 +671,7 @@ def main() -> int:
         raw_lim = pack.get("failures_limitations") or []
         lim_considered = 0
         lim_dropped_no_cites = 0
+        lim_dropped_sanitized = 0
 
         lim_hooks: list[dict[str, Any]] = []
         for it in (raw_lim or [])[:14]:
@@ -480,9 +684,13 @@ def main() -> int:
                 continue
             # `evidence-draft` uses `bullet` (not `excerpt`) for failures/limitations.
             text = it.get("excerpt") or it.get("bullet") or it.get("text") or ""
+            excerpt = _sanitize_source_text(text)
+            if not excerpt:
+                lim_dropped_sanitized += 1
+                continue
             lim_hooks.append(
                 {
-                    "excerpt": _trim(text, max_len=TRIM["limitation_excerpt"]),
+                    "excerpt": _trim(excerpt, max_len=TRIM["limitation_excerpt"]),
                     "citations": cites,
                     "pointer": str(it.get("pointer") or "").strip(),
                 }
@@ -558,6 +766,7 @@ def main() -> int:
                 "considered": anchors_considered,
                 "kept": len(anchor_facts),
                 "dropped_no_cites": anchors_dropped_no_cites,
+                "dropped_sanitized": anchors_dropped_sanitized,
             },
             "comparisons": {
                 "raw": len([c for c in (raw_comparisons or []) if isinstance(c, dict)]),
@@ -565,6 +774,7 @@ def main() -> int:
                 "kept": len(comparison_cards),
                 "dropped_no_highlights": comparisons_dropped_no_highlights,
                 "highlights_dropped_no_cites": hl_dropped_no_cites,
+                "highlights_dropped_sanitized": hl_dropped_sanitized,
             },
             "evaluation_protocol": {
                 "raw": len([e for e in (raw_eval or []) if isinstance(e, dict)]),
@@ -577,6 +787,7 @@ def main() -> int:
                 "considered": lim_considered,
                 "kept": len(lim_hooks),
                 "dropped_no_cites": lim_dropped_no_cites,
+                "dropped_sanitized": lim_dropped_sanitized,
             },
             "trim_policy": TRIM,
         }

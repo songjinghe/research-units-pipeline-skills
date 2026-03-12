@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
+
+
+def _load_rationale_templates() -> dict:
+    asset_path = Path(__file__).resolve().parents[1] / 'assets' / 'rationale_templates.json'
+    data = json.loads(asset_path.read_text(encoding='utf-8'))
+    if not isinstance(data, dict):
+        raise SystemExit('idea-shortlist-curator/assets/rationale_templates.json must be a JSON object.')
+    return data
 
 
 def _group_candidates(
@@ -10,33 +19,31 @@ def _group_candidates(
     *,
     pool_lookup: dict[str, dict[str, object]],
     shortlist_size: int,
+    diversity_target: int,
+    diversity_axes: list[str],
 ) -> list[dict[str, object]]:
     chosen: list[dict[str, object]] = []
-    used_clusters: set[str] = set()
-    used_types: set[str] = set()
-    used_programs: set[str] = set()
+    seen_by_axis: dict[str, set[str]] = {axis: set() for axis in diversity_axes}
     used_ids: set[str] = set()
-    diversity_target = min(3, shortlist_size)
+    diversity_target = min(max(1, diversity_target), shortlist_size)
     for row in screen_rows:
         direction_id = str(row.get('direction_id') or '').strip()
         card = pool_lookup.get(direction_id) or {}
-        cluster = str(card.get('cluster') or row.get('cluster') or '').strip()
-        direction_type = str(card.get('direction_type') or row.get('direction_type') or '').strip()
-        program_kind = str(card.get('program_kind') or '').strip()
+        axis_values = {
+            'cluster': str(card.get('cluster') or row.get('cluster') or '').strip(),
+            'direction_type': str(card.get('direction_type') or row.get('direction_type') or '').strip(),
+            'program_kind': str(card.get('program_kind') or '').strip(),
+        }
         if len(chosen) >= diversity_target:
             break
         if direction_id in used_ids:
             continue
-        if (
-            cluster not in used_clusters
-            or direction_type not in used_types
-            or (program_kind and program_kind not in used_programs)
-        ):
+        if any(axis_values.get(axis) and axis_values[axis] not in seen_by_axis[axis] for axis in diversity_axes):
             chosen.append(row)
-            used_clusters.add(cluster)
-            used_types.add(direction_type)
-            if program_kind:
-                used_programs.add(program_kind)
+            for axis in diversity_axes:
+                value = axis_values.get(axis, '')
+                if value:
+                    seen_by_axis[axis].add(value)
             used_ids.add(direction_id)
     for row in screen_rows:
         direction_id = str(row.get('direction_id') or '').strip()
@@ -49,62 +56,54 @@ def _group_candidates(
     return chosen[:shortlist_size]
 
 
-def _risk_note(card: dict[str, object]) -> str:
+def _risk_note(card: dict[str, object], templates: dict) -> str:
     evidence = str(card.get('evidence_confidence') or '')
     program_kind = str(card.get('program_kind') or '').lower()
     confound = str(card.get('main_confound') or 'the main confound')
-    if evidence.startswith('low'):
-        return 'the literature anchor is still abstract-first'
-    if 'protocol' in program_kind:
-        return 'the decisive test is still somewhat protocol-sensitive'
-    if 'budget' in program_kind:
-        return f'normalizing {confound} will take a heavier control argument'
-    return f'the main risk is still whether {confound} has already been controlled by prior work'
+    for rule in templates.get('risk_notes') or []:
+        when = rule.get('when') or {}
+        if when.get('evidence_confidence_prefix') and evidence.startswith(str(when.get('evidence_confidence_prefix'))):
+            return str(rule.get('text') or '').format(main_confound=confound)
+        if when.get('program_kind_contains') and str(when.get('program_kind_contains')).lower() in program_kind:
+            return str(rule.get('text') or '').format(main_confound=confound)
+    return str(templates.get('risk_note_fallback') or '').format(main_confound=confound)
 
 
-def _rank_reason(idx: int, cards: list[dict[str, object]], card: dict[str, object]) -> str:
-    title = str(card.get('title') or 'this direction')
+def _rank_reason(idx: int, cards: list[dict[str, object]], card: dict[str, object], templates: dict) -> str:
     cluster = str(card.get('cluster') or 'this area').lower()
     program_kind = str(card.get('program_kind') or 'research')
-    contribution_shape = str(card.get('contribution_shape') or card.get('academic_value') or 'a stronger research contribution').lower()
     main_confound = str(card.get('main_confound') or 'the main confound')
     time_to_clarity = str(card.get('time_to_clarity') or 'medium')
-    risk_note = _risk_note(card)
+    risk_note = _risk_note(card, templates)
     if idx == 0:
-        return (
-            f"Leads because it offers the fastest path to a decisive {program_kind} result in {cluster}, "
-            f"and because it has the clearest path to a thesis-sized contribution if the control holds."
-        )
+        return str((templates.get('rank_reasons') or {}).get('lead') or '').format(program_kind=program_kind, cluster=cluster)
     leader = cards[0]
     leader_title = str(leader.get('title') or 'the current #1 direction')
     if idx == 1:
-        return (
-            f"Ranks behind {leader_title} because isolating {main_confound} is slower or harder to defend, "
-            f"but it still stays high because the payoff remains thesis-sized if the control survives."
-        )
-    return (
-        f"Stays in the lead set because it opens a distinct {program_kind} wedge, "
-        f"but it trails the first two because {risk_note} and the time-to-clarity is {time_to_clarity}."
-    )
+        return str((templates.get('rank_reasons') or {}).get('second') or '').format(leader_title=leader_title, main_confound=main_confound)
+    return str((templates.get('rank_reasons') or {}).get('rest') or '').format(program_kind=program_kind, risk_note=risk_note, time_to_clarity=time_to_clarity)
 
 
-def _prioritized_reason(card: dict[str, object]) -> str:
-    return f"kept in the lead set because {_risk_note(card).replace('the ', '').replace('still ', '')} is outweighed by its thesis upside."
+def _prioritized_reason(card: dict[str, object], templates: dict) -> str:
+    trimmed_risk_note = _risk_note(card, templates).replace('the ', '').replace('still ', '')
+    return str(templates.get('prioritized_reason') or '').format(trimmed_risk_note=trimmed_risk_note)
 
 
-def _deferred_reason(card: dict[str, object], leads: list[dict[str, object]]) -> str:
+def _deferred_reason(card: dict[str, object], leads: list[dict[str, object]], templates: dict) -> str:
     lead_clusters = {str(item.get('cluster') or '').strip() for item in leads}
     lead_programs = {str(item.get('program_kind') or '').strip() for item in leads}
     cluster = str(card.get('cluster') or '').strip()
     program_kind = str(card.get('program_kind') or '').strip()
     evidence = str(card.get('evidence_confidence') or '')
-    if program_kind and program_kind in lead_programs:
-        return f"overlaps the current lead set's {program_kind} wedge, but with a weaker prior-work gap."
-    if cluster and cluster in lead_clusters:
-        return 'sits in a cluster already represented in the lead set, while its first decisive control currently looks slower.'
-    if evidence.startswith('low'):
-        return 'is still promising, but the literature anchor is too abstract-first for lead-set rank right now.'
-    return 'is still promising, but it currently looks slower to turn into a decisive first reading/probe cycle.'
+    for rule in templates.get('deferred_reasons') or []:
+        when = rule.get('when') or {}
+        if when.get('same_program_kind_as_lead') and program_kind and program_kind in lead_programs:
+            return str(rule.get('text') or '').format(program_kind=program_kind)
+        if when.get('same_cluster_as_lead') and cluster and cluster in lead_clusters:
+            return str(rule.get('text') or '')
+        if when.get('evidence_confidence_prefix') and evidence.startswith(str(when.get('evidence_confidence_prefix'))):
+            return str(rule.get('text') or '')
+    return str(templates.get('deferred_reason_fallback') or '')
 
 
 def main() -> int:
@@ -116,24 +115,46 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.common import parse_semicolon_list
-    from tooling.ideation import parse_idea_brief, read_jsonl, shortlist_markdown, uniq_keep_order, write_jsonl, write_markdown
+    from tooling.common import load_workspace_pipeline_spec, parse_semicolon_list
+    from tooling.ideation import read_jsonl, resolve_idea_contract, shortlist_markdown, uniq_keep_order, write_jsonl, write_markdown
 
     workspace = Path(args.workspace).resolve()
+    if load_workspace_pipeline_spec(workspace) is None:
+        raise SystemExit('Missing or invalid active pipeline contract; fix PIPELINE.lock.md and pipeline metadata before ideation C5.')
+    templates = _load_rationale_templates()
     outputs = parse_semicolon_list(args.outputs) or ["output/trace/IDEA_SHORTLIST.md"]
     out_rel = outputs[0] if outputs else "output/trace/IDEA_SHORTLIST.md"
     out_path = workspace / out_rel
     jsonl_path = out_path.with_suffix('.jsonl')
 
-    brief = parse_idea_brief(workspace / 'output' / 'trace' / 'IDEA_BRIEF.md')
-    shortlist_size = int(brief.get('shortlist_size') or 5)
+    try:
+        contract = resolve_idea_contract(workspace)
+    except Exception as exc:
+        raise SystemExit(f'Invalid ideation runtime contract: {exc}')
+    shortlist_size = int(contract['shortlist_size'])
+    report_top_n = int(contract['report_top_n'])
+    diversity_target = int(contract['lead_diversity_target'])
+    diversity_axes = [str(x) for x in contract['lead_diversity_axes'] if str(x)]
     pool = {str(r.get('direction_id') or ''): r for r in read_jsonl(workspace / 'output' / 'trace' / 'IDEA_DIRECTION_POOL.jsonl') if isinstance(r, dict)}
     screened = [r for r in read_jsonl(workspace / 'output' / 'trace' / 'IDEA_SCREENING_TABLE.jsonl') if isinstance(r, dict)]
     screened.sort(key=lambda r: (-float(r.get('total_score') or 0.0), str(r.get('direction_id') or '')))
-    chosen = _group_candidates(screened, pool_lookup=pool, shortlist_size=shortlist_size)
+    chosen = _group_candidates(
+        screened,
+        pool_lookup=pool,
+        shortlist_size=shortlist_size,
+        diversity_target=diversity_target,
+        diversity_axes=diversity_axes,
+    )
 
     enriched: list[dict[str, object]] = []
     for row in chosen:
@@ -183,12 +204,12 @@ def main() -> int:
         records.append(record)
 
     for idx, record in enumerate(records):
-        record['why_this_ranks_here'] = _rank_reason(idx, records, record)
-        record['why_prioritized'] = _prioritized_reason(record)
+        record['why_this_ranks_here'] = _rank_reason(idx, records, record, templates)
+        record['why_prioritized'] = _prioritized_reason(record, templates)
 
-    leads = records[:3]
-    for record in records[3:]:
-        record['why_not_prioritized'] = _deferred_reason(record, leads)
+    leads = records[:report_top_n]
+    for record in records[report_top_n:]:
+        record['why_not_prioritized'] = _deferred_reason(record, leads, templates)
 
     for record in records:
         record.pop('_score_total', None)

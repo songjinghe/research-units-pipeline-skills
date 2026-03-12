@@ -11,7 +11,9 @@ description: |
 
 # Outline Builder
 
-Build `outline/outline.yml` from `outline/taxonomy.yml`.
+Build `outline/outline.yml` from either:
+- `outline/taxonomy.yml` (legacy H3-first compatibility path)
+- `outline/chapter_skeleton.yml` + `outline/section_briefs.jsonl` (section-first transition path)
 
 Compatibility mode is active: this migration keeps the current output contract while moving intro/related defaults, Stage A bullet templates, and domain-specific comparison framing into `references/` and `assets/`.
 
@@ -48,12 +50,12 @@ Current mode is reference-first with script compatibility:
 - front-chapter defaults live in `assets/outline_defaults.yaml`
 - Stage A bullet defaults and comparison-axis packs live in `assets/outline_defaults.yaml`
 - examples and boundary rules live in `references/`
-- `scripts/run.py` still owns taxonomy loading, skeleton materialization, and placeholder-safe overwrite behavior
+- `scripts/run.py` still owns outline materialization, section-first input selection, and placeholder-safe overwrite behavior
 
 ## Script boundary
 
 Use `scripts/run.py` only for:
-- loading taxonomy input and the defaults asset
+- loading taxonomy or section-first structure inputs plus the defaults asset
 - rendering the outline skeleton deterministically
 - preserving existing non-placeholder outlines
 - choosing comparison-axis packs from machine-readable defaults
@@ -80,7 +82,8 @@ Keep these stable:
 ## Execution notes
 
 When running this skill in compatibility mode, `scripts/run.py` currently reads:
-- `outline/taxonomy.yml`
+- `outline/taxonomy.yml`, or
+- `outline/chapter_skeleton.yml` + `outline/section_briefs.jsonl`
 - `assets/outline_defaults.yaml`
 
 The optional style references under `ref/agent-surveys/` are for human calibration only:

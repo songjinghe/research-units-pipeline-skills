@@ -68,6 +68,39 @@ def normalize_title_for_dedupe(title: str) -> str:
     return title
 
 
+def normalize_axis_label(text: str) -> str:
+    text = re.sub(r"\s+", " ", (text or "").strip().lower())
+    text = text.rstrip(" .;:，；。")
+    text = re.sub(r"\s*/\s*", " ", text)
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return text.strip()
+
+
+def subsection_brief_generic_axis_norms() -> set[str]:
+    """Axis labels that strict survey gates treat as scaffold-level defaults.
+
+    Keep this aligned across brief generation and quality-gate checks so the
+    generator does not promote an axis that the gate later classifies as generic.
+    """
+
+    axes = {
+        "core mechanism and system architecture",
+        "training and data setup",
+        "evaluation protocol",
+        "evaluation protocol (benchmarks / metrics / human)",
+        "evaluation protocol (datasets / metrics / human)",
+        "evaluation protocol (datasets, metrics, human evaluation)",
+        "compute and efficiency",
+        "compute and latency constraints",
+        "efficiency and compute",
+        "tool interface contract (schemas / protocols)",
+        "tool selection / routing policy",
+        "sandboxing / permissions / observability",
+        "failure modes and limitations",
+    }
+    return {normalize_axis_label(axis) for axis in axes}
+
+
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     if not path.exists():
@@ -521,14 +554,30 @@ def seed_queries_from_topic(queries_path: Path, topic: str) -> None:
     has_max_results = _has_nonempty_scalar("max_results")
     has_core_size = _has_nonempty_scalar("core_size")
 
-    def _pipeline_profile_from_workspace(workspace: Path) -> str:
-        return pipeline_profile(workspace)
+    workspace = queries_path.parent
+    profile = pipeline_profile(workspace)
+    query_defaults = pipeline_query_defaults(workspace)
 
-    profile = _pipeline_profile_from_workspace(queries_path.parent)
-
-    keyword_suggestions = [topic]
-    tlow = topic.lower()
-    is_agent = "agent" in tlow
+    raw_tlow = topic.lower()
+    topic_for_queries = _sanitize_topic_for_query_seed(topic)
+    keyword_suggestions = [topic_for_queries]
+    tlow = topic_for_queries.lower()
+    is_agent = any(t in tlow for t in ("agent", "agents", "agentic"))
+    is_embodied = any(
+        t in tlow
+        for t in (
+            "embodied ai",
+            "embodied intelligence",
+            "embodied agent",
+            "embodied robotics",
+            "robot foundation model",
+            "robot learning",
+            "robot manipulation",
+            "vision-language-action",
+            "vla",
+            "generalist robot",
+        )
+    )
     is_text_to_image = any(t in tlow for t in ("text-to-image", "text to image", "t2i"))
     is_text_to_video = any(t in tlow for t in ("text-to-video", "text to video", "t2v"))
     is_diffusion = "diffusion" in tlow
@@ -542,18 +591,40 @@ def seed_queries_from_topic(queries_path: Path, topic: str) -> None:
                 "tool use",
                 "function calling",
                 "tool-using agent",
-                "ReAct",
-                "Toolformer",
-                "Reflexion",
-                "AutoGPT",
-                "Voyager",
-                "Tree of Thoughts",
+                "planning",
+                "memory",
+                "multi-agent",
+                "benchmark",
+                "safety",
             ]
         )
     exclude_suggestions: list[str] = []
     if is_agent:
         exclude_suggestions.append("agent-based modeling")
         exclude_suggestions.extend(["react hooks", "perovskite", "banach", "coxeter"])
+
+    if is_embodied:
+        keyword_suggestions.extend(
+            [
+                "embodied AI survey",
+                "embodied AI review",
+                "embodied intelligence survey",
+                "embodied agent survey",
+                "robot foundation model survey",
+                "robot learning survey",
+                "robot manipulation survey",
+                "embodied robotics survey",
+                "vision-language-action survey",
+                "vision-language-action model",
+                "robot foundation model",
+                "generalist robot policy",
+                "world model robot",
+            ]
+        )
+
+    stripped_output_terms = topic_for_queries.lower().strip() != raw_tlow.strip()
+    if stripped_output_terms and any(t in raw_tlow for t in ("latex", "pdf", "markdown", "typesetting")):
+        exclude_suggestions.extend(["latex", "pdf", "typesetting", "document layout"])
 
     if is_generative:
         keyword_suggestions.extend(
@@ -579,10 +650,15 @@ def seed_queries_from_topic(queries_path: Path, topic: str) -> None:
             ]
         )
 
-    max_results_suggestion = 800 if (is_agent or is_generative) else 300
-    time_from_suggestion = "2022" if (is_agent and ("llm" in tlow or "language model" in tlow)) else ("2020" if is_generative else "")
-    # For arXiv-survey runs, a larger core set makes evidence binding and cite coverage more robust.
-    core_size_suggestion = "220" if profile == "arxiv-survey" else ""
+    default_max_results = query_defaults.get("max_results")
+    max_results_suggestion = str(default_max_results) if str(default_max_results or "").strip() else (
+        1800 if profile == "arxiv-survey" else (800 if (is_agent or is_generative or is_embodied) else 300)
+    )
+    time_from_suggestion = (
+        "2018" if is_embodied
+        else ("2022" if (is_agent and ("llm" in tlow or "language model" in tlow)) else ("2020" if is_generative else ""))
+    )
+    core_size_suggestion = str(query_defaults.get("core_size") or "").strip() or ("300" if profile == "arxiv-survey" else "")
 
     out: list[str] = []
     i = 0
@@ -631,6 +707,7 @@ def seed_queries_from_topic(queries_path: Path, topic: str) -> None:
         out.append(line)
         i += 1
 
+    out = _materialize_missing_query_defaults(out, query_defaults, allowed_fields=pipeline_overridable_query_fields(workspace))
     atomic_write_text(queries_path, "\n".join(out).rstrip() + "\n")
 
 
@@ -646,6 +723,34 @@ def _dedupe_preserve_order(items: list[str]) -> list[str]:
     return out
 
 
+def _sanitize_topic_for_query_seed(topic: str) -> str:
+    text = str(topic or "").strip()
+    if not text:
+        return ""
+    patterns = [
+        r"(?i)\bwith\s+latex\s*/\s*pdf\s+output\b",
+        r"(?i)\bwith\s+latex\s+output\b",
+        r"(?i)\bwith\s+pdf\s+output\b",
+        r"(?i)\bwith\s+markdown\s+output\b",
+        r"(?i)\blatex\s*/\s*pdf\s+output\b",
+        r"(?i)\bpdf\s+output\b",
+        r"(?i)\blatex\s+output\b",
+        r"(?i)\bmarkdown\s+output\b",
+        r"(?i)\bfor\s+latex\s*/\s*pdf\b",
+    ]
+    for pattern in patterns:
+        text = re.sub(pattern, "", text)
+    text = re.sub(r"\s+", " ", text).strip(" ,;:-")
+    return text or topic
+
+
+_LEGACY_PIPELINE_ALIASES = {
+    "idea-finder": "idea-brainstorm",
+    "idea-finder.pipeline.md": "idea-brainstorm",
+    "pipelines/idea-finder.pipeline.md": "idea-brainstorm",
+}
+
+
 def find_repo_root(start: Path | None = None) -> Path:
     """Walk up from *start* (default: this file) looking for AGENTS.md."""
     candidate = (start or Path(__file__)).resolve()
@@ -659,18 +764,54 @@ def find_repo_root(start: Path | None = None) -> Path:
     raise FileNotFoundError("Could not find repo root (AGENTS.md marker)")
 
 
-def pipeline_profile(workspace: Path) -> str:
-    """Return the pipeline profile for a workspace.
+def _normalize_pipeline_lock_value(value: str) -> str:
+    raw = str(value or "").strip()
+    return _LEGACY_PIPELINE_ALIASES.get(raw, raw)
 
-    Reads PIPELINE.lock.md to get the pipeline name, then loads the
-    pipeline spec file and reads its ``profile`` frontmatter field.
-    Falls back to ``"default"`` if anything is missing.
-    """
+
+def resolve_pipeline_spec_path(*, repo_root: Path, pipeline_value: str) -> Path | None:
+    value = _normalize_pipeline_lock_value(pipeline_value)
+    if not value:
+        return None
+
+    candidate = Path(value)
+    if candidate.is_absolute() and candidate.exists():
+        return candidate.resolve()
+
+    rel_candidate = repo_root / value
+    if rel_candidate.exists():
+        return rel_candidate.resolve()
+
+    filename = Path(value).name
+    if filename:
+        direct = repo_root / "pipelines" / filename
+        if direct.exists():
+            return direct.resolve()
+
+    stem = filename
+    if stem.endswith(".pipeline.md"):
+        stem = stem[: -len(".pipeline.md")]
+    if stem:
+        direct = repo_root / "pipelines" / f"{stem}.pipeline.md"
+        if direct.exists():
+            return direct.resolve()
+
+    return None
+
+
+def load_workspace_pipeline_spec(workspace: Path):
+    from tooling.pipeline_spec import PipelineSpec
+
+    try:
+        repo_root = find_repo_root(workspace)
+    except FileNotFoundError:
+        return None
+
     lock_path = workspace / "PIPELINE.lock.md"
     if not lock_path.exists():
-        return "default"
+        return None
 
-    pipeline_name: str = ""
+    pipeline_name = ""
     try:
         for raw in lock_path.read_text(encoding="utf-8", errors="ignore").splitlines():
             line = raw.strip()
@@ -678,50 +819,118 @@ def pipeline_profile(workspace: Path) -> str:
                 pipeline_name = line.split(":", 1)[1].strip()
                 break
     except Exception:
-        return "default"
+        return None
 
     if not pipeline_name:
-        return "default"
+        return None
 
-    # Walk up from workspace to find repo root (look for AGENTS.md marker).
-    repo_root: Path | None = None
-    candidate = workspace
-    for _ in range(10):
-        if (candidate / "AGENTS.md").exists():
-            repo_root = candidate
-            break
-        parent = candidate.parent
-        if parent == candidate:
-            break
-        candidate = parent
-
-    if repo_root is None:
-        return "default"
-
-    # Try exact spec match, then glob for partial match.
-    spec_path: Path | None = None
-    exact = repo_root / "pipelines" / f"{pipeline_name}.pipeline.md"
-    if exact.exists():
-        spec_path = exact
-    else:
-        for p in sorted((repo_root / "pipelines").glob("*.pipeline.md")):
-            if pipeline_name in p.stem:
-                spec_path = p
-                break
-
+    spec_path = resolve_pipeline_spec_path(repo_root=repo_root, pipeline_value=pipeline_name)
     if spec_path is None:
-        return "default"
+        return None
 
     try:
-        text = spec_path.read_text(encoding="utf-8", errors="ignore")
-        if not text.startswith("---"):
-            return "default"
-        end = text.find("---", 3)
-        if end < 0:
-            return "default"
-        frontmatter = yaml.safe_load(text[3:end])
-        if isinstance(frontmatter, dict):
-            return str(frontmatter.get("profile") or "default").strip()
+        return PipelineSpec.load(spec_path)
     except Exception:
-        pass
-    return "default"
+        return None
+
+
+def pipeline_query_defaults(workspace: Path) -> dict[str, Any]:
+    spec = load_workspace_pipeline_spec(workspace)
+    return dict(spec.query_defaults) if spec is not None else {}
+
+
+def pipeline_quality_contract(workspace: Path) -> dict[str, Any]:
+    spec = load_workspace_pipeline_spec(workspace)
+    return dict(spec.quality_contract) if spec is not None else {}
+
+
+def pipeline_quality_contract_value(workspace: Path, *keys: str, default: Any = None) -> Any:
+    current: Any = pipeline_quality_contract(workspace)
+    for key in keys:
+        if not isinstance(current, dict):
+            return default
+        current = current.get(str(key))
+        if current is None:
+            return default
+    return current
+
+
+def pipeline_query_default(workspace: Path, key: str, default: Any = None) -> Any:
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is None:
+        return default
+    return spec.query_default(key, default)
+
+
+def pipeline_overridable_query_fields(workspace: Path) -> set[str]:
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is None:
+        return set()
+    return set(spec.overridable_query_fields)
+
+
+def pipeline_profile(workspace: Path) -> str:
+    """Return the pipeline profile for a workspace.
+
+    Reads PIPELINE.lock.md to get the pipeline name, then loads the
+    pipeline spec file and reads its ``profile`` frontmatter field.
+    Falls back to ``"default"`` if anything is missing.
+    """
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is None:
+        return "default"
+    return str(spec.profile or "default").strip() or "default"
+
+
+def latest_outline_state(workspace: Path) -> dict[str, Any]:
+    path = Path(workspace).resolve() / "outline" / "outline_state.jsonl"
+    records = [rec for rec in read_jsonl(path) if isinstance(rec, dict)]
+    return dict(records[-1]) if records else {}
+
+
+def _materialize_missing_query_defaults(lines: list[str], query_defaults: dict[str, Any], *, allowed_fields: set[str] | None = None) -> list[str]:
+    if not query_defaults:
+        return lines
+
+    existing_keys: set[str] = set()
+    for raw in lines:
+        stripped = raw.strip()
+        if not stripped.startswith("- ") or ":" not in stripped:
+            continue
+        key = stripped[2:].split(":", 1)[0].strip().lower().replace(" ", "_").replace("-", "_")
+        if key:
+            existing_keys.add(key)
+
+    additions: list[str] = []
+    for key, value in query_defaults.items():
+        norm_key = str(key or "").strip().lower().replace(" ", "_").replace("-", "_")
+        if not norm_key or norm_key in existing_keys:
+            continue
+        if allowed_fields and norm_key not in allowed_fields:
+            continue
+        rendered = _render_query_scalar(value)
+        if rendered is None:
+            continue
+        additions.append(f'- {norm_key}: "{rendered}"')
+
+    if not additions:
+        return lines
+
+    out = list(lines)
+    if out and out[-1].strip():
+        out.append("")
+    out.extend(additions)
+    return out
+
+
+def _render_query_scalar(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        text = value.strip()
+        return text or None
+    return None

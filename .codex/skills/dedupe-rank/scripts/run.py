@@ -58,7 +58,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import ensure_dir, normalize_title_for_dedupe, parse_semicolon_list, read_jsonl, write_jsonl
@@ -116,20 +123,11 @@ def main() -> int:
 
     core_size = max(1, int(args.core_size))
     if not core_size_cfg:
-        lock_path = workspace / "PIPELINE.lock.md"
-        if lock_path.exists():
-            try:
-                for raw in lock_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-                    line = raw.strip().lower()
-                    if not line.startswith("pipeline:"):
-                        continue
-                    pipeline = line.split(":", 1)[1].strip()
-                    if "systematic-review" in pipeline:
-                        # Systematic reviews should not silently drop candidates; keep the full deduped pool by default.
-                        core_size = max(core_size, len(deduped))
-                    break
-            except Exception:
-                pass
+        from tooling.common import pipeline_profile
+
+        if pipeline_profile(workspace) == "systematic-review":
+            # Systematic reviews should not silently drop candidates; keep the full deduped pool by default.
+            core_size = max(core_size, len(deduped))
     query_tokens = _query_tokens(workspace)
     pinned = _pinned_records(workspace, deduped)
     if query_tokens:
@@ -152,7 +150,7 @@ def main() -> int:
             record["_rank_reason"] = "pinned_classic"
             picked.append(record)
 
-        # Ensure some agent survey/review papers are included (for paper-like Related Work positioning).
+        # Ensure some matched-domain survey/review papers are included (for paper-like Related Work positioning).
         min_surveys = 0
         pack = _load_domain_pack(workspace)
         if pack is not None:
@@ -167,7 +165,7 @@ def main() -> int:
             for score, _, _, record in scored:
                 if surveys_picked >= min_surveys or len(picked) >= core_size:
                     break
-                if not _is_agent_survey_record(record, sd):
+                if not _is_domain_survey_record(record, sd):
                     continue
                 key = str(record.get("dedup_key") or "")
                 if key and key in picked_keys:
@@ -307,9 +305,8 @@ def _core_size_from_queries(path: Path) -> int:
 
 
 def _default_core_size_for_workspace(workspace: Path) -> int:
-    repo_root = Path(__file__).resolve().parents[4]
-    import sys; sys.path.insert(0, str(repo_root))
     from tooling.common import pipeline_profile
+
     profile = pipeline_profile(workspace)
     if profile == "arxiv-survey":
         return 150
@@ -379,10 +376,6 @@ def _load_domain_pack(workspace: Path) -> dict[str, Any] | None:
     return None
 
 
-def _looks_like_llm_agent_topic(workspace: Path) -> bool:
-    return _load_domain_pack(workspace) is not None
-
-
 def _pinned_records(workspace: Path, deduped: list[dict[str, Any]]) -> list[dict[str, Any]]:
     pack = _load_domain_pack(workspace)
     if pack is None:
@@ -440,7 +433,7 @@ def _pinned_records(workspace: Path, deduped: list[dict[str, Any]]) -> list[dict
 
 
 
-def _is_agent_survey_record(record: dict[str, Any], survey_detection: dict[str, Any]) -> bool:
+def _is_domain_survey_record(record: dict[str, Any], survey_detection: dict[str, Any]) -> bool:
     title = str(record.get("title") or "").strip().lower()
     if not title:
         return False
@@ -453,9 +446,7 @@ def _is_agent_survey_record(record: dict[str, Any], survey_detection: dict[str, 
     if any(kw in title for kw in agent_kws):
         return True
     abstract = str(record.get("abstract") or "").strip().lower()
-    if not any(kw in abstract for kw in agent_kws):
-        return False
-    return ("llm" in abstract) or ("language model" in abstract)
+    return any(kw in abstract for kw in agent_kws)
 
 
 def _relevance_score(record: dict[str, Any], *, query_tokens: set[str]) -> int:
@@ -469,8 +460,6 @@ def _relevance_score(record: dict[str, Any], *, query_tokens: set[str]) -> int:
     title_low = title.lower()
     if "survey" in title_low or "review" in title_low:
         base += 2
-        if any(tok in title_low for tok in ("agent", "agents", "agentic")):
-            base += 1
     return base
 
 

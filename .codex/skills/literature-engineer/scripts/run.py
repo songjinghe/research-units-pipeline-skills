@@ -42,7 +42,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, ensure_dir, now_iso_seconds, parse_semicolon_list, read_jsonl, write_jsonl
@@ -54,6 +61,7 @@ def main() -> int:
 
     out_jsonl = workspace / outputs[0]
     out_report = workspace / (outputs[1] if len(outputs) > 1 else "papers/retrieval_report.md")
+    existing_output_records = read_jsonl(out_jsonl) if out_jsonl.exists() else []
 
     queries_path = workspace / inputs[0]
     keywords, excludes, max_results_md, year_from, year_to = _parse_queries_md(queries_path)
@@ -119,7 +127,7 @@ def main() -> int:
                 records.append(norm)
 
 
-    # Pinned classics/surveys (agent topics): ensure key anchor works are present even if keyword
+    # Pinned classics/surveys (matched domain topics): ensure key anchor works are present even if keyword
     # search/ranking misses them. Best-effort (non-fatal on network errors).
     pinned_ids = _pinned_arxiv_ids(workspace=workspace, keywords=keywords)
     if pinned_ids:
@@ -200,11 +208,12 @@ def main() -> int:
             arxiv_error = ""
             try:
                 online = _search_arxiv_paged(
-                    queries=_pick_online_queries(keywords, cap=4),
+                    queries=_pick_online_queries(keywords, cap=_online_query_cap(workspace)),
                     excludes=excludes,
                     max_results=max_results or 200,
                     year_from=year_from,
                     year_to=year_to,
+                    workspace=workspace,
                 )
             except KeyboardInterrupt:
                 raise
@@ -231,7 +240,7 @@ def main() -> int:
             if arxiv_error or _estimate_unique_count(records) < desired_min:
                 try:
                     s2_online = _search_semantic_scholar_paged(
-                        queries=_pick_online_queries(keywords, cap=4),
+                        queries=_pick_online_queries(keywords, cap=_online_query_cap(workspace)),
                         excludes=excludes,
                         max_results=max_results or 200,
                         year_from=year_from,
@@ -270,6 +279,10 @@ def main() -> int:
         records = [r for r in records if _within_year_window(r.get("year"), year_from=year_from, year_to=year_to)]
 
     deduped = _dedupe_merge(records)
+    preserved_existing = False
+    if not deduped and existing_output_records:
+        deduped = existing_output_records
+        preserved_existing = True
 
     if max_results and len(deduped) > max_results:
         pinned_for_cap = _pinned_arxiv_ids(workspace=workspace, keywords=keywords)
@@ -299,6 +312,7 @@ def main() -> int:
             total_in=len(records),
             total_out=len(deduped),
             records=deduped,
+            preserved_existing=preserved_existing,
         ),
     )
     return 0
@@ -807,6 +821,7 @@ def _render_report(
     total_in: int,
     total_out: int,
     records: list[dict[str, Any]],
+    preserved_existing: bool = False,
 ) -> str:
     # Route coverage.
     route_to_keys: dict[str, set[str]] = {}
@@ -862,6 +877,7 @@ def _render_report(
         "",
         f"- Imported/collected records (pre-dedupe): `{total_in}`",
         f"- Deduped records (output): `{total_out}`",
+        f"- Preserved previous non-empty output after zero-result rerun: `{'yes' if preserved_existing else 'no'}`",
         f"- Online error: `{online_error}`" if online_error else "- Online error: (none)",
         f"- Missing stable ID (arxiv_id/doi/url all empty): `{missing_id}`",
         f"- Missing abstract: `{missing_abstract}`",
@@ -919,18 +935,24 @@ def _pick_online_queries(keywords: list[str], *, cap: int = 4) -> list[str]:
         score = 0.0
         if any(tok in ql for tok in ("survey", "review", "综述", "调研")):
             score += 5.0
-        if "agent" in ql:
-            score += 3.0
-        if "llm" in ql or "language model" in ql:
-            score += 2.0
-        if any(tok in ql for tok in ("tool", "function calling", "tool-use", "tool use")):
-            score += 1.0
+        score += min(3.0, len([tok for tok in re.split(r"\W+", ql) if tok]) * 0.4)
+        if any(tok in ql for tok in ("benchmark", "evaluation", "dataset", "application")):
+            score += 0.5
         # Prefer shorter, reusable queries.
         score -= min(2.0, len(q) / 200.0)
         return score
 
     uniq.sort(key=_score, reverse=True)
     return uniq[: max(1, int(cap))]
+
+
+def _online_query_cap(workspace: Path) -> int:
+    try:
+        from tooling.common import pipeline_profile
+
+        return 8 if pipeline_profile(workspace) == "arxiv-survey" else 4
+    except Exception:
+        return 4
 
 
 def _is_excluded_text(text: str, excludes: list[str]) -> bool:
@@ -947,90 +969,92 @@ def _is_excluded_text(text: str, excludes: list[str]) -> bool:
 
 
 def _semantic_scholar_request_json(url: str, *, timeout: int = 30, max_retries: int = 5) -> dict[str, Any]:
-    """Fetch Semantic Scholar JSON via the r.jina.ai proxy.
+    """Fetch Semantic Scholar JSON with direct HTTPS first, then proxy fallback.
 
-    Rationale: some environments intermittently fail TLS handshakes to external domains;
-    r.jina.ai provides a stable, cache-friendly fetch path.
-
-    Note: r.jina.ai has changed formats over time:
-    - Legacy: plain text wrapper with `Markdown Content:` then raw JSON.
-    - Current: JSON envelope with `data.content` containing the upstream body as a string.
-    This helper supports both to keep retrieval robust.
+    Rationale: direct HTTPS should remain the default transport. If the host
+    environment has flaky TLS/network behavior, fall back to the r.jina.ai
+    proxy as a best-effort compatibility path instead of hard-wiring the
+    proxy into the primary request flow.
     """
     headers = {
         "User-Agent": "research-units-pipeline-skills/1.0 (+https://github.com/r-j-s/research-units-pipeline-skills)",
         "Accept": "application/json",
     }
-    proxy_url = "https://r.jina.ai/" + url
-    req = urllib.request.Request(proxy_url, headers=headers, method="GET")
     last_exc: Exception | None = None
     for attempt in range(max_retries):
+        req = urllib.request.Request(url, headers=headers, method="GET")
         try:
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 raw = resp.read()
-            text = raw.decode("utf-8", errors="ignore")
-
-            payload = text
-
-            # r.jina.ai wraps the upstream response body; extract it.
-            marker = "Markdown Content:"
-            if marker in text:
-                payload = text.split(marker, 1)[1].lstrip()
-            else:
-                # New: JSON envelope with `data.content` as a string.
-                try:
-                    outer = json.loads(text)
-                except Exception:
-                    outer = None
-                if isinstance(outer, dict):
-                    try:
-                        code = int(outer.get("code") or 0)
-                    except Exception:
-                        code = 0
-                    if code in {429, 500, 502, 503, 504}:
+            obj = json.loads(raw.decode("utf-8", errors="ignore") or "{}")
+            if isinstance(obj, dict):
+                if obj.get("error") or obj.get("message"):
+                    msg = str(obj.get("error") or obj.get("message") or "").lower()
+                    if "too many requests" in msg or "rate limit" in msg or "429" in msg:
                         time.sleep(min(20.0, 1.5 * (2**attempt)))
                         continue
-                    data = outer.get("data")
-                    if isinstance(data, dict):
-                        content = data.get("content")
-                        if isinstance(content, str) and content.strip():
-                            payload = content.strip()
-
-            try:
-                obj = json.loads(payload or "{}")
-            except Exception as exc:
-                # Common rate limit / upstream errors are rendered as plain text.
-                pl = (payload or "").lstrip()
-                if (not pl) or pl.startswith("<") or "returned error 429" in text or "Too Many Requests" in text or "HTTP Error 429" in text:
-                    time.sleep(min(20.0, 1.5 * (2**attempt)))
-                    continue
-                last_exc = exc
-                time.sleep(min(10.0, 1.25 * (2**attempt)))
-                continue
-
-            if not isinstance(obj, dict):
-                return {}
-
-            # Semantic Scholar may return structured error JSON (no `data`).
-            if obj.get("error") or obj.get("message"):
-                msg = str(obj.get("error") or obj.get("message") or "").lower()
-                if "too many requests" in msg or "rate limit" in msg or "429" in msg:
-                    time.sleep(min(20.0, 1.5 * (2**attempt)))
-                    continue
-                raise SystemExit(f"Semantic Scholar error: {obj.get('error') or obj.get('message')}")
-
-            return obj
+                    raise SystemExit(f"Semantic Scholar error: {obj.get('error') or obj.get('message')}")
+                return obj
         except urllib.error.HTTPError as exc:
             last_exc = exc
             if int(getattr(exc, "code", 0)) in {429, 500, 502, 503, 504}:
                 time.sleep(min(20.0, 1.5 * (2**attempt)))
                 continue
-            raise
+        except Exception as exc:
+            last_exc = exc
+
+        try:
+            return _semantic_scholar_request_json_via_proxy(url, headers=headers, timeout=timeout, attempt=attempt)
         except Exception as exc:
             last_exc = exc
             time.sleep(min(10.0, 1.25 * (2**attempt)))
             continue
     raise SystemExit(f"Semantic Scholar request failed after {max_retries} retries: {last_exc}")
+
+
+def _semantic_scholar_request_json_via_proxy(
+    url: str,
+    *,
+    headers: dict[str, str],
+    timeout: int,
+    attempt: int,
+) -> dict[str, Any]:
+    """Proxy fallback for Semantic Scholar JSON via r.jina.ai."""
+    proxy_url = "https://r.jina.ai/" + url
+    req = urllib.request.Request(proxy_url, headers=headers, method="GET")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read()
+    text = raw.decode("utf-8", errors="ignore")
+
+    payload = text
+    marker = "Markdown Content:"
+    if marker in text:
+        payload = text.split(marker, 1)[1].lstrip()
+    else:
+        try:
+            outer = json.loads(text)
+        except Exception:
+            outer = None
+        if isinstance(outer, dict):
+            try:
+                code = int(outer.get("code") or 0)
+            except Exception:
+                code = 0
+            if code in {429, 500, 502, 503, 504}:
+                time.sleep(min(20.0, 1.5 * (2**attempt)))
+                raise RuntimeError(f"proxy transient status {code}")
+            data = outer.get("data")
+            if isinstance(data, dict):
+                content = data.get("content")
+                if isinstance(content, str) and content.strip():
+                    payload = content.strip()
+
+    obj = json.loads(payload or "{}")
+    if not isinstance(obj, dict):
+        return {}
+    if obj.get("error") or obj.get("message"):
+        raise SystemExit(f"Semantic Scholar error: {obj.get('error') or obj.get('message')}")
+    return obj
 
 
 def _search_semantic_scholar_paged(
@@ -1467,8 +1491,9 @@ def _search_arxiv_paged(
     max_results: int,
     year_from: int | None,
     year_to: int | None,
+    workspace: Path | None = None,
 ) -> list[dict[str, Any]]:
-    q = _build_arxiv_query(queries)
+    q = _build_arxiv_query(queries, workspace=workspace)
     if not q:
         return []
     target = max(1, int(max_results))
@@ -1589,10 +1614,17 @@ def _search_arxiv_once(
     return (records, raw_count)
 
 
-def _build_arxiv_query(queries: list[str]) -> str:
+def _build_arxiv_query(queries: list[str], workspace: Path | None = None) -> str:
     queries = [q.strip() for q in (queries or []) if q and q.strip()]
     if not queries:
         return ""
+
+    if workspace is not None:
+        pack = _load_domain_pack(workspace)
+        if pack is not None:
+            rewritten = _domain_pack_query(queries, pack)
+            if rewritten:
+                return rewritten
 
     parts: list[str] = []
     for q in queries:
@@ -1613,6 +1645,37 @@ def _build_arxiv_query(queries: list[str]) -> str:
     if len(parts) == 1:
         return parts[0]
     return "(" + " OR ".join(parts) + ")"
+
+
+def _domain_pack_query(queries: list[str], pack: dict[str, Any]) -> str:
+    qr = pack.get("query_rewrite") or {}
+    core = str(qr.get("core_clause") or "").strip()
+    signals = str(qr.get("signal_clause") or "").strip()
+
+    triggers = pack.get("topic_triggers") or {}
+    name_triggers = [str(n or "").strip().lower() for n in (triggers.get("name_triggers") or []) if str(n or "").strip()]
+
+    names: list[str] = []
+    for q in queries:
+        qlow = q.lower()
+        if any(n in qlow for n in name_triggers):
+            names.append(q.strip())
+
+    names_clause = ""
+    if names:
+        parts: list[str] = []
+        for n in names[:12]:
+            if " " in n:
+                parts.append(f'all:"{n}"')
+            else:
+                parts.append(f"all:{n}")
+        names_clause = "(" + " OR ".join(parts) + ")"
+
+    if not core:
+        return ""
+    if names_clause:
+        return f"(({core} AND {signals}) OR {names_clause})" if signals else f"({core} OR {names_clause})"
+    return f"({core} AND {signals})" if signals else core
 
 
 def _extract_pdf_url(entry: ET.Element, *, ns: dict[str, str]) -> str:

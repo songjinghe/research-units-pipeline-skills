@@ -28,7 +28,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, ensure_dir, parse_semicolon_list, read_tsv, write_jsonl
@@ -302,7 +309,7 @@ def _download_pdf(url: str, path: Path) -> None:
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "research-units-pipeline/1.0 (pdf-text-extractor)",
+            "User-Agent": "research-units-pipeline-skills/1.0 (+https://github.com/r-j-s/research-units-pipeline-skills)",
             "Accept": "application/pdf",
         },
     )

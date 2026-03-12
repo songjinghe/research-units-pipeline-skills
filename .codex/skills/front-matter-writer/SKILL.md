@@ -29,6 +29,7 @@ Read by task:
 Machine-readable assets:
 - `assets/front_matter_context.schema.json`
 - `assets/front_matter_context_schema.json` (compatibility alias for checklist-aligned naming)
+- `assets/front_matter_contract.json`
 - `assets/front_matter_templates.json`
 
 ## Inputs
@@ -61,12 +62,13 @@ Keep the current output contract:
 
 Current mode is reference-first with script compatibility:
 - writing guidance lives in `references/`
-- the paragraph bank used by the script lives in `assets/front_matter_templates.json`
-- `scripts/run.py` still owns approval checks, metadata parsing, file emission, and context-sidecar writing
+- the structured job contract lives in `assets/front_matter_contract.json`
+- the hook bank used by the script lives in `assets/front_matter_templates.json`
+- `scripts/run.py` still owns approval checks, metadata parsing, deterministic hook selection, file emission, and context-sidecar writing
 
 That means:
 - preserve current file shapes and approval behavior
-- treat the asset as the active semantic source for paragraph banks
+- treat the assets as the active semantic source for section jobs, hook banks, and render guardrails
 - avoid moving prose policy back into `SKILL.md`
 
 ## Script boundary
@@ -75,7 +77,7 @@ Use `scripts/run.py` as a deterministic helper for:
 - approval gate enforcement
 - front-matter file discovery / path selection
 - metadata extraction
-- rendering from `assets/front_matter_templates.json`
+- rendering from `assets/front_matter_contract.json` + `assets/front_matter_templates.json`
 - writing the report and context sidecar
 
 Do not treat the script as the main place for long-form writing guidance.
@@ -131,4 +133,4 @@ When running this skill in compatibility mode, `scripts/run.py` currently reads 
 
 - If `DECISIONS.md` lacks `Approve C2`, the script will write a checkpoint block and exit.
 - If `citations/ref.bib` or `outline/outline.yml` is missing, restore those inputs before rerunning.
-- If the front matter feels too template-like, inspect the reference pack before touching the script.
+- If the front matter feels too template-like, inspect the hook banks / section job graph before touching the script.

@@ -39,6 +39,7 @@ def _clean(text: str, *, limit: int = 140) -> str:
     s = s.replace("\n", " ")
     s = re.sub(r"\s+", " ", s)
     s = s.replace("|", ", ")
+    s = s.replace("/", " and ")
     s = s.strip(" \"'`")
     if len(s) <= limit:
         return s
@@ -60,7 +61,7 @@ def _uniq(items: list[str]) -> list[str]:
 
 def _cite_cell(keys: list[str], *, limit: int = 4) -> str:
     keys = _uniq(keys)[:limit]
-    return " ".join(f"[@{k}]" for k in keys)
+    return f"[@{'; '.join(keys)}]" if keys else ""
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -91,7 +92,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, ensure_dir, parse_semicolon_list
@@ -127,7 +135,7 @@ def main() -> int:
             title = str(brief.get("title") or pack.get("title") or sid).strip()
             area = f"{sid} {title}".strip()
 
-            axes = [str(x).strip() for x in (brief.get("axes") or []) if str(x).strip()]
+            axes = [_clean(x, limit=64) for x in (brief.get("axes") or []) if _clean(x, limit=64)]
             comparisons = pack.get("concrete_comparisons") or []
             comp = comparisons[0] if comparisons and isinstance(comparisons[0], dict) else {}
             comp_axis = _clean(comp.get("axis") or "", limit=64)
@@ -135,7 +143,7 @@ def main() -> int:
             if comp_axis:
                 lens_parts.append(comp_axis)
             lens_parts.extend(axes[:2])
-            lens = "; ".join(_uniq(lens_parts)[:3])
+            lens = ", ".join(_uniq(lens_parts)[:3])
 
             highlights: list[str] = []
             ref_keys: list[str] = []
@@ -203,16 +211,16 @@ def main() -> int:
                 ])
 
         parts: list[str] = []
-        parts.append("**Appendix Table A1. Reader-facing comparison lenses across the survey areas.**")
+        parts.append("**Appendix Table A1. Cross-section comparison map for the survey areas.**")
         parts.append("")
-        parts.append(_md_table(["Survey area", "Comparison lens", "Representative evidence", "Key refs"], rows_a1))
+        parts.append(_md_table(["Survey area", "Comparison focus", "Representative evidence", "Key refs"], rows_a1))
         parts.append("")
         parts.append("**Appendix Table A2. Concrete evaluation anchors and protocol cues by survey area.**")
         parts.append("")
         parts.append(_md_table(["Survey area", "Anchor facts and protocol cues", "Key refs"], rows_a2))
         if rows_a3:
             parts.append("")
-            parts.append("**Appendix Table A3. Recurring limitations and risk surfaces highlighted by the evidence packs.**")
+            parts.append("**Appendix Table A3. Recurring limitations and risk surfaces highlighted across the evidence base.**")
             parts.append("")
             parts.append(_md_table(["Survey area", "Risk or limitation signal", "Key refs"], rows_a3))
         text = "\n".join(parts).rstrip() + "\n"

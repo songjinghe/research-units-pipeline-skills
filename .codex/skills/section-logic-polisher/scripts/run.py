@@ -94,7 +94,16 @@ def _has_template_subsection_opener(paragraph: str) -> bool:
     p = re.sub(r"\s+", " ", p).strip()
     if not p:
         return False
-    return bool(re.search(r"(?i)\bthis\s+subsection\s+(?:argues|shows|surveys|suggests|demonstrates|contends)\b", p))
+    patterns = [
+        r"(?i)\bthis\s+subsection\s+(?:argues|shows|surveys|suggests|demonstrates|contends)\b",
+        r"(?i)^[^.]{0,120}\bis\s+best\s+understood\s+by\s+comparing\s+how\s+adjacent\s+designs\s+trade\s+off\b",
+        r"(?i)^the\s+literature\s+on\s+.+?\s+is\s+easiest\s+to\s+compare\s+when\b",
+        r"(?i)^what\s+makes\s+.+?\s+comparable\s+is\s+the\s+fact\s+that\b",
+        r"(?i)^at\s+a\s+high\s+level,\s+.+?\.\s+the\s+comparison\s+matters\s+because\b",
+        r"(?i)^this\s+literature\s+is\s+easiest\s+to\s+synthesize\s+when\b",
+        r"(?i)^a\s+narrow\s+reading\s+of\s+the\s+evidence\s+is\s+more\s+useful\s+here\s+than\s+a\s+catalog\b",
+    ]
+    return any(re.search(pat, p) for pat in patterns)
 
 
 def _connector_counts(text: str) -> Counts:
@@ -130,7 +139,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import ensure_dir, now_iso_seconds, parse_semicolon_list
@@ -160,7 +176,7 @@ def main() -> int:
         )
         rows.append((p.relative_to(workspace).as_posix(), thesis_ok, connectors_ok, template_ok, counts))
 
-    fail = [r for r in rows if not r[1]]
+    fail = [r for r in rows if not (r[1] and r[3])]
     status = "PASS" if (rows and not fail) else "FAIL"
 
     lines: list[str] = [
@@ -181,12 +197,12 @@ def main() -> int:
         "",
         "## Per-section (H3)",
         "",
-        "| File | Thesis | Connectors | Template opener | causal | contrast | extension | implication | Status |",
+        "| File | Thesis | Connectors | Template-free opener | causal | contrast | extension | implication | Status |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
 
     for rel, thesis_ok, connectors_ok, template_ok, c in rows:
-        ok = thesis_ok
+        ok = thesis_ok and template_ok
         lines.append(
             f"| `{rel}` | {'Y' if thesis_ok else 'N'} | {'Y' if connectors_ok else 'N'} | {'Y' if template_ok else 'N'} | {c.causal} | {c.contrast} | {c.extension} | {c.implication} | {'PASS' if ok else 'FAIL'} |"
         )
@@ -201,7 +217,7 @@ def main() -> int:
                 "",
                 "## Paper voice warnings (non-blocking)",
                 "",
-                "- Some H3 files start with generator-like meta openers (e.g., `This subsection ...`). Rewrite the first sentence into a content claim (no narration).",
+        "- Some H3 files still start with generator-like comparison openers. Rewrite the first sentence into a direct content claim instead of a meta framing sentence.",
                 *[f"- `{rel}`" for rel in template_bad],
             ]
         )
@@ -213,6 +229,7 @@ def main() -> int:
                 "## How to fix (follow-up)",
                 "",
                 "- Make paragraph 1 conclusion-first with a clear thesis sentence (keep signposting light; avoid repeated opener labels).",
+                "- Remove stock opener frames such as `... is best understood by ...`, `The literature on ... is easiest to compare ...`, or `What makes ... comparable ...`.",
                 "- Express logical relations, but prefer subject-first sentences and mid-sentence glue (because/while/which) instead of repeating paragraph-starter adverbs (Overall/In addition).",
                 "- Do not add new citation keys; keep scope within the subsection.",
             ]

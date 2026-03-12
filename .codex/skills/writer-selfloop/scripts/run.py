@@ -94,7 +94,14 @@ def _load_voice_palette(*, workspace: Path) -> dict[str, Any]:
     # This keeps cadence/style checks semantic rather than hard-coded.
 
     override = workspace / "outline" / "paper_voice_palette.json"
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     default = repo_root / ".codex" / "skills" / "writer-context-pack" / "assets" / "paper_voice_palette.json"
 
     for cand in (override, default):
@@ -151,6 +158,8 @@ def _style_smells_for_h3(*, workspace: Path, h3_paths: list[str]) -> list[str]:
     token_files: list[str] = []
     comma_stem_files: dict[str, list[str]] = {}
     inline_stem_files: dict[str, list[str]] = {}
+    closer_files: dict[str, list[str]] = {}
+    fragmented_files: list[tuple[str, int, int]] = []
 
     opener_stems: Counter[str] = Counter()
 
@@ -188,6 +197,28 @@ def _style_smells_for_h3(*, workspace: Path, h3_paths: list[str]) -> list[str]:
         for stem, pat in inline_pats.items():
             if pat.search(body):
                 inline_stem_files.setdefault(stem, []).append(rel)
+
+        paragraphs = [p.strip() for p in re.split(r'\n\s*\n', body) if p.strip()]
+        short_count = 0
+        for para in paragraphs[1:]:
+            compact = re.sub(r"\[@[^\]]+\]", "", para)
+            compact = re.sub(r"\s+", " ", compact).strip()
+            if not compact:
+                continue
+            sent_n = len([s for s in re.split(r'(?<=[.!?])\s+', compact) if s.strip()])
+            if sent_n <= 1 or (sent_n <= 2 and len(compact) < 180):
+                short_count += 1
+        if short_count >= 4:
+            fragmented_files.append((rel, short_count, len(paragraphs)))
+
+        for label, pat in [
+            ('The safest synthesis is therefore', re.compile(r'(?im)^the safest synthesis is therefore\b')),
+            ('That conclusion remains', re.compile(r'(?im)^that conclusion remains\b')),
+            ('That conclusion still', re.compile(r'(?im)^that conclusion still\b')),
+            ('The evidence therefore supports', re.compile(r'(?im)^the evidence therefore supports\b')),
+        ]:
+            if pat.search(body):
+                closer_files.setdefault(label, []).append(rel)
 
     lines: list[str] = []
 
@@ -284,9 +315,25 @@ def _style_smells_for_h3(*, workspace: Path, h3_paths: list[str]) -> list[str]:
 
     rep_openers = [(s, c) for s, c in opener_stems.items() if c >= 3]
     rep_openers.sort(key=lambda kv: (-kv[1], kv[0]))
-    for stem, c in rep_openers[:3]:
+    for label, files in sorted(closer_files.items()):
+        uniq = sorted(set(files))
+        if len(uniq) < 2:
+            continue
+        sample = ", ".join(f"`{f}`" for f in uniq[:8])
+        if len(uniq) > 8:
+            sample += f" (+{len(uniq) - 8} more)"
+        lines.append(f"- repeated closing stem across H3s ({len(uniq)} files): `{label}`")
+        lines.append(f"  - files: {sample}")
         lines.append(
-            f"- repeated H3 opener stem ({c}x): `{stem}` (use different opener modes: tension/decision/failure/protocol/contrast)"
+            "  - fix: replace the stock closer with a subsection-specific limitation or decision boundary; keep citations unchanged."
+        )
+
+    if len(fragmented_files) >= 2:
+        lines.append(f"- paragraph fragmentation across H3s ({len(fragmented_files)} files): too many very short body paragraphs")
+        for rel, short_count, para_count in fragmented_files[:8]:
+            lines.append(f"  - `{rel}`: short_body_paragraphs={short_count}, total_paragraphs={para_count}")
+        lines.append(
+            "  - fix: merge one-sentence shards into denser contrast/evidence paragraphs before merge; keep the opener but reduce paragraph islands."
         )
 
     return lines
@@ -303,7 +350,14 @@ def main() -> int:
 
     workspace = Path(args.workspace).resolve()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import ensure_dir, load_yaml, parse_semicolon_list
@@ -334,17 +388,7 @@ def main() -> int:
     issue_codes = {code for code, _ in issue_pairs}
 
     soft_codes = {
-        "sections_contains_pipeline_voice",
         "sections_h2_no_citations",
-        "sections_intro_sparse_citations",
-        "sections_intro_too_short",
-        "sections_intro_too_few_paragraphs",
-        "sections_related_work_sparse_citations",
-        "sections_related_work_too_short",
-        "sections_related_work_too_few_paragraphs",
-        "sections_h3_sparse_citations",
-        "sections_h3_too_few_paragraphs",
-        "sections_h3_too_short",
     }
     hard_issues = [(code, msg) for code, msg in issue_pairs if code not in soft_codes]
 

@@ -67,6 +67,10 @@ Keep the current contract:
 The active rule is move coverage, not paragraph quota.
 A subsection should cover the necessary argument moves the pack supports; do not pad to a fixed count when the evidence does not justify it.
 
+Opener / ending policy:
+- generate 2-4 opener candidates from the pack's actual tension, contrast, protocol, or limitation signals; keep the most content-bearing option instead of reusing one stock stem everywhere
+- let subsection endings emerge from evidence-bearing comparison / limitation material; do not append a fixed “safest synthesis / decision rule” closer just to make the paragraph feel finished
+
 ## Script boundary
 
 Use `scripts/run.py` as a helper only:

@@ -2,6 +2,8 @@
 name: systematic-review
 version: 2.3
 profile: systematic-review
+routing_hints: [systematic review, systematic, prisma, 系统综述]
+routing_priority: 30
 target_artifacts:
   - STATUS.md
   - UNITS.csv

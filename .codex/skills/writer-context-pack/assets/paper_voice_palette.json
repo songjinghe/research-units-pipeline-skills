@@ -50,6 +50,10 @@
     "survey synthesis should",
     "survey comparisons should",
     "Taken together,",
+    "The safest synthesis",
+    "The safest conclusion",
+    "That conclusion remains",
+    "That conclusion still",
     "The key point is that",
     "Three limitations",
     "Two limitations",
@@ -163,11 +167,19 @@
     "For system builders,",
     "For builders,",
     "A caveat is",
+    "The safest synthesis is therefore",
+    "That conclusion remains",
+    "That conclusion still",
+    "The evidence therefore supports",
     "Additionally,",
     "Moreover,",
     "Furthermore,",
     "This suggests",
     "Taken together,",
+    "The safest synthesis",
+    "The safest conclusion",
+    "That conclusion remains",
+    "That conclusion still",
     "The key point is that",
     "Overall,",
     "In summary,",
@@ -290,6 +302,26 @@
       "These results hinge on",
       "Evidence is thin when",
       "A key boundary is that"
+    ],
+    "The safest synthesis is therefore": [
+      "Interpretation still depends on",
+      "A remaining boundary is that",
+      "The comparison stays useful when"
+    ],
+    "That conclusion remains": [
+      "This reading still depends on",
+      "A remaining boundary is that",
+      "The same evidence only holds when"
+    ],
+    "That conclusion still": [
+      "This reading still depends on",
+      "A remaining boundary is that",
+      "The same evidence only holds when"
+    ],
+    "The evidence therefore supports": [
+      "The comparison therefore remains bounded:",
+      "This evidence is most useful when",
+      "A conservative reading is to keep"
     ]
   },
   "role_cards": {

@@ -1,47 +1,262 @@
 {
-  "version": "0.3",
-  "reference_pack": [
-    "references/overview.md",
-    "references/abstract_archetypes.md",
-    "references/introduction_jobs.md",
-    "references/related_work_positioning.md",
-    "references/discussion_conclusion_patterns.md",
-    "references/forbidden_stems.md",
-    "references/examples_good.md",
-    "references/examples_bad.md"
-  ],
+  "version": "1.0",
   "headings": {
     "abstract": "## Abstract",
     "discussion": "## Discussion",
     "conclusion": "## Conclusion"
   },
-  "introduction_paragraphs": [
-    "Recent work on {goal} has expanded from isolated studies to a broad landscape in which core mechanisms, design assumptions, and evaluation protocols vary widely across contributions {cite_0_5}.",
-    "That breadth creates a comparison problem: similar claims are often made under different experimental setups, resource constraints, and evaluation regimes {cite_5_10}.",
-    "This survey treats {goal} as a methodological question in which approach design, underlying assumptions, and evaluation protocols have to be read together rather than as isolated contributions {cite_10_15}.",
-    "The resulting landscape is broad enough that surface-level labels alone are not informative; what matters is how a method translates its core insight into measurable outcomes and how those outcomes are validated {cite_15_20}.",
-    "We therefore organize the survey around recurring design pressures that show up across the literature, including methodology choices, efficiency trade-offs, evaluation practices, and the coupled problem of generalization and reproducibility {cite_20_25}.",
-    "Methodologically, the survey draws on {candidate_pool}, narrows that pool to {evidence_note}, and uses {time_window} as the explicit time window for reproducible retrieval and downstream evidence binding {cite_25_30}.",
-    "That evidence policy appears once here so the later sections can stay focused on technical contrasts rather than repeating caveats about evidence granularity or retrieval coverage {cite_30_35}.",
-    "The rest of the paper uses those shared lenses to compare what current approaches assume, what they optimize under comparable protocols, and where present evidence remains thin or unstable {cite_35_40}."
-  ],
-  "related_work_paragraphs": [
-    "Existing survey work already covers adjacent slices of {goal}, but it often mixes taxonomies, benchmark inventories, and application snapshots without holding protocol assumptions constant {cite_0_6}.",
-    "A first strand frames the literature through foundational mechanisms, emphasizing how core techniques are formulated, combined, or extended across different settings {cite_6_12}.",
-    "A second strand centers on methodology and design, typically asking how different design decisions affect performance under controlled or constrained conditions {cite_12_18}.",
-    "A third strand focuses on representation and structure, where the main comparison is not simply whether a technique works, but which design choices remain robust as problem complexity grows {cite_18_24}.",
-    "Another line studies efficiency and scalability, comparing resource trade-offs, approximation strategies, and other mechanisms that aim to make methods practical at scale {cite_24_30}.",
-    "Evaluation-focused surveys and benchmark papers contribute a complementary view by making protocol design explicit, especially around task selection, metrics, baselines, and reproducibility {cite_30_36}.",
-    "Application-oriented work adds breadth by showing how methods transfer across domains, revealing where assumptions hold and where they break under distribution shift {cite_36_42}.",
-    "What remains under-specified across these strands is a unified lens that compares approaches, evaluation practice, and limitations under the same evidence contract rather than as separate lists {cite_42_48}.",
-    "This survey takes that gap as its starting point and positions prior work as evidence for recurring trade-offs instead of as isolated catalogs of methods, benchmarks, or applications {cite_48_54}."
-  ],
+  "hook_banks": {
+    "introduction": {
+      "motivation": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "{goal} now spans a wider range of tasks, embodiments, and evaluation settings than early summaries suggested.",
+          "Recent work on {goal} asks systems to operate across heterogeneous tasks, embodiments, and deployment conditions that do not line up as neatly as the shared labels imply."
+        ],
+        "pressure": [
+          "Closely related results frequently shift the task definition, sensor access, or deployment constraint that gives a reported gain its meaning.",
+          "Apparent agreement in vocabulary often hides changes in embodiment, control interface, or benchmark scope that materially alter interpretation."
+        ],
+        "stakes": [
+          "Any synthesis that ignores those differences risks turning protocol mismatch into a false methodological ranking {cite}.",
+          "The harder problem is not naming the field but deciding which results remain comparable once those conditions shift {cite}."
+        ]
+      },
+      "comparison_pressure": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "The strongest disagreements in {goal} rarely come from a single mechanism alone.",
+          "Reported gains in {goal} often move together with the setup that produced them rather than with one isolated design label."
+        ],
+        "pressure": [
+          "They usually follow changes in task horizon, evaluation budget, embodiment realism, or baseline selection that make direct comparison less stable than the headlines suggest.",
+          "They instead track changes in metric choice, training regime, and environment assumptions that quietly alter what a result can legitimately be taken to show."
+        ],
+        "stakes": [
+          "That is why the introduction starts from the conditions under which reported gains remain comparable, rather than from another flat inventory of methods {cite}.",
+          "The introduction therefore asks which differences actually change the meaning of a reported gain, instead of rehearsing another catalog of architectures or benchmarks {cite}."
+        ]
+      },
+      "lens_commitment": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Across that literature, the same comparison problem keeps returning in different guises: {comparison_summary}.",
+          "The field keeps revisiting a linked set of questions about {comparison_summary}, even when papers adopt different labels."
+        ],
+        "pressure": [
+          "Those questions are narrow enough to compare across papers yet broad enough to show when nominally similar systems are succeeding under different assumptions.",
+          "They are more stable than method names alone because they keep the comparison attached to the mechanism, protocol, and limitation evidence that travel with each claim."
+        ],
+        "stakes": [
+          "The point is not to flatten the field into one taxonomy, but to keep {comparison_summary} visible at the same time {cite}.",
+          "Taken together, those questions keep {comparison_summary} interpretable within one argument rather than scattering them into disconnected local summaries {cite}."
+        ]
+      },
+      "boundary": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "The boundary here is comparative rather than encyclopedic.",
+          "The scope is intentionally defined by comparison value rather than by exhaustive topic coverage."
+        ],
+        "pressure": [
+          "The focus stays on work around {theme_summary}, because those are the places where design choices most clearly change how evidence should be read across papers.",
+          "It concentrates on {theme_summary}, where neighboring results most often stop being interchangeable once embodiment, data, or deployment assumptions are made explicit."
+        ],
+        "stakes": [
+          "That boundary keeps the paper close to interpretation and away from a surface-level roll call of everything adjacent to the field {cite}.",
+          "The result is a scope that privileges decision-relevant contrasts over breadth for its own sake {cite}."
+        ]
+      },
+      "chapter_map": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Those comparison pressures recur across {theme_summary}.",
+          "The same interpretive problem returns in work on {theme_summary}."
+        ],
+        "pressure": [
+          "Seen together, those chapters show how changes in problem setup, model design, data, and evaluation keep reshaping one another rather than forming isolated literatures.",
+          "Read across the paper, those literatures keep exposing the same dependence between technical choices and the conditions under which their evidence remains meaningful."
+        ],
+        "stakes": [
+          "That continuity lets later sections stay with substantive contrasts instead of re-establishing the same frame each time {cite}.",
+          "It also keeps chapter transitions tied to evidence-bearing disagreements rather than to a bare taxonomy hand-off {cite}."
+        ]
+      },
+      "methodology_note": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "The survey draws on {candidate_pool} and narrows that pool to {core_set_size} under {evidence_mode}.",
+          "The comparative base comes from {candidate_pool}, refined into {core_set_size} under {evidence_mode}."
+        ],
+        "pressure": [
+          "The synthesis uses {time_window} as its retrieval window, so later comparisons inherit a visible scope boundary instead of an implied one.",
+          "The retrieval window is {time_window}, which matters because claims later in the paper are only as comparable as the evidence boundary that produced them."
+        ],
+        "stakes": [
+          "That boundary matters because later claims should be read against the evidence window that produced them, not against an implied exhaustive history {cite}.",
+          "Making the evidence boundary explicit keeps later chapters focused on technical differences the cited record can actually support {cite}."
+        ]
+      },
+      "reader_contract": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Within that frame, stronger claims are reserved for papers that make task, metric, and constraint choices explicit.",
+          "Protocol detail is treated as part of the result rather than as background decoration."
+        ],
+        "pressure": [
+          "Where evidence is thinner or more heterogeneous, the synthesis uses those papers to mark boundary conditions, missing controls, or unresolved trade-offs instead of forcing a sharp ranking.",
+          "Where protocols diverge too sharply, the paper uses the citations to delimit the comparison rather than to manufacture a false consensus."
+        ],
+        "stakes": [
+          "That reading discipline keeps the later writing conservative without making every subsection repeat the same disclaimer logic {cite}.",
+          "The practical consequence is a stricter distinction between stable evidence and suggestive but not yet decisive comparisons {cite}."
+        ]
+      },
+      "closing_bridge": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Read with that lens, later chapters can compare {goal} without detaching design claims from the conditions that give them meaning.",
+          "With that frame in place, the rest of the paper can follow linked technical pressures instead of slipping back into chapter-sized inventories."
+        ],
+        "pressure": [
+          "What matters next is how each chapter changes the interpretation of the others, especially when task setup, architecture, data, and deployment evidence stop lining up cleanly.",
+          "The useful question from this point onward is not which label sounds strongest in isolation, but which design choices keep their meaning once the same evidence discipline is applied across chapters."
+        ],
+        "stakes": [
+          "That perspective lets the body ask which claims remain stable under the same evidence discipline instead of merely renaming method families {cite}.",
+          "It is also what allows the later chapters to accumulate as one argument rather than as a stack of local summaries {cite}."
+        ]
+      }
+    },
+    "related_work": {
+      "opening": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Survey work on {goal} already provides useful maps of tasks, benchmarks, and application settings.",
+          "The field around {goal} is already well served by reviews that clarify local vocabularies, benchmark choices, and subarea boundaries."
+        ],
+        "pressure": [
+          "The difficulty is that many of those reviews mix taxonomies, benchmark catalogs, and application snapshots without holding the same comparison lens across them.",
+          "What is still unstable is less the existence of prior overviews than the fact that many of them combine orientation, benchmarking, and application framing in ways that make cross-paper comparison drift."
+        ],
+        "stakes": [
+          "Related work matters here because it shows which parts of the field are already well described and which still resist clean comparison {cite}.",
+          "The key question is therefore not whether prior surveys exist, but which comparisons they actually stabilize once their assumptions are unpacked {cite}."
+        ]
+      },
+      "chapter_positioning": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Work on {chapter_theme} is especially useful when it clarifies local task definitions, interfaces, and evaluation habits.",
+          "Surveys of {chapter_theme} help most when they sharpen the field's language for local mechanisms and comparison targets."
+        ],
+        "pressure": [
+          "Those papers clarify representative tasks, systems, and local terminology, yet they often stop short of keeping {chapter_key_contrast} on a common comparison scale with the rest of the field.",
+          "That literature is useful for orientation, yet it usually inherits the assumptions of its local subfield rather than re-reading {chapter_key_contrast} against neighboring evidence."
+        ],
+        "stakes": [
+          "The result is helpful local coverage without a stable basis for synthesis across neighboring parts of the field {cite}.",
+          "Those reviews provide indispensable local structure, but they do not by themselves settle how the evidence should transfer beyond that chapter-sized lens {cite}."
+        ]
+      },
+      "evaluation_calibration": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Benchmark- and evaluation-centered papers contribute a different kind of related work.",
+          "A second, especially important, cluster of related work centers evaluation rather than method branding."
+        ],
+        "pressure": [
+          "They expose metric choice, task coverage, and reproducibility as substantive methodological decisions, which is often exactly where apparent disagreements between methods become interpretable.",
+          "Their main contribution is to show that protocol design, benchmark scope, and reporting discipline can matter as much as the nominal architecture being compared."
+        ],
+        "stakes": [
+          "That calibration role is essential because many cross-paper conflicts narrow once those protocol choices are stated explicitly {cite}.",
+          "In practice, those papers are useful less as another category label and more as calibration for what a fair comparison can mean {cite}."
+        ]
+      },
+      "coverage_positioning": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Other reviews are most helpful for scope boundaries, terminology, and historical positioning.",
+          "A different family of prior work matters mainly because it fixes vocabulary and field boundaries."
+        ],
+        "pressure": [
+          "They explain what belongs inside {goal}, which neighboring topics should remain secondary, and which empirical traditions the current literature inherits.",
+          "That role is valuable even when those papers are not themselves designed for head-to-head empirical comparison."
+        ],
+        "stakes": [
+          "The contribution here is therefore to keep that scope-setting value while refusing to inherit their organization uncritically {cite}.",
+          "Those papers set useful boundaries, but they still leave open how to compare evidence that travels across multiple subareas at once {cite}."
+        ]
+      },
+      "gap_statement": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "The unresolved problem is not naming one more family of systems.",
+          "What remains under-specified across these strands is how to compare evidence rather than how to enumerate topics."
+        ],
+        "pressure": [
+          "The unresolved issue is how to keep mechanism, protocol, and limitation evidence visible at the same time when papers move across embodiments, datasets, and deployment assumptions.",
+          "Existing reviews often settle one of those dimensions well while letting the others recede into background assumptions."
+        ],
+        "stakes": [
+          "That gap matters because it changes whether later claims read as cumulative evidence or as parallel local stories {cite}.",
+          "Without that joint frame, the literature drifts back toward inventories even when the cited evidence is rich enough to support stronger synthesis {cite}."
+        ]
+      },
+      "wedge": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Used carefully, prior surveys become calibration points for recurring trade-offs and boundary conditions.",
+          "The value of prior surveys here is less as inherited structure than as evidence about what the field already treats as settled or unstable."
+        ],
+        "pressure": [
+          "They are useful where they reveal genuine convergence, where they quietly rely on different assumptions, and where the literature is still too heterogeneous for a stable ranking.",
+          "That stance keeps related work in a positioning role rather than turning it into a surrogate table of contents."
+        ],
+        "stakes": [
+          "It also keeps the body from inheriting whichever prior review happened to be easiest to imitate {cite}.",
+          "The benefit is a related-work section that positions the reader before the comparisons begin instead of pre-writing the argument for them {cite}."
+        ]
+      },
+      "survey_role": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "Prior surveys mainly contribute scope boundaries, naming discipline, and a record of which trade-offs the field already foregrounds.",
+          "Read this way, prior surveys contribute scope boundaries, naming discipline, and recurring trade-offs worth preserving."
+        ],
+        "pressure": [
+          "What they do not provide by default is a shared evidential frame for judging results that move across {comparison_summary}.",
+          "They remain strongest as orientation tools unless a later synthesis rebinds their insights to a common evidence base."
+        ],
+        "stakes": [
+          "That distinction is what allows related work to stay useful without taking over the argumentative structure of the paper {cite}.",
+          "It lets related work fix scope and vocabulary without predetermining the argumentative order of the paper {cite}."
+        ]
+      },
+      "closing_bridge": {
+        "part_order": ["opener", "pressure", "stakes"],
+        "opener": [
+          "With that background established, the body can compare results across those parts of the field without inheriting any one review's structure.",
+          "That reading of related work clears space for the main chapters to compare evidence across those parts of the field without collapsing them into one nominal method family."
+        ],
+        "pressure": [
+          "The reader enters the body with a map of where prior work already stabilizes interpretation and where the synthesis still has to do comparative work itself.",
+          "From that point on, the paper can shift from positioning to evidence-bearing comparison without repeating another taxonomy hand-off."
+        ],
+        "stakes": [
+          "Related work succeeds here only if it sharpens the later comparative discipline instead of duplicating the body chapters {cite}.",
+          "That is what keeps the rest of the survey paper-like rather than list-like even when adjacent reviews are already abundant {cite}."
+        ]
+      }
+    }
+  },
   "abstract_sentences": [
-    "Recent research on {goal} now spans multiple methodological families, design paradigms, and evaluation settings, yet those threads are still often compared under mismatched protocols {cite_0_6}.",
-    "This survey organizes the field around core mechanisms, design assumptions, efficiency trade-offs, and protocol-aware evaluation so that evidence from different approaches can be read on the same comparative scale {cite_6_12}.",
-    "Using {candidate_pool} and {evidence_note}, we synthesize how current approaches trade off effectiveness, efficiency, generality, reproducibility, and practical applicability across representative settings {cite_12_18}.",
-    "The central finding is that many reported gains depend as much on evaluation design and experimental assumptions as on the nominal methodology itself {cite_18_24}.",
-    "We conclude by identifying where current evidence is strongest, where protocol mismatch still obscures comparison, and which open questions should structure future work {cite_24_30}."
+    "Recent research on {goal} now spans multiple methodological families, task settings, and evaluation regimes, yet those threads are still often compared under mismatched protocols {cite_0_6}.",
+    "Across work on {theme_summary}, the same question keeps returning: which reported gains survive changes in setup, data, and evaluation practice {cite_6_12}.",
+    "Drawing on {candidate_pool} and {core_set_size}, the paper tracks how current approaches trade off effectiveness, generality, reproducibility, and deployment realism across representative settings {cite_12_18}.",
+    "A central finding is that many reported gains depend as much on evaluation design and experimental assumptions as on the nominal methodology itself {cite_18_24}.",
+    "The conclusion identifies where current evidence is strongest, where protocol mismatch still obscures comparison, and which open questions should structure future work {cite_24_30}."
   ],
   "discussion_paragraphs": [
     "Across current approaches, the strongest pattern is not a single winning method but a recurring dependence on how design choices and evaluation protocols interact {cite_0_4}.",

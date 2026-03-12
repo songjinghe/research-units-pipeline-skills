@@ -69,7 +69,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import (
@@ -155,24 +162,20 @@ def main() -> int:
 
         throughline: list[str] = []
         if axes:
-            for a in axes[:6]:
-                throughline.append(f"Compare approaches along: {a}.")
+            throughline.extend(axes[:6])
         else:
-            throughline.append("Define the chapter’s organizing comparisons (mechanism / evaluation / limitations).")
-
-        if goal:
-            throughline.insert(0, f"Pin scope to goal: {goal}.")
+            throughline.append("organizing comparison: mechanism, protocol, and limitations")
 
         key_contrasts = [c for c in contrast_hooks if c]
         if not key_contrasts:
-            key_contrasts = ["Pick 2–4 cross-subsection contrasts (A vs B) grounded in mapped papers."]
+            key_contrasts = ["cross-subsection contrast grounded in mapped papers"]
 
         synthesis_mode, synthesis_preview = _choose_synthesis_mode(sec_id=sec_id, sec_title=sec_title, axes=axes)
 
         lead_plan = [
-            "Para 1: state the chapter’s role and the decision-relevant comparison axes (no new facts).",
-            "Para 2: preview the H3 subsections and how they decompose the chapter question.",
-            "Para 3 (optional): highlight evaluation anchors + recurrent limitations that will recur across H3s.",
+            "chapter problem + decision-relevant comparison frame",
+            "subsection map + chapter question decomposition",
+            "evaluation anchors + recurrent limitations",
         ]
 
         records.append(

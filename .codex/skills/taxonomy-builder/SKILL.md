@@ -29,6 +29,7 @@ P0 compatibility note:
 Current compatibility packs:
 - `llm_agents`
 - `gen_image`
+- `embodied_ai`
 
 ## Inputs
 

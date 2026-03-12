@@ -10,6 +10,8 @@ from tooling.common import (
     atomic_write_text,
     decisions_has_approval,
     ensure_dir,
+    latest_outline_state,
+    load_workspace_pipeline_spec,
     now_iso_seconds,
     parse_semicolon_list,
     set_decisions_approval,
@@ -23,6 +25,50 @@ class RunResult:
     unit_id: str | None
     status: str
     message: str
+
+
+def _section_first_cutover_block_message(*, workspace: Path, outputs: list[str]) -> str | None:
+    spec = load_workspace_pipeline_spec(workspace)
+    if spec is None or str(spec.structure_mode or "").strip().lower() != "section_first":
+        return None
+    if "outline/outline_state.jsonl" not in outputs:
+        return None
+
+    latest = latest_outline_state(workspace)
+    if not latest:
+        return "Section-first cutover is not actionable yet: `outline/outline_state.jsonl` is missing or empty. Rerun `outline-refiner` after fixing the chapter/section layer."
+
+    structure_phase = str(latest.get("structure_phase") or "").strip()
+    h3_status = str(latest.get("h3_status") or "").strip().lower()
+    reroute_target = str(latest.get("reroute_target") or "").strip()
+    retry_budget = str(latest.get("retry_budget_remaining") or "").strip()
+    reroute_reason = str(latest.get("reroute_reason") or "").strip()
+
+    if structure_phase.lower() == "decomposed" and h3_status == "stable":
+        return None
+
+    missing: list[str] = []
+    for key in ("structure_phase", "h3_status", "approval_status", "reroute_target", "retry_budget_remaining"):
+        if key not in latest:
+            missing.append(key)
+            continue
+        if key in {"structure_phase", "h3_status"} and not str(latest.get(key) or "").strip():
+            missing.append(key)
+    if missing:
+        return (
+            "Section-first cutover cannot advance because the latest `outline_state.jsonl` record is missing "
+            f"required fields: {', '.join(missing)}."
+        )
+
+    reroute_label = reroute_target or "unknown"
+    retry_label = retry_budget or "unknown"
+    reason_suffix = f" Reason: {reroute_reason}." if reroute_reason else ""
+    return (
+        "Section-first cutover is still blocked; "
+        f"latest outline state has structure_phase={structure_phase or 'missing'}, "
+        f"h3_status={h3_status or 'missing'}, reroute_target={reroute_label}, "
+        f"retry_budget_remaining={retry_label}.{reason_suffix} Fix the reroute target explicitly, then rerun this unit."
+    )
 
 
 def _append_run_error(*, workspace: Path, unit_id: str, skill: str, kind: str, message: str, log_rel: str | None) -> None:
@@ -205,11 +251,28 @@ def run_one_unit(
                 rel_report = str((workspace / "output" / "QUALITY_GATE.md").relative_to(workspace))
                 update_status_log(status_path, f"{now_iso_seconds()} {unit_id} BLOCKED (quality gate: {rel_report})")
                 _refresh_status_checkpoint(status_path, table)
+                reroute_hint = _reroute_hint(workspace)
                 return RunResult(
                     unit_id=unit_id,
                     status="BLOCKED",
-                    message=f"Quality gate failed; see {rel_report}",
+                    message=f"Quality gate failed; see {rel_report}" + (f"; {reroute_hint}" if reroute_hint else ""),
                 )
+
+        cutover_block = _section_first_cutover_block_message(workspace=workspace, outputs=outputs)
+        if cutover_block:
+            row["status"] = "BLOCKED"
+            table.save(units_path)
+            update_status_log(status_path, f"{now_iso_seconds()} {unit_id} BLOCKED (section-first cutover)")
+            _append_run_error(
+                workspace=workspace,
+                unit_id=unit_id,
+                skill=skill,
+                kind="section_first_cutover",
+                message=cutover_block,
+                log_rel=log_rel if log_path.exists() else None,
+            )
+            _refresh_status_checkpoint(status_path, table)
+            return RunResult(unit_id=unit_id, status="BLOCKED", message=cutover_block)
 
         row["status"] = "DONE"
         table.save(units_path)
@@ -284,3 +347,36 @@ def _strip_optional_marker(relpath: str) -> str:
     if relpath.startswith("?"):
         return relpath[1:].strip()
     return relpath
+
+
+def _reroute_hint(workspace: Path) -> str:
+    path = workspace / "output" / "REROUTE_STATE.json"
+    if not path.exists() or path.stat().st_size <= 0:
+        return ""
+    try:
+        import json
+
+        data = json.loads(path.read_text(encoding="utf-8", errors="ignore") or "{}")
+    except Exception:
+        return ""
+    if not isinstance(data, dict):
+        return ""
+    target = str(data.get("reroute_target") or "").strip()
+    status = str(data.get("status") or "").strip()
+    phase = str(data.get("structure_phase") or "").strip()
+    h3 = str(data.get("h3_status") or "").strip()
+    reason = str(data.get("reroute_reason") or "").strip()
+    if not any([target, status, phase, h3]):
+        return ""
+    parts = []
+    if status:
+        parts.append(f"reroute_status={status}")
+    if target:
+        parts.append(f"reroute_target={target}")
+    if phase:
+        parts.append(f"structure_phase={phase}")
+    if h3:
+        parts.append(f"h3_status={h3}")
+    if reason:
+        parts.append(f"reason={reason}")
+    return ", ".join(parts)

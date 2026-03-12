@@ -2,21 +2,9 @@ profile: gen_image
 display_name: Generative image models
 compatibility_mode: p0
 detect:
-  any_of:
-    - diffusion
-    - text-to-image
-    - text to image
-    - image generation
-    - stable diffusion
-    - sdxl
-    - dit
-    - pixart
-    - imagen
-    - maskgit
-    - vqgan
-    - vqvae
-    - gan
-    - autoregressive
+  all_of_groups:
+    - [image, images, text-to-image, text to image, image generation, inpainting, editing, personalization, stable diffusion, sdxl]
+    - [diffusion, generation, generative, dit, maskgit, vqgan, vqvae, gan, autoregressive, latent]
 representative_papers:
   top_level_max: 4
   suffix_template: " Representative paper_id(s): {paper_ids}."

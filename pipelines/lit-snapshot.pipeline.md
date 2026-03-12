@@ -2,6 +2,8 @@
 name: lit-snapshot
 version: 2.3
 profile: lit-snapshot
+routing_hints: [snapshot, 快照, one-page, one page, 48h]
+routing_priority: 30
 target_artifacts:
   - STATUS.md
   - UNITS.csv

@@ -8,7 +8,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from tooling.common import atomic_write_text, copy_tree, today_iso
+from tooling.common import atomic_write_text, copy_tree, resolve_pipeline_spec_path, today_iso
 from tooling.executor import run_one_unit
 from tooling.pipeline_spec import PipelineSpec
 
@@ -184,6 +184,7 @@ def main() -> int:
 
         print(f"Workspace ready: {workspace}")
         if args.run:
+            last_result = None
             for _ in range(int(args.max_steps)):
                 result = run_one_unit(
                     workspace=workspace,
@@ -191,10 +192,11 @@ def main() -> int:
                     strict=bool(args.strict),
                     auto_approve=set(args.auto_approve or []),
                 )
+                last_result = result
                 print(f"{result.status}: {result.unit_id or '-'} {result.message}")
                 if result.status != "DONE":
                     break
-            return 0
+            return 0 if last_result is None or last_result.status in {"DONE", "IDLE"} else 2
 
         print("Next: run `python scripts/pipeline.py run --workspace <ws>` (it will pause if a HUMAN approval is required)")
         return 0
@@ -212,6 +214,7 @@ def main() -> int:
 
     if args.cmd == "run":
         workspace = Path(args.workspace).resolve()
+        last_result = None
         for _ in range(int(args.max_steps)):
             result = run_one_unit(
                 workspace=workspace,
@@ -219,10 +222,11 @@ def main() -> int:
                 strict=bool(args.strict),
                 auto_approve=set(args.auto_approve or []),
             )
+            last_result = result
             print(f"{result.status}: {result.unit_id or '-'} {result.message}")
             if result.status != "DONE":
                 break
-        return 0
+        return 0 if last_result is None or last_result.status in {"DONE", "IDLE"} else 2
 
     if args.cmd == "approve":
         workspace = Path(args.workspace).resolve()
@@ -274,17 +278,9 @@ def main() -> int:
 def _resolve_pipeline_path(repo_root: Path, pipeline: str) -> Path:
     # Active contract is `idea-brainstorm`; `idea-finder` is retained only as a legacy compatibility shim.
     normalized = _normalize_pipeline_name(pipeline)
-    candidate = Path(normalized)
-    if candidate.exists():
-        return candidate.resolve()
-    name = normalized
-    if name.endswith(".pipeline.md"):
-        filename = name
-    else:
-        filename = f"{name}.pipeline.md"
-    path = repo_root / "pipelines" / filename
-    if not path.exists():
-        raise SystemExit(f"Pipeline not found: {path}")
+    path = resolve_pipeline_spec_path(repo_root=repo_root, pipeline_value=normalized)
+    if path is None:
+        raise SystemExit(f"Pipeline not found: {normalized}")
     return path
 
 
@@ -309,27 +305,34 @@ def _slugify(text: str) -> str:
 
 
 def _auto_pick_pipeline(topic: str) -> str:
-    t = topic.lower()
-    if (
-        "idea" in t
-        or "ideation" in t
-        or "brainstorm" in t
-        or ("点子" in topic)
-        or ("选题" in topic)
-        or ("找方向" in topic)
-        or ("找 idea" in t)
-    ):
-        return "idea-brainstorm"
-    if "systematic" in t or "prisma" in t or "系统综述" in topic:
-        return "systematic-review"
-    if "tutorial" in t or "教程" in topic:
-        return "tutorial"
-    if "peer review" in t or "审稿" in topic or "review report" in t:
-        return "peer-review"
-    if "snapshot" in t or "快照" in topic:
-        return "lit-snapshot"
-    if "latex" in t or "pdf" in t or "paper" in t or ("论文" in topic) or ("可编译" in topic) or ("编译" in topic):
-        return "arxiv-survey-latex"
+    topic_low = topic.lower()
+    specs: list[PipelineSpec] = []
+    for path in sorted((REPO_ROOT / "pipelines").glob("*.pipeline.md")):
+        try:
+            specs.append(PipelineSpec.load(path))
+        except Exception:
+            continue
+
+    scored: list[tuple[float, int, str]] = []
+    for spec in specs:
+        score = 0.0
+        for hint in spec.routing_hints:
+            hint_low = hint.lower()
+            if hint_low and hint_low in topic_low:
+                score += max(1.0, len(hint_low.split()))
+        if score > 0:
+            scored.append((score, int(spec.routing_priority), spec.name))
+
+    if scored:
+        scored.sort(key=lambda item: (-item[0], -item[1], item[2]))
+        return scored[0][2]
+
+    defaults = sorted(
+        [(int(spec.routing_priority), spec.name) for spec in specs if spec.routing_default],
+        key=lambda item: (-item[0], item[1]),
+    )
+    if defaults:
+        return defaults[0][1]
     return "arxiv-survey"
 
 

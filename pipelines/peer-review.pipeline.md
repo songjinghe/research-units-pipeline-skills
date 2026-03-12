@@ -2,6 +2,8 @@
 name: peer-review
 version: 2.3
 profile: peer-review
+routing_hints: [peer review, review report, referee, 审稿]
+routing_priority: 30
 target_artifacts:
   - STATUS.md
   - UNITS.csv

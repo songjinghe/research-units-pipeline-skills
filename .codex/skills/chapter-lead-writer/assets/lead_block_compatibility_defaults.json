@@ -6,22 +6,24 @@
     "contrast_items": 3,
     "subsection_preview_items": 3
   },
-  "joiners": {
-    "throughline": "; ",
-    "contrasts": ", ",
-    "subsection_preview": ", "
-  },
   "fallbacks": {
     "section_title": "chapter {section_id}",
-    "comparison_problem": "adjacent subsections resolving the same system tension",
+    "comparison_problem": "the comparison pressure that the subsections keep reopening",
     "recurring_contrasts": "protocol assumptions, resource constraints, and evaluation scope",
     "subsection_preview": "the chapter subsections"
   },
   "templates": {
     "lens-first": {
-      "paragraph_1": "What holds {section_title} together is a shared comparison problem: {comparison_problem}{citation}.",
-      "paragraph_2": "Across {subsection_preview}, the recurring contrasts are {recurring_contrasts}, so each subsection sharpens a different part of the same argument{citation}.",
-      "paragraph_3": "That progression moves from {lead_start} toward {lead_end}, keeping the chapter comparative without collapsing distinct design choices into a single architecture label{citation}."
+      "paragraph_1": [
+        "In {section_title}, the central question is how {comparison_problem} change the meaning of reported progress{citation}.",
+        "{section_title} is where differences in {comparison_problem} stop looking like implementation detail and start changing what the evidence can support{citation}.",
+        "The core issue in {section_title} is not breadth alone, but how {comparison_problem} reshape what counts as a fair comparison{citation}."
+      ],
+      "paragraph_2": [
+        "{subsection_preview} each expose that pressure from a different angle, showing why {recurring_contrasts} cannot be treated as interchangeable background choices{citation}.",
+        "Across {subsection_preview}, the same problem keeps returning: {recurring_contrasts} alter the interpretation of otherwise similar results{citation}.",
+        "Taken together, {subsection_preview} show where {recurring_contrasts} become substantive constraints rather than secondary implementation detail{citation}."
+      ]
     }
   }
 }

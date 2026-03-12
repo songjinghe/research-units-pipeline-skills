@@ -17,6 +17,10 @@ TEMPLATES_DIR = REPO_ROOT / "templates"
 SKILLS_DIR = REPO_ROOT / ".codex" / "skills"
 DOCS_DIR = REPO_ROOT / "docs"
 
+sys.path.insert(0, str(REPO_ROOT))
+
+from tooling.pipeline_spec import PipelineSpec
+
 REQUIRED_UNITS_COLS = {
     "unit_id",
     "title",
@@ -86,10 +90,11 @@ def _validate_pipeline(path: Path) -> list[Finding]:
     findings: list[Finding] = []
     try:
         fm, body = _split_frontmatter(path.read_text(encoding="utf-8"))
+        spec = PipelineSpec.load(path)
     except Exception as exc:
         return [Finding("ERROR", f"{path}: {exc}")]
 
-    units_template = str(fm.get("units_template") or "").strip()
+    units_template = str(spec.units_template or "").strip()
     if not units_template:
         findings.append(Finding("ERROR", f"{path}: missing `units_template` in YAML front matter."))
         return findings
@@ -99,12 +104,13 @@ def _validate_pipeline(path: Path) -> list[Finding]:
         findings.append(Finding("ERROR", f"{path}: units template not found: `{units_template}`."))
         return findings
 
-    target_artifacts = fm.get("target_artifacts") or []
-    if target_artifacts and not isinstance(target_artifacts, list):
-        findings.append(Finding("WARN", f"{path}: `target_artifacts` should be a YAML list."))
-        target_artifacts = []
+    target_artifacts = list(spec.target_artifacts)
 
-    required_skills = _parse_required_skills(body)
+    findings.extend(_validate_machine_readable_contract(path=path, fm=fm, spec=spec))
+
+    required_skills = _required_skills_from_spec(spec)
+    if not required_skills:
+        required_skills = _parse_required_skills(body)
 
     template_skills: set[str] = set()
     template_outputs: set[str] = set()
@@ -183,6 +189,125 @@ def _validate_pipeline(path: Path) -> list[Finding]:
         )
 
     return findings
+
+
+def _validate_machine_readable_contract(*, path: Path, fm: dict[str, Any], spec: PipelineSpec) -> list[Finding]:
+    findings: list[Finding] = []
+    contract_model = str(spec.contract_model or "").strip()
+    if not contract_model:
+        return findings
+
+    if contract_model != "pipeline.frontmatter/v1":
+        findings.append(Finding("ERROR", f"{path.name}: unsupported `contract_model`: `{contract_model}`"))
+
+    if not spec.stages:
+        findings.append(Finding("ERROR", f"{path.name}: `contract_model` is set but `stages` is missing/empty."))
+        return findings
+
+    stage_ids = tuple(spec.stages.keys())
+    if stage_ids != spec.default_checkpoints:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"{path.name}: `default_checkpoints` must match `stages` order exactly "
+                f"({list(spec.default_checkpoints)} != {list(stage_ids)})",
+            )
+        )
+
+    stage_outputs: set[str] = set()
+    for stage_id, stage in spec.stages.items():
+        if not re.match(r"^C[0-9]+$", stage_id):
+            findings.append(Finding("ERROR", f"{path.name}: invalid stage id `{stage_id}` (expected `C<number>`)."))
+        if stage.mode not in {"no_prose", "short_prose_ok", "prose_allowed"}:
+            findings.append(Finding("ERROR", f"{path.name}: `stages.{stage_id}.mode` must be one of `no_prose|short_prose_ok|prose_allowed`."))
+        if not stage.required_skills:
+            findings.append(Finding("ERROR", f"{path.name}: `stages.{stage_id}.required_skills` must be non-empty."))
+        if not stage.produces:
+            findings.append(Finding("ERROR", f"{path.name}: `stages.{stage_id}.produces` must be non-empty."))
+        stage_outputs.update(stage.produces)
+        if stage.human_checkpoint:
+            write_to = str(stage.human_checkpoint.get("write_to") or "").strip()
+            approve = str(stage.human_checkpoint.get("approve") or stage.human_checkpoint.get("question") or "").strip()
+            if not approve:
+                findings.append(Finding("ERROR", f"{path.name}: `stages.{stage_id}.human_checkpoint` is missing `approve`/`question`."))
+            if write_to != "DECISIONS.md":
+                findings.append(Finding("ERROR", f"{path.name}: `stages.{stage_id}.human_checkpoint.write_to` must be `DECISIONS.md`."))
+
+    if spec.query_defaults and not spec.overridable_query_fields:
+        findings.append(Finding("WARN", f"{path.name}: `query_defaults` is present but `overridable_query_fields` is empty."))
+
+    if spec.variant_of and not spec.variant_overrides:
+        findings.append(Finding("ERROR", f"{path.name}: `variant_of` requires a non-empty `variant_overrides` mapping."))
+    if spec.variant_of:
+        allowed_raw_keys = {"name", "version", "variant_of", "variant_overrides"}
+        extra_raw_keys = sorted(set(fm.keys()) - allowed_raw_keys)
+        if extra_raw_keys:
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"{path.name}: variant files may only keep top-level keys "
+                    f"`name`, `version`, `variant_of`, `variant_overrides`; move others under `variant_overrides`: "
+                    f"{', '.join(extra_raw_keys)}",
+                )
+            )
+
+    uncovered_targets = sorted(set(spec.target_artifacts) - stage_outputs)
+    if uncovered_targets:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"{path.name}: `target_artifacts` not covered by any stage `produces`: {', '.join(uncovered_targets)}",
+            )
+        )
+
+    structure_mode = str(spec.structure_mode or "").strip()
+    if structure_mode == "section_first":
+        expected_layers = {"chapter_skeleton", "section_bindings", "section_briefs", "subsection_mapping"}
+        binding_layers = set(spec.binding_layers)
+        missing_layers = sorted(expected_layers - binding_layers)
+        if missing_layers:
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"{path.name}: `structure_mode: section_first` is missing required `binding_layers`: {', '.join(missing_layers)}",
+                )
+            )
+        if int(spec.core_chapter_h3_target or 0) <= 0:
+            findings.append(Finding("ERROR", f"{path.name}: `structure_mode: section_first` requires positive `core_chapter_h3_target`."))
+        shell = spec.pre_retrieval_shell
+        if not shell:
+            findings.append(Finding("ERROR", f"{path.name}: `structure_mode: section_first` requires `pre_retrieval_shell`."))
+        else:
+            allowed_h2 = shell.get("allowed_h2")
+            if not isinstance(allowed_h2, list) or not [x for x in allowed_h2 if str(x).strip()]:
+                findings.append(Finding("ERROR", f"{path.name}: `pre_retrieval_shell.allowed_h2` must be a non-empty list."))
+            if "approval_surface" not in shell:
+                findings.append(Finding("ERROR", f"{path.name}: `pre_retrieval_shell` must declare `approval_surface`."))
+        required_artifacts = {
+            "outline/chapter_skeleton.yml",
+            "outline/section_bindings.jsonl",
+            "outline/section_binding_report.md",
+            "outline/section_briefs.jsonl",
+            "outline/outline.yml",
+            "outline/outline_state.jsonl",
+        }
+        missing = sorted(required_artifacts - set(spec.target_artifacts))
+        if missing:
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"{path.name}: `structure_mode: section_first` is missing required target artifacts: {', '.join(missing)}",
+                )
+            )
+
+    return findings
+
+
+def _required_skills_from_spec(spec: PipelineSpec) -> set[str]:
+    skills: set[str] = set()
+    for stage in spec.stages.values():
+        skills.update(stage.required_skills)
+    return skills
 
 
 def _validate_claude_skills() -> list[Finding]:

@@ -34,7 +34,7 @@ def _read_ids(path: Path) -> list[str]:
 
 
 def _fetch_arxiv_meta(arxiv_id: str) -> dict[str, Any]:
-    url = f"http://export.arxiv.org/api/query?id_list={arxiv_id}"
+    url = f"https://export.arxiv.org/api/query?id_list={arxiv_id}"
     req = urllib.request.Request(url, headers={"User-Agent": "codex-agent-survey-corpus/1.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = resp.read()

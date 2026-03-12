@@ -2,6 +2,8 @@
 name: tutorial
 version: 2.3
 profile: tutorial
+routing_hints: [tutorial, 教程]
+routing_priority: 30
 target_artifacts:
   - STATUS.md
   - UNITS.csv

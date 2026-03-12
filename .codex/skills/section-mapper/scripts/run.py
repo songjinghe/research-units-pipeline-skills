@@ -35,7 +35,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import load_yaml, normalize_title_for_dedupe, parse_semicolon_list, read_jsonl, tokenize, write_tsv
@@ -458,9 +465,8 @@ def _per_subsection_from_queries(path: Path) -> int:
 
 
 def _default_per_subsection_for_workspace(workspace: Path) -> int:
-    repo_root = Path(__file__).resolve().parents[4]
-    import sys; sys.path.insert(0, str(repo_root))
     from tooling.common import pipeline_profile
+
     profile = pipeline_profile(workspace)
     if profile == "arxiv-survey":
         return 28

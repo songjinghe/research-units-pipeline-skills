@@ -114,7 +114,14 @@ def main() -> int:
     parser.add_argument("--checkpoint", default="")
     args = parser.parse_args()
 
-    repo_root = Path(__file__).resolve().parents[4]
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
     sys.path.insert(0, str(repo_root))
 
     from tooling.common import atomic_write_text, load_yaml, parse_semicolon_list, read_jsonl
@@ -366,6 +373,16 @@ def main() -> int:
         warn_at=3,
     )
     _add_family(
+        "mechanical transition ('reframes the same chapter question around …')",
+        r"(?i)\breframes\s+the\s+same\s+chapter\s+question\s+around\b",
+        warn_at=1,
+    )
+    _add_family(
+        "mechanical transition ('carries the discussion forward by focusing on …')",
+        r"(?i)\bcarries\s+the\s+discussion\s+forward\s+by\s+focusing\s+on\b",
+        warn_at=1,
+    )
+    _add_family(
         "pipeline voice ('this run')",
         r"(?i)\bthis\s+run\b",
         warn_at=1,
@@ -375,6 +392,16 @@ def main() -> int:
         "synthesis opener (Taken together, ...)",
         r"(?im)^taken together,",
         warn_at=4,
+    )
+    _add_family(
+        "bounded synthesis closer ('The safest synthesis ...' / 'That conclusion remains ...')",
+        r"(?im)^(?:the\s+safest\s+synthesis|the\s+safest\s+conclusion|that\s+conclusion\s+remains|that\s+conclusion\s+still)\b",
+        warn_at=3,
+    )
+    _add_family(
+        "decision-rule closer ('The practical decision rule is therefore ...')",
+        r"(?im)^the\s+(?:practical\s+)?decision\s+rule\s+is\s+therefore\b",
+        warn_at=3,
     )
     _add_family(
         "meta survey-guidance phrasing (survey ... should ...)",
@@ -415,7 +442,11 @@ def main() -> int:
     if draft_profile in {"survey", "deep"}:
         narr_n = family_counts.get("subsection narration ('This subsection …')", 0)
         nav_n = family_counts.get("PPT-like navigation ('We now turn to …' / 'In the next section …')", 0)
+        mech_reframe_n = family_counts.get("mechanical transition ('reframes the same chapter question around …')", 0)
+        mech_forward_n = family_counts.get("mechanical transition ('carries the discussion forward by focusing on …')", 0)
         taken_together_n = family_counts.get("synthesis opener (Taken together, ...)", 0)
+        bounded_synthesis_n = family_counts.get("bounded synthesis closer ('The safest synthesis ...' / 'That conclusion remains ...')", 0)
+        decision_rule_n = family_counts.get("decision-rule closer ('The practical decision rule is therefore ...')", 0)
         meta_guidance_n = family_counts.get("meta survey-guidance phrasing (survey ... should ...)", 0)
 
         if narr_n > 0:
@@ -426,6 +457,14 @@ def main() -> int:
             blocking.append(
                 f"slide-like navigation phrasing remains ({nav_n}×, e.g., 'We now turn to ...'); rewrite as argument bridges"
             )
+        if mech_reframe_n > 0:
+            blocking.append(
+                f"mechanical transition stem remains ({mech_reframe_n}×: 'reframes the same chapter question around ...'); remove injected transition boilerplate"
+            )
+        if mech_forward_n > 0:
+            blocking.append(
+                f"mechanical transition stem remains ({mech_forward_n}×: 'carries the discussion forward by focusing on ...'); remove injected transition boilerplate"
+            )
         if taken_together_n >= 2:
             blocking.append(
                 f"repeated synthesis stem 'Taken together,' ({taken_together_n}×); vary synthesis cadence across H3"
@@ -433,6 +472,14 @@ def main() -> int:
         if meta_guidance_n > 0:
             blocking.append(
                 f"meta guidance phrasing remains ({meta_guidance_n}×, e.g., 'survey ... should ...'); rewrite as literature-facing observations"
+            )
+        if bounded_synthesis_n >= 2:
+            blocking.append(
+                f"repeated bounded-synthesis closer remains ({bounded_synthesis_n}×: 'The safest synthesis ...' / 'That conclusion remains ...'); vary endings and keep them section-specific"
+            )
+        if decision_rule_n >= 2:
+            blocking.append(
+                f"repeated decision-rule closer remains ({decision_rule_n}×: '... decision rule is therefore ...'); vary subsection endings"
             )
         if rep_stems and rep_stems[0][1] >= 3:
             stem0, n0 = rep_stems[0]
@@ -456,6 +503,41 @@ def main() -> int:
             low_cite.append(f"{sid}({len(uniq)})")
     if low_cite:
         blocking.append(f"some H3 have <{min_h3_cites} unique citations: {', '.join(low_cite[:10])}")
+
+    closer_counts: dict[str, list[str]] = {}
+    fragmented_h3: list[str] = []
+    for sid, rec in found.items():
+        body = str(rec.get('body') or '')
+        paras = _split_paragraphs(body)
+        short_count = 0
+        for para in paras[1:]:
+            compact = re.sub(r"\[@[^\]]+\]", "", para)
+            compact = re.sub(r"\s+", " ", compact).strip()
+            if not compact:
+                continue
+            sent_n = len([s for s in re.split(r'(?<=[.!?])\s+', compact) if s.strip()])
+            if sent_n <= 1 or (sent_n <= 2 and len(compact) < 180):
+                short_count += 1
+        if short_count >= 4 or len(paras) > 14:
+            fragmented_h3.append(f"{sid}(short={short_count}, paras={len(paras)})")
+
+        for label, pat in [
+            ('The safest synthesis is therefore', re.compile(r'(?im)^the safest synthesis is therefore\b')),
+            ('That conclusion remains', re.compile(r'(?im)^that conclusion remains\b')),
+            ('That conclusion still', re.compile(r'(?im)^that conclusion still\b')),
+            ('The evidence therefore supports', re.compile(r'(?im)^the evidence therefore supports\b')),
+        ]:
+            if pat.search(body):
+                closer_counts.setdefault(label, []).append(sid)
+
+    repeated_closers = [(label, sorted(set(sids))) for label, sids in closer_counts.items() if len(set(sids)) >= 2]
+    repeated_closers.sort(key=lambda item: (-len(item[1]), item[0]))
+    for label, sids in repeated_closers:
+        blocking.append(f"repeated closing stem across H3s ({len(sids)}x): {label}")
+        template_family_details.append((f"repeated closing stem: {label}", len(sids), sids[:3]))
+
+    if fragmented_h3:
+        blocking.append(f"paragraph fragmentation remains in some H3: {', '.join(fragmented_h3[:10])}")
 
     # Global cite coverage (encourage using more of the bibliography, not just a small subset).
     if profile == "arxiv-survey" and expected:

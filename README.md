@@ -96,3 +96,7 @@ Legacy language-specific copies of the older survey-focused README still live un
 - `latex-survey` is the most complete writing pipeline in the repo and the main path when the deliverable is a survey paper or PDF.
 - `idea-brainstorm` is structured and executable, but optimized for discussion-ready idea memos rather than paper drafting.
 - `graduate-paper` now has a clearer pipeline design and a first batch of thesis-oriented skills, but it should currently be treated as a guided workflow framework rather than a fully automated thesis runner.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=WILLOSCAR/research-units-pipeline-skills&type=Date)](https://star-history.com/#WILLOSCAR/research-units-pipeline-skills&Date)

@@ -96,3 +96,7 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 - `latex-survey` 是当前最完整的写作 pipeline，也是需要综述或 PDF 交付时的主路径。
 - `idea-brainstorm` 已经结构化并可执行，但它面向的是讨论型 idea memo，不是论文草稿。
 - `graduate-paper` 现在已经有更清晰的 pipeline 设计和第一批 thesis skills，但目前更适合作为引导式工作流框架，而不是一键全自动毕业论文生成器。
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=WILLOSCAR/research-units-pipeline-skills&type=Date)](https://star-history.com/#WILLOSCAR/research-units-pipeline-skills&Date)

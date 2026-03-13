@@ -546,7 +546,6 @@ def _thesis_statement(
             title.lower(),
             (goal or "").lower(),
             " ".join([str(a or "").lower() for a in axes[:5]]),
-            " ".join([cluster_a.lower(), cluster_b.lower()]),
         ]
     )
 

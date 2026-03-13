@@ -406,7 +406,7 @@ def _render_job_graph(section_name: str, section_contract: dict[str, Any], hook_
         stride = max(1, int(spec.get('cite_stride') or width))
         if str(spec.get('repeat_from') or '').strip() == 'chapters':
             limit = max(0, int(spec.get('limit') or len(chapter_contexts)))
-            max_groups = 3 if section_name == 'related_work' else 2
+            max_groups = 4 if section_name == 'related_work' else 2
             grouped_chapters = _group_chapter_contexts(chapter_contexts[:limit], max_groups=max_groups)
             for chapter_index, chapter in enumerate(grouped_chapters):
                 local_values = dict(values)

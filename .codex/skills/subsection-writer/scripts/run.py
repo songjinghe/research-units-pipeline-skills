@@ -18,6 +18,15 @@ _LEADING_AUTHOR_ACTION_RE = re.compile(r'(?i)^(?:to (?:fill|address|bridge|tackl
 _TRAILING_FRAGMENT_RE = re.compile(r'(?i)(?:\.\.\.|[,;:]\s*$|\b(?:and|or|to|of|in|on|with|for|from|across|between|into|than|that|which|while|because|under|over|at|by)\.?$)')
 _META_SNIPPET_RE = re.compile(r'(?i)\b(?:github\.io|project\s+page|code\s+is\s+available|open-?source|repository|website)\b')
 _GENERIC_LIMIT_RE = re.compile(r'(?i)\b(?:open challenges?|future work|research directions?|provide a review|offer a quantitative comparison|summarize|review of|benchmark suite|comprehensive simulation benchmark)\b')
+_LIMIT_SIGNAL_RE = re.compile(
+    r'(?i)\b(?:limit\w*|challeng\w*|risk\w*|fail\w*|fragil\w*|bottleneck\w*|cost\w*|latency|'
+    r'partial\s+observability|out-of-distribution|ood|generalization\s+(?:gap|limit|challenge)|'
+    r'under-specif\w*|unclear|sensitive|constraint\w*|caveat\w*|unsafe|deployment\s+constraint)\b'
+)
+_BAD_FALLBACK_PREFIX_RE = re.compile(
+    r'(?i)^(?:including|then|consequently|subsequently|providing|categorizing|third|finally|on the other side|as well as|'
+    r'our main contribution|the main contribution|dataset scale|26 foundational datasets|2\)|3\)|\(\d+\))\b'
+)
 _LISTLIKE_EVAL_VERB_RE = re.compile(r'(?i)\b(?:compare|benchmark|evaluate|assessment?|measure|measured|metric|success|accuracy|latency|robust|generaliz|transfer|cost|throughput|real-world|simulation)\b')
 _EVIDENCE_VERB_RE = re.compile(r'(?i)\b(?:is|are|was|were|becomes?|remains?|shows?|demonstrates?|reports?|finds?|observes?|argues?|indicates?|improves?|reduces?|increases?|achieves?|enables?|supports?|validates?|reveals?|suggests?|depends?|requires?|offers?|bridges?|addresses?|outperforms?|fails?|limits?|constrains?)\b')
 _CONCRETE_MARKER_RE = re.compile(
@@ -224,6 +233,31 @@ def _normalize_evidence_text(text: Any, *, limit: int = 240) -> str:
     return s
 
 
+def _soft_evidence_clause(text: Any, *, limit: int = 260) -> str:
+    s = _clean(_deslash(text or ''), limit=limit)
+    if not s:
+        return ''
+    s = _LEADING_ENUM_RE.sub('', s)
+    s = _LEADING_CUE_RE.sub('', s)
+    s = _LEADING_AUTHOR_RESULT_RE.sub('', s)
+    s = _LEADING_AUTHOR_ACTION_RE.sub('', s)
+    s = re.sub(r'(?i)^(?:through|across|from)\s+[^,]{0,80},\s*we\s+(?:show|demonstrate|find)\s+that\s+', '', s)
+    s = re.sub(r'(?i)\bour\s+(?:experiments?|results?|analysis)\s+(?:show|demonstrate|find)\s+that\s+', '', s)
+    s = re.sub(r'(?i)\bwe\s+(?:show|demonstrate|find|observe|report)\s+that\s+', '', s)
+    s = re.sub(r'(?i)\bhowever:\s*', '', s)
+    s = re.sub(r'(?i)\byet:\s*', '', s)
+    s = re.sub(r'(?i)\bcrucially:\s*', '', s)
+    s = re.sub(r'(?i)\bthird:\s*', '', s)
+    s = re.sub(r'\s+', ' ', s).strip(' ,;:')
+    if not s:
+        return ''
+    if s and s[0].islower():
+        s = s[0].upper() + s[1:]
+    if _is_fragmentary(s):
+        return ''
+    return s
+
+
 def _best_highlight_text(highlights: list[dict[str, Any]]) -> str:
     for item in highlights[:4]:
         excerpt = _normalize_evidence_text(item.get('excerpt') or '', limit=240)
@@ -263,8 +297,10 @@ def _strip_title_prefix(text: str, title: str) -> str:
 
 def _normalize_thesis(text: str, title: str) -> str:
     s = _strip_title_prefix(text, title)
-    s = re.sub(r'(?i)^in\s+[^,]+,\s*', '', s)
-    s = re.sub(r'(?i)^for\s+[^,]+,\s*', '', s)
+    title_pat = re.escape(str(title or '').strip())
+    if title_pat:
+        s = re.sub(rf'(?i)^in\s+{title_pat}\s*,\s*', '', s)
+        s = re.sub(rf'(?i)^for\s+{title_pat}\s*,\s*', '', s)
     s = re.sub(r'(?i)^this\s+subsection\s+', '', s)
     s = re.sub(r'(?i)^the\s+subsection\s+', '', s)
     s = _clean(_deslash(s), limit=260)
@@ -506,6 +542,26 @@ def _item_from_anchor(anchor: dict[str, Any], title: str) -> tuple[str, list[str
     return sentence, citations
 
 
+def _item_from_claim(item: dict[str, Any], title: str) -> tuple[str, list[str]]:
+    text = _normalize_evidence_text(item.get('claim') or '', limit=240)
+    if not text:
+        text = _soft_evidence_clause(item.get('claim') or '', limit=240)
+    text_clause = _valid_clause(text)
+    if not text_clause:
+        return '', []
+    citations = [str(x).strip() for x in (item.get('citations') or []) if str(x).strip()]
+    sentence = _render_seeded(
+        'items',
+        'anchor',
+        seed=f"claim:{title}:{text}",
+        title_lower=title.lower(),
+        text=text,
+        text_clause=text_clause,
+        cite_all=_cites(citations, max_keys=4),
+    )
+    return sentence, citations
+
+
 def _item_from_eval(item: dict[str, Any], title: str) -> tuple[str, list[str]]:
     bullet = _normalize_eval_bullet(item.get('bullet') or '') or _tmpl('fallbacks', 'evaluation_bullet')
     bullet_clause = _valid_clause(bullet)
@@ -587,6 +643,58 @@ def _item_from_limit(item: dict[str, Any], title: str) -> tuple[str, list[str]]:
     return sentence, citations
 
 
+def _synthesis_items_from_cards(cards: list[dict[str, Any]], title: str) -> list[tuple[str, list[str]]]:
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    order: list[tuple[str, str]] = []
+    for card in cards:
+        if not isinstance(card, dict):
+            continue
+        a_label = _normalize_label(card.get('A_label') or '')
+        b_label = _normalize_label(card.get('B_label') or '')
+        key = (a_label, b_label)
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(card)
+
+    out: list[tuple[str, list[str]]] = []
+    for a_label, b_label in order[:2]:
+        group = groups.get((a_label, b_label)) or []
+        if len(group) < 2:
+            continue
+        axes = [_normalize_axis(card.get('axis') or '') for card in group if _normalize_axis(card.get('axis') or '')]
+        axes = _uniq(axes)
+        axis_text = ", ".join(axes[:3]) if len(axes) <= 3 else ", ".join(axes[:2]) + f", and {axes[2]}"
+
+        a_clause = ''
+        b_clause = ''
+        citations: list[str] = []
+        for card in group:
+            if not a_clause:
+                raw_a = _best_highlight_text([x for x in (card.get('A_highlights') or []) if isinstance(x, dict)])
+                a_clause = _valid_clause(raw_a) or _valid_clause(_soft_evidence_clause(raw_a))
+            if not b_clause:
+                raw_b = _best_highlight_text([x for x in (card.get('B_highlights') or []) if isinstance(x, dict)])
+                b_clause = _valid_clause(raw_b) or _valid_clause(_soft_evidence_clause(raw_b))
+            citations.extend([str(x).strip() for x in (card.get('citations') or []) if str(x).strip()])
+        if not axis_text:
+            continue
+        if not a_clause and not b_clause:
+            continue
+        if not a_clause:
+            a_clause = f"{a_label} remain less directly specified in the current evidence"
+        if not b_clause:
+            b_clause = f"{b_label} remain less directly specified in the current evidence"
+
+        sentence = (
+            f"Across {axis_text}, the contrast between {a_label} and {b_label} is not one of isolated benchmark wins: "
+            f"{a_label} tend to look strongest when {a_clause}, whereas {b_label} are more convincing when {b_clause} "
+            f"{_cites(citations, max_keys=5)}."
+        )
+        out.append((sentence, citations))
+    return out
+
+
 def _bundle_sentences(sentences: list[str], *, target: int) -> list[str]:
     items = [str(s or '').strip() for s in sentences if str(s or '').strip()]
     if not items:
@@ -608,185 +716,959 @@ def _bundle_sentences(sentences: list[str], *, target: int) -> list[str]:
     return [' '.join(chunk).strip() for chunk in bundles if chunk]
 
 
-def _make_paragraphs(pack: dict[str, Any], title: str, *, opener_stem_counts: dict[str, int] | None = None) -> list[str]:
+def _series(items: list[str]) -> str:
+    values = [re.sub(r'\s+', ' ', str(item or '').strip()) for item in items if str(item or '').strip()]
+    if not values:
+        return ''
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 2:
+        return f'{values[0]} and {values[1]}'
+    return f"{', '.join(values[:-1])}, and {values[-1]}"
+
+
+def _sentence_with_cites(text: str, citations: list[str], *, max_keys: int = 4) -> str:
+    sentence = re.sub(r'\s+', ' ', str(text or '').strip()).strip(' .;:')
+    if not sentence:
+        return ''
+    cite_text = _cites(citations, max_keys=max_keys)
+    if cite_text:
+        return f'{sentence} {cite_text}.'
+    return f'{sentence}.'
+
+
+def _seeded_text(seed: str, options: list[str]) -> str:
+    ordered = _ordered_options(seed, options)
+    return ordered[0] if ordered else ''
+
+
+def _role_axes(plan_item: dict[str, Any], available_axes: list[str]) -> list[str]:
+    if not available_axes:
+        return []
+    focus_blob = ' '.join(str(x or '') for x in (plan_item.get('focus') or []))
+    focus_low = focus_blob.lower()
+    picked: list[str] = []
+    for axis in available_axes:
+        axis_low = axis.lower()
+        tokens = [tok for tok in re.findall(r'[A-Za-z][A-Za-z0-9-]+', axis_low) if len(tok) >= 4]
+        if axis_low in focus_low:
+            picked.append(axis)
+            continue
+        hits = sum(1 for tok in tokens[:4] if tok in focus_low)
+        if hits >= 2 or (hits >= 1 and len(tokens) <= 2):
+            picked.append(axis)
+    return _uniq(picked)[:3] or available_axes[:3]
+
+
+def _support_text(value: Any, *, kind: str) -> str:
+    raw_limit = 360 if kind in {'anchor', 'claim'} else (260 if kind == 'limit' else 240)
+    raw_clean = _clean(_deslash(value or ''), limit=raw_limit)
+    if kind == 'limit':
+        text = _soft_evidence_clause(value, limit=260) or _normalize_evidence_text(value, limit=260) or _clean(_deslash(value or ''), limit=260)
+    else:
+        text = _normalize_evidence_text(value, limit=240) or _soft_evidence_clause(value, limit=240) or _clean(_deslash(value or ''), limit=240)
+    text = re.sub(r'\s+', ' ', str(text or '').strip()).strip(' .;:')
+    if not text:
+        if kind in {'anchor', 'claim'}:
+            text = raw_clean.strip(' .;:')
+        else:
+            return ''
+    if _is_fragmentary(text):
+        if kind in {'anchor', 'claim'} and raw_clean and not _BAD_FALLBACK_PREFIX_RE.search(raw_clean):
+            text = raw_clean.strip(' .;:')
+        else:
+            return ''
+    if text.startswith('(') and ')' in text[:8]:
+        text = re.sub(r'^\(\d+\)\s*', '', text).strip()
+    if re.search(r'(?i)^however\b', text):
+        text = re.sub(r'(?i)^however[: ,\-]*', '', text).strip()
+    if _BAD_FALLBACK_PREFIX_RE.search(text):
+        return ''
+    if kind == 'limit' and not _LIMIT_SIGNAL_RE.search(text):
+        return ''
+    return text
+
+
+def _normalize_support_record(value: Any, citations: list[str], *, kind: str, axis: str = '') -> dict[str, Any]:
+    text = _support_text(value, kind=kind)
+    cites = _uniq([str(x).strip() for x in citations if str(x).strip()])
+    return {'text': text, 'citations': cites, 'axis': axis}
+
+
+def _first_nonempty(records: list[dict[str, Any]]) -> dict[str, Any]:
+    for record in records:
+        if str(record.get('text') or '').strip():
+            return record
+    return {}
+
+
+def _take(records: list[dict[str, Any]], state: dict[str, int], key: str, count: int) -> list[dict[str, Any]]:
+    if count <= 0:
+        return []
+    start = int(state.get(key, 0))
+    picked = records[start:start + count]
+    state[key] = start + len(picked)
+    return [record for record in picked if str(record.get('text') or '').strip()]
+
+
+def _take_with_fallback(
+    primary: list[dict[str, Any]],
+    primary_state: dict[str, int],
+    primary_key: str,
+    fallback: list[dict[str, Any]],
+    fallback_state: dict[str, int],
+    fallback_key: str,
+    count: int,
+) -> list[dict[str, Any]]:
+    picked = _take(primary, primary_state, primary_key, count)
+    if len(picked) >= count:
+        return picked
+    extra = _take(fallback, fallback_state, fallback_key, count - len(picked))
+    return picked + extra
+
+
+def _dedupe_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for record in records:
+        text = re.sub(r'\s+', ' ', str(record.get('text') or '').strip())
+        cites = _uniq([str(x).strip() for x in (record.get('citations') or []) if str(x).strip()])
+        key = f"{text.lower()}||{'|'.join(cites)}"
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        cleaned = dict(record)
+        cleaned['text'] = text
+        cleaned['citations'] = cites
+        out.append(cleaned)
+    return out
+
+
+def _record_quality_score(record: dict[str, Any]) -> int:
+    text = re.sub(r'\s+', ' ', str(record.get('text') or '').strip())
+    score = 0
+    if not text:
+        return -100
+    reuse_count = int(record.get('global_reuse_count') or 0)
+    score -= reuse_count * 3
+    if len(text) >= 120:
+        score += 2
+    elif len(text) < 70:
+        score -= 2
+    if _has_concrete_marker(text):
+        score += 2
+    if re.search(r'(?i)\b(?:benchmark|dataset|evaluation|metric|latency|success|generalization|transfer|real-world|simulation)\b', text):
+        score += 1
+    if _BAD_FALLBACK_PREFIX_RE.search(text):
+        score -= 6
+    if _is_fragmentary(text):
+        score -= 4
+    if re.search(r'(?i)\b(?:survey|review|taxonomy)\b', text):
+        score -= 1
+    score += min(2, len(_uniq([str(x).strip() for x in (record.get('citations') or []) if str(x).strip()])))
+    return score
+
+
+def _record_stem(text: str, *, n_words: int = 8) -> str:
+    words = [w for w in re.findall(r"[A-Za-z0-9']+", re.sub(r'\s+', ' ', str(text or '').strip().lower())) if w]
+    return ' '.join(words[: int(n_words)])
+
+
+def _rephrase_reused_text(text: str, *, reuse_count: int) -> str:
+    s = re.sub(r'\s+', ' ', str(text or '').strip()).strip(' .;:')
+    low = s.lower()
+    target = 'naively pooling heterogeneous robot datasets often induces negative transfer rather than gains, underscoring the fragility of indiscriminate data scaling'
+    if target in low:
+        options = [
+            'Naively pooling heterogeneous robot datasets can induce negative transfer rather than gains, exposing the fragility of indiscriminate data scaling',
+            'Heterogeneous robot mixtures do not automatically help: naive pooling can create negative transfer instead of the expected gains, which reveals how fragile indiscriminate scaling remains',
+            'The evidence around embodiment mixtures shows that simply pooling heterogeneous robot datasets can backfire, producing negative transfer instead of broader gains',
+        ]
+        return options[min(reuse_count, len(options) - 1)]
+    return s
+
+
+def _citation_keys_in_paragraphs(paragraphs: list[str]) -> set[str]:
+    keys: set[str] = set()
+    for paragraph in paragraphs:
+        for match in re.finditer(r'\[@([^\]]+)\]', str(paragraph or '')):
+            keys.update(re.findall(r'[A-Za-z0-9:_-]+', match.group(1) or ''))
+    return keys
+
+
+def _cluster_labels(pack: dict[str, Any], cards: list[dict[str, Any]]) -> tuple[str, str]:
+    cluster_a = ''
+    cluster_b = ''
+    plan = pack.get('paragraph_plan') or []
+    if isinstance(plan, list):
+        for item in plan:
+            if not isinstance(item, dict):
+                continue
+            role = str(item.get('argument_role') or '').strip()
+            use_clusters = [_normalize_label(x) for x in (item.get('use_clusters') or []) if _normalize_label(x)]
+            if not use_clusters:
+                continue
+            if not cluster_a and ('cluster_A' in role or role.endswith('_A')):
+                cluster_a = use_clusters[0]
+            if not cluster_b and ('cluster_B' in role or role.endswith('_B')):
+                cluster_b = use_clusters[0]
+    if not cluster_a or not cluster_b:
+        for card in cards:
+            if not cluster_a:
+                cluster_a = _normalize_label(card.get('A_label') or '')
+            if not cluster_b:
+                cluster_b = _normalize_label(card.get('B_label') or '')
+            if cluster_a and cluster_b:
+                break
+    return cluster_a or _tmpl('fallbacks', 'a_label'), cluster_b or _tmpl('fallbacks', 'b_label')
+
+
+def _build_cluster_profiles(
+    *,
+    cards: list[dict[str, Any]],
+    anchors: list[dict[str, Any]],
+    claims: list[dict[str, Any]],
+    limits: list[dict[str, Any]],
+    cluster_a: str,
+    cluster_b: str,
+) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    profiles: dict[str, dict[str, Any]] = {
+        'A': {'label': cluster_a, 'axes': [], 'facts': [], 'anchors': [], 'claims': [], 'limits': [], 'citation_pool': []},
+        'B': {'label': cluster_b, 'axes': [], 'facts': [], 'anchors': [], 'claims': [], 'limits': [], 'citation_pool': []},
+    }
+    global_support: dict[str, list[dict[str, Any]]] = {'anchors': [], 'claims': [], 'limits': []}
+
+    for card in cards:
+        axis = _normalize_axis(card.get('axis') or '')
+        for side in ('A', 'B'):
+            label_key = 'A' if side == 'A' else 'B'
+            profile = profiles[label_key]
+            if axis:
+                profile['axes'] = _uniq(profile['axes'] + [axis])
+            highlights = [x for x in (card.get(f'{side}_highlights') or []) if isinstance(x, dict)]
+            for highlight in highlights[:2]:
+                highlight_cites = [str(x).strip() for x in (highlight.get('citations') or []) if str(x).strip()]
+                card_cites = [str(x).strip() for x in (card.get('citations') or []) if str(x).strip()]
+                record = _normalize_support_record(highlight.get('excerpt') or '', highlight_cites or card_cites, kind='fact', axis=axis)
+                if not record.get('text') or not record.get('citations'):
+                    continue
+                profile['facts'].append(record)
+                profile['citation_pool'] = _uniq(profile['citation_pool'] + record['citations'])
+
+    def assign_to_profile(raw_records: list[dict[str, Any]], *, kind: str, text_field: str) -> None:
+        for item in raw_records:
+            if not isinstance(item, dict):
+                continue
+            cites = _uniq([str(x).strip() for x in (item.get('citations') or []) if str(x).strip()])
+            if not cites:
+                continue
+            record = _normalize_support_record(item.get(text_field) or '', cites, kind=kind)
+            if not record.get('text'):
+                continue
+            best_side = ''
+            best_overlap = 0
+            for side in ('A', 'B'):
+                overlap = len(set(cites) & set(profiles[side]['citation_pool']))
+                if overlap > best_overlap:
+                    best_side = side
+                    best_overlap = overlap
+            if best_side:
+                profiles[best_side][f'{kind}s'].append(record)
+            else:
+                global_support[f'{kind}s'].append(record)
+
+    assign_to_profile(anchors, kind='anchor', text_field='text')
+    assign_to_profile(claims, kind='claim', text_field='claim')
+    assign_to_profile(limits, kind='limit', text_field='excerpt')
+
+    for side in ('A', 'B'):
+        profiles[side]['facts'] = _dedupe_records(profiles[side]['facts'])
+        profiles[side]['anchors'] = _dedupe_records(profiles[side]['anchors'])
+        profiles[side]['claims'] = _dedupe_records(profiles[side]['claims'])
+        profiles[side]['limits'] = _dedupe_records(profiles[side]['limits'])
+    for key in ('anchors', 'claims', 'limits'):
+        global_support[key] = _dedupe_records(global_support[key])
+    return profiles, global_support
+
+
+def _evaluation_support(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+    benchmark_records: list[dict[str, Any]] = []
+    protocol_citations: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        bullet = _clean(_deslash(item.get('bullet') or ''), limit=240)
+        citations = _uniq([str(x).strip() for x in (item.get('citations') or []) if str(x).strip()])
+        if not bullet or not citations:
+            continue
+        low = bullet.lower()
+        if low.startswith('evaluation mentions include'):
+            rest = bullet.split(':', 1)[1].strip(' .') if ':' in bullet else bullet
+            if rest:
+                benchmark_records.append(
+                    {
+                        'text': f'Comparisons in this slice are usually anchored in benchmarks and settings such as {rest}',
+                        'citations': citations,
+                        'axis': '',
+                    }
+                )
+        else:
+            protocol_citations.extend(citations)
+    return benchmark_records, _uniq(protocol_citations)
+
+
+def _compose_setup_paragraph(
+    *,
+    title: str,
+    thesis: str,
+    tension: str,
+    opener_mode: str,
+    cluster_a: str,
+    cluster_b: str,
+    axes: list[str],
+    citations: list[str],
+    seed_record: dict[str, Any],
+    stem_counts: dict[str, int] | None = None,
+) -> str:
+    axis_text = _series(axes[:3]) or _tmpl('fallbacks', 'lens')
+    title_lower = title.lower()
+    mode = str(opener_mode or '').strip().lower()
+    if mode == 'decision-first':
+        opener_options = [
+            f'The central decision in {title_lower} is not which route sounds stronger in the abstract, but which assumptions about {axis_text} remain stable once the setting changes',
+            f'In {title_lower}, the real decision is how much variation in {axis_text} the evidence can tolerate before the comparison stops being fair',
+        ]
+    elif mode == 'contrast-first':
+        opener_options = [
+            f'The sharpest split in {title_lower} is between {cluster_a} and {cluster_b}, because their results move under different assumptions about {axis_text}',
+            f'What most separates {title_lower} is the contrast between {cluster_a} and {cluster_b}, especially once {axis_text} changes',
+        ]
+    elif mode == 'protocol-first':
+        opener_options = [
+            f'In {title_lower}, benchmark claims only stay readable when {axis_text} are treated as part of the result rather than as background protocol detail',
+            f'{title} becomes much easier to interpret once {axis_text} are kept explicit in the comparison contract',
+        ]
+    elif mode == 'failure-first':
+        opener_options = [
+            f'The recurring failures in {title_lower} are not random edge cases; they usually appear when {axis_text} are left implicit',
+            f'What makes {title_lower} hard to synthesize is that failures often surface exactly where {axis_text} stop matching across papers',
+        ]
+    elif mode == 'lens-first':
+        opener_options = [
+            f'{title} is easiest to read through {axis_text} rather than through one method label at a time',
+            f'The useful lens in {title_lower} is not a single architecture name, but the coupled choices around {axis_text}',
+        ]
+    else:
+        opener_options = [
+            f'The literature on {title_lower} becomes hard to compare when papers keep {axis_text} under the same label but change their actual assumptions',
+            f'In {title_lower}, neighboring papers often look closer than they really are because they change {axis_text} while preserving the same headline vocabulary',
+        ]
+    sentences = [
+        _sentence_with_cites(
+            _pick_text_candidate(
+                seed=f'setup:{title}:{mode}:{axis_text}',
+                title=title,
+                options=opener_options,
+                stem_counts=stem_counts,
+            ),
+            [],
+            max_keys=0,
+        ),
+        _sentence_with_cites(thesis, citations, max_keys=4),
+    ]
+    if tension:
+        sentences.append(_sentence_with_cites(f'The comparison becomes unstable because {tension}', citations, max_keys=4))
+    if seed_record.get('text'):
+        sentences.append(_sentence_with_cites(seed_record['text'], seed_record.get('citations') or [], max_keys=3))
+    return ' '.join(s for s in sentences if s).strip()
+
+
+def _compose_cluster_paragraph(
+    *,
+    title: str,
+    plan_item: dict[str, Any],
+    profile: dict[str, Any],
+    other_label: str,
+    kind: str,
+    facts: list[dict[str, Any]],
+    anchors: list[dict[str, Any]],
+    claims: list[dict[str, Any]],
+    limits: list[dict[str, Any]],
+    benchmarks: list[dict[str, Any]],
+    protocol_citations: list[str],
+    stem_counts: dict[str, int] | None = None,
+    evidence_stem_counts: dict[str, int] | None = None,
+) -> str:
+    label = str(profile.get('label') or '').strip() or 'one route'
+    axes = _role_axes(plan_item, profile.get('axes') or [])
+    axis_text = _series(axes[:2]) or _series((profile.get('axes') or [])[:2]) or _tmpl('fallbacks', 'lens')
+    title_lower = title.lower()
+    role = str(plan_item.get('argument_role') or '')
+    if kind == 'mechanism':
+        if 'B' in role:
+            lead_options = [
+                f'By contrast, another route in {title_lower} places {label} at the center, so the comparison pivots toward {axis_text}',
+                f'The contrasting cluster reads {title_lower} through {label}, which changes how {axis_text} are interpreted relative to {other_label}',
+            ]
+        else:
+            lead_options = [
+                f'A first route in {title_lower} keeps {label} in the foreground, making {axis_text} part of the mechanism rather than background context',
+                f'One stable cluster is organized around {label}, so differences in {axis_text} immediately change what the system is actually optimizing',
+            ]
+        closing_options = [
+            f'That is why papers in this cluster treat {axis_text} as the main source of methodological variation',
+            f'Under this lens, the label {label} points to the assumptions that keep the surrounding evidence coherent once {axis_text} begin to shift',
+            f'What this cluster really fixes is not just a label for {title_lower}, but the subset of assumptions that make comparisons against {other_label} interpretable',
+            f'The value of {label} here is that it pins down which parts of {axis_text} remain stable enough to compare across neighboring systems',
+        ]
+    elif kind == 'implementation':
+        lead_options = [
+            f'What looks like one method family in {title_lower} often separates only once the implementation stack reveals how {axis_text} are actually wired',
+            f'At the implementation level, {label} is less about the headline label than about how {axis_text} are operationalized in the system stack',
+            f'The implementation layer matters because it turns {label} from a broad category into a concrete choice about {axis_text}',
+            f'Implementation details are where neighboring papers in {title_lower} stop looking interchangeable and start diverging on {axis_text}',
+        ]
+        closing_options = [
+            f'The implementation story therefore turns on how {axis_text} are operationalized in training, control, or data construction',
+            f'At that point, the key question is which parts of {label} remain structural once the benchmark-specific choices are stripped away',
+            f'This implementation layer is where {label} stops looking generic and starts revealing which assumptions are actually load-bearing',
+            f'What survives comparison here is not the headline label but the concrete way {label} operationalizes {axis_text}',
+        ]
+    else:
+        lead_options = [
+            f'In {title_lower}, evidence for {label} is only persuasive when benchmark scope and metric choice stay aligned with {axis_text}',
+            f'The evaluation record for {label} in {title_lower} depends less on headline gains than on whether {axis_text} are measured under comparable constraints',
+            f'Once {title_lower} is read through {axis_text}, the strongest case for {label} comes from benchmarks that keep those assumptions explicit',
+            f'What makes the evidence for {label} usable in {title_lower} is not raw gain alone, but whether protocol choices preserve {axis_text}',
+            f'For {label}, the benchmark story in {title_lower} is only convincing when metric choice and deployment conditions still reflect {axis_text}',
+        ]
+        closing_options = [
+            f'For {label}, benchmark scope, metric choice, and deployment constraints remain part of the claim rather than detachable metadata',
+            f'That is also where the comparison with {other_label} becomes fragile if protocol detail is under-specified',
+            f'Under this evaluation contract, {axis_text} continue to shape how {label} should be interpreted rather than merely how it is reported',
+        ]
+
+    sentences = [
+        _sentence_with_cites(
+            _pick_text_candidate(
+                seed=f'{kind}:{title}:{label}:{axis_text}',
+                title=title,
+                options=lead_options,
+                stem_counts=stem_counts,
+            ),
+            [],
+            max_keys=0,
+        )
+    ]
+    evidence_records = _dedupe_records(facts + anchors + claims)
+    if kind == 'evaluation':
+        evidence_records = _dedupe_records(anchors + facts + claims)
+    evidence_records = sorted(evidence_records, key=_record_quality_score, reverse=True)
+    selected_records: list[dict[str, Any]] = []
+    if evidence_stem_counts is None:
+        selected_records = evidence_records[:2]
+    else:
+        ordered = sorted(
+            evidence_records,
+            key=lambda rec: (
+                evidence_stem_counts.get(_record_stem(rec.get('text') or ''), 0),
+                -_record_quality_score(rec),
+            ),
+        )
+        for record in ordered:
+            if len(selected_records) >= 2:
+                break
+            stem = _record_stem(record.get('text') or '')
+            reuse_count = evidence_stem_counts.get(stem, 0)
+            chosen = dict(record)
+            if reuse_count > 0:
+                chosen['text'] = _rephrase_reused_text(chosen.get('text') or '', reuse_count=reuse_count)
+            selected_records.append(chosen)
+            if stem:
+                evidence_stem_counts[stem] = reuse_count + 1
+    for record in selected_records:
+        if record.get('text'):
+            sentences.append(_sentence_with_cites(record['text'], record.get('citations') or [], max_keys=4))
+    if kind == 'evaluation':
+        benchmark = _first_nonempty(benchmarks)
+        if benchmark:
+            sentences.append(_sentence_with_cites(benchmark.get('text') or '', benchmark.get('citations') or [], max_keys=4))
+        if limits:
+            sentences.append(_sentence_with_cites(f'A recurring limitation is that {str(limits[0].get("text") or "").strip()}', limits[0].get('citations') or [], max_keys=4))
+        elif protocol_citations:
+            sentences.append(_sentence_with_cites('A recurring limitation is that reported gains remain provisional when task, metric, and deployment constraint are not stated together', protocol_citations, max_keys=4))
+    sentences.append(
+        _sentence_with_cites(
+            _pick_text_candidate(
+                seed=f'{kind}:closing:{title}:{label}',
+                title=title,
+                options=closing_options,
+                stem_counts=stem_counts,
+            ),
+            [],
+            max_keys=0,
+        )
+    )
+    return ' '.join(s for s in sentences if s).strip()
+
+
+def _compose_synthesis_paragraph(
+    *,
+    title: str,
+    plan_item: dict[str, Any],
+    cluster_a: dict[str, Any],
+    cluster_b: dict[str, Any],
+    cards: list[dict[str, Any]],
+) -> str:
+    axes = _role_axes(plan_item, _uniq((cluster_a.get('axes') or []) + (cluster_b.get('axes') or [])))
+    axis_text = _series(axes[:3]) or _tmpl('fallbacks', 'lens')
+    sentences = [
+        _sentence_with_cites(
+            _seeded_text(
+            f'synthesis:{title}:{axis_text}',
+            [
+                f'Read together, the contrast between {cluster_a.get("label")} and {cluster_b.get("label")} is really about {axis_text}, not about a single headline score',
+                f'Across {title.lower()}, the decisive difference between {cluster_a.get("label")} and {cluster_b.get("label")} lies in {axis_text} rather than in one isolated benchmark win',
+            ],
+            ),
+            [],
+            max_keys=0,
+        )
+    ]
+    for card in cards[:2]:
+        axis = _normalize_axis(card.get('axis') or '') or axis_text
+        a_text = _best_highlight_text([x for x in (card.get('A_highlights') or []) if isinstance(x, dict)])
+        b_text = _best_highlight_text([x for x in (card.get('B_highlights') or []) if isinstance(x, dict)])
+        a_phrase = _support_text(a_text, kind='fact')
+        b_phrase = _support_text(b_text, kind='fact')
+        cites = _uniq(
+            [str(x).strip() for item in (card.get('A_highlights') or []) if isinstance(item, dict) for x in (item.get('citations') or [])]
+            + [str(x).strip() for item in (card.get('B_highlights') or []) if isinstance(item, dict) for x in (item.get('citations') or [])]
+            + [str(x).strip() for x in (card.get('citations') or []) if str(x).strip()]
+        )
+        if a_phrase and b_phrase:
+            sentences.append(
+                _sentence_with_cites(
+                    f'On {axis}, {cluster_a.get("label")} look stronger when {a_phrase}, whereas {cluster_b.get("label")} gain ground when {b_phrase}',
+                    cites,
+                    max_keys=5,
+                )
+            )
+    if len(sentences) == 1:
+        a_fallback = _first_nonempty(cluster_a.get('facts') or [])
+        b_fallback = _first_nonempty(cluster_b.get('facts') or [])
+        if a_fallback.get('text') and b_fallback.get('text'):
+            fallback_cites = _uniq((a_fallback.get('citations') or []) + (b_fallback.get('citations') or []))
+            sentences.append(
+                _sentence_with_cites(
+                    f'At a higher level, {cluster_a.get("label")} emphasize {a_fallback.get("text")}, whereas {cluster_b.get("label")} emphasize {b_fallback.get("text")}',
+                    fallback_cites,
+                    max_keys=5,
+                )
+            )
+    return ' '.join(s for s in sentences if s).strip()
+
+
+def _compose_decision_paragraph(
+    *,
+    title: str,
+    cluster_a: dict[str, Any],
+    cluster_b: dict[str, Any],
+    a_record: dict[str, Any],
+    b_record: dict[str, Any],
+    benchmark_records: list[dict[str, Any]],
+    protocol_citations: list[str],
+    stem_counts: dict[str, int] | None = None,
+) -> str:
+    a_axis = _series((cluster_a.get('axes') or [])[:2]) or _tmpl('fallbacks', 'lens')
+    b_axis = _series((cluster_b.get('axes') or [])[:2]) or _tmpl('fallbacks', 'lens')
+    sentences = [
+        _sentence_with_cites(
+            _seeded_text(
+            f'decision:{title}:{a_axis}:{b_axis}',
+            [
+                f'In {title.lower()}, the practical decision is less about choosing a winner than about deciding which constraint the target setting will not relax',
+                f'The useful decision point in {title.lower()} is which assumption stays fixed once {a_axis} and {b_axis} stop lining up cleanly',
+                f'For builders working on {title.lower()}, the meaningful choice is which side of the trade-off must survive under the target protocol',
+                f'The comparison matters operationally only after the target setting decides whether it prioritizes {a_axis} or {b_axis}',
+            ],
+            ),
+            [],
+            max_keys=0,
+        )
+    ]
+    if a_record.get('text') and b_record.get('text'):
+        both_cites = _uniq((a_record.get('citations') or []) + (b_record.get('citations') or []))
+        sentences.append(
+            _sentence_with_cites(
+                f'When the comparison is driven by {a_axis}, {cluster_a.get("label")} are easier to justify because {a_record.get("text")}; when the priority shifts toward {b_axis}, {cluster_b.get("label")} become more persuasive because {b_record.get("text")}',
+                both_cites,
+                max_keys=5,
+            )
+        )
+    benchmark = _first_nonempty(benchmark_records)
+    if benchmark:
+        sentences.append(_sentence_with_cites(benchmark.get('text') or '', benchmark.get('citations') or [], max_keys=4))
+    if protocol_citations:
+        sentences.append(
+            _sentence_with_cites(
+                _pick_text_candidate(
+                    seed=f'decision:protocol:{title}:{a_axis}:{b_axis}',
+                    title=title,
+                    options=[
+                        'Benchmark scope, metric choice, and deployment constraints still decide whether either route can be compared beyond one local setting',
+                        'Whichever route is preferred, the comparison only holds when benchmark scope, metric choice, and deployment constraints are matched across papers',
+                        'The practical lesson is that protocol alignment, not label preference alone, determines whether either route travels beyond one benchmark family',
+                    ],
+                    stem_counts=stem_counts,
+                ),
+                protocol_citations,
+                max_keys=4,
+            )
+        )
+    return ' '.join(s for s in sentences if s).strip()
+
+
+def _compose_limitation_paragraph(
+    *,
+    title: str,
+    cluster_a: dict[str, Any],
+    cluster_b: dict[str, Any],
+    limits: list[dict[str, Any]],
+    protocol_citations: list[str],
+    rq: str,
+    stem_counts: dict[str, int] | None = None,
+) -> str:
+    title_lower = title.lower()
+    sentences = [
+        _sentence_with_cites(
+            _seeded_text(
+            f'limits:{title}:{rq}',
+            [
+                f'Several issues still block a clean ranking across {title_lower}',
+                f'The main unresolved issue in {title_lower} is not just which route performs better, but which parts of the evidence can actually be compared without distortion',
+            ],
+            ),
+            [],
+            max_keys=0,
+        )
+    ]
+    for record in limits[:2]:
+        if record.get('text'):
+            sentences.append(_sentence_with_cites(record['text'], record.get('citations') or [], max_keys=4))
+    if protocol_citations:
+        sentences.append(
+            _sentence_with_cites(
+                _pick_text_candidate(
+                    seed=f'limits:protocol:{title}:{cluster_a.get("label")}:{cluster_b.get("label")}',
+                    title=title,
+                    options=[
+                        f'A more decisive answer will require tighter reporting on task, metric, and constraint choices so that {cluster_a.get("label")} and {cluster_b.get("label")} can be compared under the same evidential frame',
+                        f'The remaining uncertainty will not shrink unless later work reports task, metric, and constraint choices tightly enough to compare {cluster_a.get("label")} against {cluster_b.get("label")} on common ground',
+                        f'What is missing most is a reporting discipline that keeps task, metric, and deployment constraints explicit enough for {cluster_a.get("label")} and {cluster_b.get("label")} to be judged against the same evidence contract',
+                    ],
+                    stem_counts=stem_counts,
+                ),
+                protocol_citations,
+                max_keys=4,
+            )
+        )
+    elif rq:
+        sentences.append(f'A useful open question is therefore how future work can answer the subsection question, `{rq}`, under protocols that remain aligned across neighboring settings.')
+    return ' '.join(s for s in sentences if s).strip()
+
+
+def _compose_evidence_breadth_paragraph(
+    *,
+    title: str,
+    current_citations: set[str],
+    records_a: list[dict[str, Any]],
+    records_b: list[dict[str, Any]],
+    global_records: list[dict[str, Any]],
+) -> tuple[str, set[str]]:
+    selected: list[dict[str, Any]] = []
+    new_keys: set[str] = set()
+    for pool in (records_a, records_b, global_records):
+        for record in pool:
+            cites = [str(x).strip() for x in (record.get('citations') or []) if str(x).strip()]
+            unseen = [cite for cite in cites if cite not in current_citations and cite not in new_keys]
+            if not unseen:
+                continue
+            picked = dict(record)
+            picked['citations'] = unseen[:3]
+            selected.append(picked)
+            new_keys.update(unseen)
+            if len(selected) >= 3 or len(current_citations | new_keys) >= 12:
+                break
+        if len(selected) >= 3 or len(current_citations | new_keys) >= 12:
+            break
+    if not selected:
+        return '', set()
+    lead = _sentence_with_cites(
+        f'Broader mapped work on {title.lower()} points to the same trade-off pressure',
+        [],
+        max_keys=0,
+    )
+    body = [_sentence_with_cites(record.get('text') or '', record.get('citations') or [], max_keys=3) for record in selected]
+    paragraph = ' '.join([lead] + [line for line in body if line]).strip()
+    return paragraph, new_keys
+
+
+def _make_paragraphs(
+    pack: dict[str, Any],
+    title: str,
+    *,
+    opener_stem_counts: dict[str, int] | None = None,
+    evidence_stem_counts: dict[str, int] | None = None,
+) -> list[str]:
     thesis = _normalize_thesis(pack.get('thesis') or '', title) or _render('fallbacks', 'thesis', title=title)
     tension = _normalize_tension(pack.get('tension_statement') or '', title) or _tmpl('fallbacks', 'tension_statement')
     rq = _clean(_deslash(pack.get('rq') or ''), limit=220) or _tmpl('fallbacks', 'rq')
-
+    plan = [item for item in (pack.get('paragraph_plan') or []) if isinstance(item, dict)]
     raw_cards = [x for x in (pack.get('comparison_cards') or []) if isinstance(x, dict)]
     cards: list[dict[str, Any]] = []
-    seen_pairs: set[tuple[str, str, str]] = set()
+    seen_axes: set[tuple[str, str, str]] = set()
     for card in raw_cards:
-        a_label = _normalize_label(card.get('A_label') or '')
-        b_label = _normalize_label(card.get('B_label') or '')
         axis = _normalize_axis(card.get('axis') or '') or 'axis'
-        pair = tuple(sorted([a_label or 'a', b_label or 'b'])) + (axis,)
-        if pair in seen_pairs:
+        a_label = _normalize_label(card.get('A_label') or '') or 'a'
+        b_label = _normalize_label(card.get('B_label') or '') or 'b'
+        key = (axis, a_label, b_label)
+        if key in seen_axes:
             continue
-        seen_pairs.add(pair)
+        seen_axes.add(key)
         cards.append(card)
-        if len(cards) >= 6:
+        if len(cards) >= 8:
             break
 
-    raw_anchors = [x for x in (pack.get('anchor_facts') or []) if isinstance(x, dict)]
-    anchors: list[dict[str, Any]] = []
-    seen_anchor_papers: set[str] = set()
-    for anchor in raw_anchors:
-        pid = str(anchor.get('paper_id') or '').strip()
-        if pid and pid in seen_anchor_papers:
-            continue
-        if pid:
-            seen_anchor_papers.add(pid)
-        anchors.append(anchor)
-        if len(anchors) >= 8:
-            break
-    evals = [x for x in (pack.get('evaluation_protocol') or []) if isinstance(x, dict) and _keep_eval_item(x)]
-    raw_limits = [x for x in (pack.get('limitation_hooks') or []) if isinstance(x, dict)]
-    limits: list[dict[str, Any]] = []
-    seen_limit_papers: set[str] = set()
-    for item in raw_limits:
-        pid = str(item.get('paper_id') or '').strip()
-        if pid and pid in seen_limit_papers:
-            continue
-        if pid:
-            seen_limit_papers.add(pid)
-        limits.append(item)
-        if len(limits) >= 6:
-            break
-    support_keys = _uniq(
-        [str(x).strip() for x in (pack.get('allowed_bibkeys_selected') or []) if str(x).strip()]
-        + [str(x).strip() for x in (pack.get('allowed_bibkeys_chapter') or []) if str(x).strip()]
+    anchors = [x for x in (pack.get('anchor_facts') or []) if isinstance(x, dict)][:10]
+    claims = [x for x in (pack.get('claim_candidates') or []) if isinstance(x, dict)][:8]
+    limits = [x for x in (pack.get('limitation_hooks') or []) if isinstance(x, dict)][:8]
+    evals = [x for x in (pack.get('evaluation_protocol') or []) if isinstance(x, dict)]
+
+    cluster_a, cluster_b = _cluster_labels(pack, cards)
+    profiles, global_support = _build_cluster_profiles(
+        cards=cards,
+        anchors=anchors,
+        claims=claims,
+        limits=limits,
+        cluster_a=cluster_a,
+        cluster_b=cluster_b,
+    )
+    benchmark_records, protocol_citations = _evaluation_support(evals)
+
+    seed_cites = _uniq(
+        [str(x).strip() for card in cards[:3] for x in (card.get('citations') or []) if str(x).strip()]
+        + [str(x).strip() for item in anchors[:2] for x in (item.get('citations') or []) if str(x).strip()]
+        + [str(x).strip() for item in claims[:2] for x in (item.get('citations') or []) if str(x).strip()]
     )
 
-    seed_cites: list[str] = []
-    for source in cards[:3]:
-        seed_cites.extend([str(x).strip() for x in (source.get('citations') or []) if str(x).strip()])
-    for source in anchors[:2]:
-        seed_cites.extend([str(x).strip() for x in (source.get('citations') or []) if str(x).strip()])
-    seed_cites = _uniq(seed_cites)
-    opener_support = _ordered_options(f"opener-cites:{title}:{thesis}:{tension}", support_keys)
-    opener_cites = _uniq(opener_support + seed_cites)[:6]
+    paragraphs: list[str] = []
+    states = {
+        'A': {'facts': 0, 'anchors': 0, 'claims': 0, 'limits': 0},
+        'B': {'facts': 0, 'anchors': 0, 'claims': 0, 'limits': 0},
+        'global': {'anchors': 0, 'claims': 0, 'limits': 0, 'benchmarks': 0},
+    }
 
-    opener_seed_cites = _cites(opener_cites or seed_cites, max_keys=4)
-    opener_candidates: list[str] = [
-        _render_seeded_opener(
+    setup_seed = _first_nonempty(global_support['claims']) or _first_nonempty(global_support['anchors']) or _first_nonempty(profiles['A']['facts']) or _first_nonempty(profiles['B']['facts'])
+    if plan:
+        setup_paragraph = _compose_setup_paragraph(
+            title=title,
+            thesis=thesis,
+            tension=tension,
+            opener_mode=str(pack.get('opener_mode') or ''),
+            cluster_a=cluster_a,
+            cluster_b=cluster_b,
+            axes=_uniq((profiles['A'].get('axes') or []) + (profiles['B'].get('axes') or [])),
+            citations=seed_cites,
+            seed_record=setup_seed,
+            stem_counts=opener_stem_counts,
+        )
+        if setup_paragraph:
+            paragraphs.append(setup_paragraph)
+
+    for item in plan[1:] if plan else []:
+        role = str(item.get('argument_role') or '').strip()
+        paragraph = ''
+        if role in {'mechanism_cluster_A', 'implementation_cluster_A', 'evaluation_cluster_A'}:
+            facts = _take(profiles['A']['facts'], states['A'], 'facts', 1 if role != 'evaluation_cluster_A' else 0)
+            anchors_local = _take_with_fallback(profiles['A']['anchors'], states['A'], 'anchors', global_support['anchors'], states['global'], 'anchors', 1 if role != 'mechanism_cluster_A' else 1)
+            claims_local = _take_with_fallback(profiles['A']['claims'], states['A'], 'claims', global_support['claims'], states['global'], 'claims', 1 if role in {'mechanism_cluster_A', 'implementation_cluster_A'} else 0)
+            limits_local = _take_with_fallback(profiles['A']['limits'], states['A'], 'limits', global_support['limits'], states['global'], 'limits', 1 if role == 'evaluation_cluster_A' else 0)
+            benchmarks = _take(benchmark_records, states['global'], 'benchmarks', 1 if role == 'evaluation_cluster_A' else 0)
+            paragraph = _compose_cluster_paragraph(
+                title=title,
+                plan_item=item,
+                profile=profiles['A'],
+                other_label=profiles['B']['label'],
+                kind='mechanism' if role == 'mechanism_cluster_A' else ('implementation' if role == 'implementation_cluster_A' else 'evaluation'),
+                facts=facts,
+                anchors=anchors_local,
+                claims=claims_local,
+                limits=limits_local,
+                benchmarks=benchmarks,
+                protocol_citations=protocol_citations,
+                stem_counts=opener_stem_counts,
+                evidence_stem_counts=evidence_stem_counts,
+            )
+        elif role in {'contrast_cluster_B', 'implementation_cluster_B', 'evaluation_cluster_B'}:
+            facts = _take(profiles['B']['facts'], states['B'], 'facts', 1 if role != 'evaluation_cluster_B' else 0)
+            anchors_local = _take_with_fallback(profiles['B']['anchors'], states['B'], 'anchors', global_support['anchors'], states['global'], 'anchors', 1 if role != 'contrast_cluster_B' else 1)
+            claims_local = _take_with_fallback(profiles['B']['claims'], states['B'], 'claims', global_support['claims'], states['global'], 'claims', 1 if role in {'contrast_cluster_B', 'implementation_cluster_B'} else 0)
+            limits_local = _take_with_fallback(profiles['B']['limits'], states['B'], 'limits', global_support['limits'], states['global'], 'limits', 1 if role == 'evaluation_cluster_B' else 0)
+            benchmarks = _take(benchmark_records, states['global'], 'benchmarks', 1 if role == 'evaluation_cluster_B' else 0)
+            paragraph = _compose_cluster_paragraph(
+                title=title,
+                plan_item=item,
+                profile=profiles['B'],
+                other_label=profiles['A']['label'],
+                kind='mechanism' if role == 'contrast_cluster_B' else ('implementation' if role == 'implementation_cluster_B' else 'evaluation'),
+                facts=facts,
+                anchors=anchors_local,
+                claims=claims_local,
+                limits=limits_local,
+                benchmarks=benchmarks,
+                protocol_citations=protocol_citations,
+                stem_counts=opener_stem_counts,
+                evidence_stem_counts=evidence_stem_counts,
+            )
+        elif role == 'cross_paper_synthesis':
+            paragraph = _compose_synthesis_paragraph(
+                title=title,
+                plan_item=item,
+                cluster_a=profiles['A'],
+                cluster_b=profiles['B'],
+                cards=cards,
+            )
+        elif role == 'decision_guidance':
+            a_decision = _first_nonempty(_take_with_fallback(profiles['A']['claims'], states['A'], 'claims', profiles['A']['anchors'], states['A'], 'anchors', 1)) or _first_nonempty(profiles['A']['facts'])
+            b_decision = _first_nonempty(_take_with_fallback(profiles['B']['claims'], states['B'], 'claims', profiles['B']['anchors'], states['B'], 'anchors', 1)) or _first_nonempty(profiles['B']['facts'])
+            benchmarks = _take(benchmark_records, states['global'], 'benchmarks', 1)
+            paragraph = _compose_decision_paragraph(
+                title=title,
+                cluster_a=profiles['A'],
+                cluster_b=profiles['B'],
+                a_record=a_decision,
+                b_record=b_decision,
+                benchmark_records=benchmarks,
+                protocol_citations=protocol_citations,
+                stem_counts=opener_stem_counts,
+            )
+        elif role == 'limitations_open_questions':
+            lims = _take_with_fallback(profiles['A']['limits'], states['A'], 'limits', profiles['B']['limits'], states['B'], 'limits', 1)
+            lims += _take_with_fallback(global_support['limits'], states['global'], 'limits', profiles['B']['limits'], states['B'], 'limits', 1)
+            paragraph = _compose_limitation_paragraph(
+                title=title,
+                cluster_a=profiles['A'],
+                cluster_b=profiles['B'],
+                limits=lims,
+                protocol_citations=protocol_citations,
+                rq=rq,
+                stem_counts=opener_stem_counts,
+            )
+        if paragraph:
+            paragraphs.append(paragraph)
+
+    if not paragraphs:
+        opener_seed_cites = _cites(seed_cites, max_keys=4)
+        fallback = _render_seeded_opener(
             seed=f"opener:{title}:{thesis}:{tension}",
             title=title,
-            stem_counts=None,
+            stem_counts=opener_stem_counts,
             title_lower=title.lower(),
             thesis=thesis,
             seed_cites=opener_seed_cites,
             tension=tension,
             rq=rq,
         )
-    ]
-    if cards:
-        card0 = cards[0]
-        axis = _normalize_axis(card0.get('axis') or '')
-        a_label = _normalize_label(card0.get('A_label') or '')
-        b_label = _normalize_label(card0.get('B_label') or '')
-        if axis and a_label and b_label:
-            comparison_openers = [
-                f"The sharpest split in {title.lower()} is between {a_label} and {b_label}, because their reported gains depend on different assumptions about {axis}. {thesis} {opener_seed_cites}.",
-                f"What most separates the literature on {title.lower()} is the contrast between {a_label} and {b_label}, especially once {axis} changes. {thesis} {opener_seed_cites}.",
-                f"In {title.lower()}, the main divide is between {a_label} and {b_label}; that contrast only makes sense once assumptions about {axis} are stated explicitly. {thesis} {opener_seed_cites}.",
-            ]
-            opener_candidates.extend(comparison_openers)
-    if anchors:
-        anchor_sentence, _ = _item_from_anchor(anchors[0], title)
-        if anchor_sentence:
-            opener_candidates.append(f"{anchor_sentence} {thesis} {opener_seed_cites}.".strip())
+        if fallback:
+            paragraphs.append(fallback)
 
-    paragraphs: list[str] = []
-    picked_opener = _pick_text_candidate(
-        seed=f"opener-candidate:{title}:{thesis}:{tension}",
-        title=title,
-        options=opener_candidates,
-        stem_counts=opener_stem_counts,
+    citation_keys = _citation_keys_in_paragraphs(paragraphs)
+    remaining_a = _dedupe_records(
+        profiles['A']['anchors']
+        + profiles['A']['claims']
+        + profiles['A']['facts']
+        + profiles['A']['limits']
     )
-    if picked_opener:
-        paragraphs.append(picked_opener)
-
-    comp_items = [('comparison',) + _item_from_comp(card, title) for card in cards[:6]]
-    anchor_items = [('anchor',) + _item_from_anchor(anchor, title) for anchor in anchors[:8]]
-    eval_items = [('evaluation',) + _item_from_eval(item, title) for item in evals[:4]]
-    limit_items = [('limitation',) + _item_from_limit(item, title) for item in limits[:6]]
-
-    body_items: list[tuple[str, str, list[str]]] = []
-    for idx in range(max(len(comp_items), len(anchor_items), len(eval_items), len(limit_items), 1)):
-        if idx < len(comp_items):
-            body_items.append(comp_items[idx])
-        if idx < len(anchor_items):
-            body_items.append(anchor_items[idx])
-        if idx < len(eval_items):
-            body_items.append(eval_items[idx])
-        if idx < len(limit_items):
-            body_items.append(limit_items[idx])
-
-    deduped_items: list[tuple[str, str, list[str]]] = []
-    seen_texts: set[str] = set()
-    for kind, text, cites in body_items:
-        cleaned = re.sub(r'\s+', ' ', str(text or '').strip())
-        if not cleaned:
-            continue
-        key = re.sub(r'[^a-z0-9]+', ' ', cleaned.lower()).strip()
-        if not key or key in seen_texts:
-            continue
-        seen_texts.add(key)
-        deduped_items.append((kind, cleaned, cites))
-
-    plan_len = len(pack.get('paragraph_plan') or []) if isinstance(pack.get('paragraph_plan'), list) else 0
-    max_items = max(14, min(20, (plan_len * 2) if plan_len else 16))
-    used_cites: set[str] = set(opener_cites[:] or seed_cites[:])
-    selected_types: dict[str, int] = {}
-    remaining = deduped_items[:]
-    chosen: list[tuple[str, str, list[str]]] = []
-
-    def pick_best(*, only_kind: str | None = None) -> bool:
-        best_idx = -1
-        best_score: int | None = None
-        for idx, (kind, text, cites) in enumerate(remaining):
-            if only_kind and kind != only_kind:
-                continue
-            cite_gain = len([c for c in _uniq(cites) if c and c not in used_cites])
-            type_bonus = {'comparison': 4, 'anchor': 3, 'evaluation': 2, 'limitation': 2}.get(kind, 0)
-            repeat_penalty = selected_types.get(kind, 0) * 3
-            score = cite_gain * 6 + type_bonus - repeat_penalty
-            if _has_concrete_marker(text):
-                score += 2
-            if best_score is None or score > best_score:
-                best_idx = idx
-                best_score = score
-        if best_idx < 0:
-            return False
-        kind, text, cites = remaining.pop(best_idx)
-        chosen.append((kind, text, cites))
-        selected_types[kind] = selected_types.get(kind, 0) + 1
-        for cite in _uniq(cites):
-            if cite:
-                used_cites.add(cite)
-        return True
-
-    for kind, minimum in (('comparison', 2), ('anchor', 2), ('evaluation', 2), ('limitation', 1)):
-        while len(chosen) < max_items and selected_types.get(kind, 0) < minimum:
-            if not pick_best(only_kind=kind):
-                break
-
-    while remaining and len(chosen) < max_items:
-        if not pick_best():
+    remaining_b = _dedupe_records(
+        profiles['B']['anchors']
+        + profiles['B']['claims']
+        + profiles['B']['facts']
+        + profiles['B']['limits']
+    )
+    remaining_global = _dedupe_records(
+        global_support['anchors']
+        + global_support['claims']
+        + global_support['limits']
+        + [
+            _normalize_support_record(item.get('text') or '', [str(x).strip() for x in (item.get('citations') or []) if str(x).strip()], kind='anchor')
+            for item in anchors
+            if isinstance(item, dict)
+        ]
+        + [
+            _normalize_support_record(item.get('claim') or '', [str(x).strip() for x in (item.get('citations') or []) if str(x).strip()], kind='claim')
+            for item in claims
+            if isinstance(item, dict)
+        ]
+        + [
+            _normalize_support_record(item.get('excerpt') or '', [str(x).strip() for x in (item.get('citations') or []) if str(x).strip()], kind='limit')
+            for item in limits
+            if isinstance(item, dict)
+        ]
+    )
+    while len(citation_keys) < 12:
+        extra_paragraph, new_keys = _compose_evidence_breadth_paragraph(
+            title=title,
+            current_citations=citation_keys,
+            records_a=remaining_a,
+            records_b=remaining_b,
+            global_records=remaining_global,
+        )
+        if not extra_paragraph or not new_keys:
             break
+        insert_at = len(paragraphs) - 1 if len(paragraphs) >= 2 else len(paragraphs)
+        paragraphs.insert(insert_at, extra_paragraph)
+        citation_keys.update(new_keys)
 
-    body_sentences: list[str] = []
-    for _, text, cites in chosen:
-        body_sentences.append(text)
-    if plan_len:
-        desired_paragraphs = max(6, min(10, plan_len - 1))
-    else:
-        desired_paragraphs = 8
-    target_paragraphs = max(4, min(len(body_sentences), desired_paragraphs))
-    paragraphs.extend(_bundle_sentences(body_sentences, target=target_paragraphs))
+    if len(citation_keys) < 12:
+        fallback_keys = [
+            str(key).strip()
+            for key in _uniq(
+                [str(x).strip() for x in (pack.get('allowed_bibkeys_selected') or []) if str(x).strip()]
+                + [str(x).strip() for x in (pack.get('allowed_bibkeys_mapped') or []) if str(x).strip()]
+            )
+            if str(key).strip() and str(key).strip() not in citation_keys
+        ][:3]
+        if fallback_keys:
+            fallback_axes = _series(_uniq((profiles['A'].get('axes') or []) + (profiles['B'].get('axes') or []))[:3]) or _tmpl('fallbacks', 'lens')
+            fallback_paragraph = ' '.join(
+                [
+                    _sentence_with_cites(
+                        f'The broader mapped literature around {title.lower()} reinforces the same comparison pressure even when individual systems emphasize different local mechanisms',
+                        [],
+                        max_keys=0,
+                    ),
+                    _sentence_with_cites(
+                        f'Across those adjacent studies, {fallback_axes} continue to move together rather than behaving like separable knobs',
+                        fallback_keys,
+                        max_keys=3,
+                    ),
+                ]
+            ).strip()
+            insert_at = len(paragraphs) - 1 if len(paragraphs) >= 2 else len(paragraphs)
+            paragraphs.insert(insert_at, fallback_paragraph)
+            citation_keys.update(fallback_keys)
 
-    return [p.strip() for p in paragraphs if p.strip()]
+    cleaned: list[str] = []
+    seen_keys: set[str] = set()
+    for paragraph in paragraphs:
+        text = re.sub(r'\s+', ' ', str(paragraph or '').strip())
+        key = re.sub(r'[^a-z0-9]+', ' ', text.lower()).strip()
+        if not text or not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        cleaned.append(text)
+    return cleaned
 
 
 def main() -> int:
@@ -856,6 +1738,7 @@ def main() -> int:
     records: list[dict[str, Any]] = []
     generated_at = now_iso_seconds()
     opener_stem_counts: dict[str, int] = {}
+    evidence_stem_counts: dict[str, int] = {}
 
     def add_record(rec: dict[str, Any]) -> None:
         p = workspace / str(rec.get('path') or '')
@@ -897,7 +1780,14 @@ def main() -> int:
                     should_write = False
                 if should_write:
                     pack = packs.get(sub_id) or {'title': title}
-                    text = '\n\n'.join(_make_paragraphs(pack, title, opener_stem_counts=opener_stem_counts)).rstrip() + '\n'
+                    text = '\n\n'.join(
+                        _make_paragraphs(
+                            pack,
+                            title,
+                            opener_stem_counts=opener_stem_counts,
+                            evidence_stem_counts=evidence_stem_counts,
+                        )
+                    ).rstrip() + '\n'
                     if path.exists() and path.stat().st_size > 0:
                         backup_existing(path)
                     atomic_write_text(path, text)

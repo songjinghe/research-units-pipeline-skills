@@ -50,6 +50,18 @@ _GENERIC_SELF_NARRATION_RE = re.compile(
     r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|study|design|build|construct|divide)\b"
 )
 _STUDY_SELF_NARRATION_RE = re.compile(r"(?i)^(?:this|our)\s+(?:survey|paper|work|study|article)\b")
+_NEGATIVE_LIMIT_RE = re.compile(
+    r"(?i)\b(?:limit\w*|challeng\w*|risk\w*|unsafe|fail\w*|fragil\w*|gap\w*|bottleneck\w*|"
+    r"latency|cost\w*|complexit\w*|domain\s+shift|out-of-distribution|ood|partial\s+observability|"
+    r"generalization\s+(?:gap|limit|challenge)|poor\s+instruction|hinder\w*|constrain\w*|restrict\w*)\b"
+)
+_GENERIC_META_RE = re.compile(
+    r"(?i)\b(?:survey|review|overview|taxonomy|history|landscape|main contribution is a detailed breakdown)\b"
+)
+_TOKEN_STOPWORDS = {
+    "and","the","with","from","into","across","under","over","between","task","tasks","study","studies",
+    "design","system","systems","model","models","method","methods","paper","papers","evaluation","protocol"
+}
 
 
 def _backup_existing(path: Path) -> None:
@@ -177,6 +189,62 @@ def _sanitize_source_text(text: str) -> str:
         seen.add(key)
         out.append(cleaned)
     return " ".join(out).strip()
+
+
+def _topic_tokens(*, title: str, axes: list[str]) -> set[str]:
+    raw = " ".join([title] + [str(a or "") for a in (axes or [])])
+    tokens = {
+        tok
+        for tok in re.findall(r"[A-Za-z][A-Za-z0-9-]{2,}", raw.lower())
+        if tok not in _TOKEN_STOPWORDS and len(tok) >= 4
+    }
+    return tokens
+
+
+def _text_relevant_to_topic(text: str, *, title: str, axes: list[str]) -> bool:
+    low = re.sub(r"\s+", " ", str(text or "").lower())
+    tokens = _topic_tokens(title=title, axes=axes)
+    if not tokens:
+        return True
+    return any(tok in low for tok in tokens)
+
+
+def _normalized_text_key(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "").strip().lower())
+
+
+def _rank_text_records(
+    records: list[dict[str, Any]],
+    *,
+    title: str,
+    axes: list[str],
+    global_text_usage: dict[str, int],
+) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen_local: set[str] = set()
+    for rec in records:
+        key = _normalized_text_key(rec.get("text") or rec.get("claim") or rec.get("excerpt") or "")
+        if not key or key in seen_local:
+            continue
+        seen_local.add(key)
+        deduped.append(rec)
+
+    def _score(rec: dict[str, Any]) -> tuple[int, int, int, int]:
+        text = str(rec.get("text") or rec.get("claim") or rec.get("excerpt") or "").strip()
+        key = _normalized_text_key(text)
+        reuse = global_text_usage.get(key, 0)
+        relevant = 1 if _text_relevant_to_topic(text, title=title, axes=axes) else 0
+        concrete = 1 if re.search(r"(?i)\d|\b(?:benchmark|dataset|metric|transfer|real-world|simulation|failure|latency|cost|robust)\b", text) else 0
+        return (reuse, -relevant, -concrete, -len(text))
+
+    ranked = sorted(deduped, key=_score)
+    out: list[dict[str, Any]] = []
+    for rec in ranked:
+        key = _normalized_text_key(rec.get("text") or rec.get("claim") or rec.get("excerpt") or "")
+        enriched = dict(rec)
+        enriched["global_reuse_count"] = int(global_text_usage.get(key, 0))
+        out.append(enriched)
+    return out
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -519,6 +587,7 @@ def main() -> int:
     records: list[dict[str, Any]] = []
     now = now_iso_seconds()
     draft_profile = _draft_profile(workspace)
+    global_text_usage: dict[str, int] = {}
 
     for sub in subsections:
         sid = sub["sub_id"]
@@ -548,6 +617,7 @@ def main() -> int:
 
         # Anchor facts (evidence hooks).
         anchors_raw = anchors_by_sub.get(sid) or []
+        anchor_pool: list[dict[str, Any]] = []
         anchor_facts: list[dict[str, Any]] = []
         anchors_considered = 0
         anchors_dropped_no_cites = 0
@@ -567,7 +637,7 @@ def main() -> int:
                 anchors_dropped_sanitized += 1
                 continue
 
-            anchor_facts.append(
+            anchor_pool.append(
                 {
                     "hook_type": str(a.get("hook_type") or "").strip(),
                     "text": _trim(text, max_len=TRIM["anchor_fact"]),
@@ -577,12 +647,15 @@ def main() -> int:
                     "pointer": str(a.get("pointer") or "").strip(),
                 }
             )
-
-            if len(anchor_facts) >= keep_limit:
-                break
+        anchor_facts = _rank_text_records(anchor_pool, title=title, axes=axes, global_text_usage=global_text_usage)[:keep_limit]
+        for rec in anchor_facts:
+            key = _normalized_text_key(rec.get("text") or "")
+            if key:
+                global_text_usage[key] = global_text_usage.get(key, 0) + 1
 
         # Comparison cards (A-vs-B contrasts).
         raw_comparisons = pack.get("concrete_comparisons") or []
+        raw_claims = pack.get("claim_candidates") or []
         comparisons_considered = 0
         comparisons_dropped_no_highlights = 0
         hl_dropped_no_cites = 0
@@ -592,6 +665,7 @@ def main() -> int:
         comp_raw_limit = 14
         comp_keep_limit = 9 if draft_profile == "deep" else 7
 
+        pair_seen_counts: dict[tuple[str, str], int] = {}
         for comp in (raw_comparisons or [])[:comp_raw_limit]:
             if not isinstance(comp, dict):
                 continue
@@ -633,13 +707,53 @@ def main() -> int:
                 "B_highlights": _hl("B_highlights"),
                 "write_prompt": _trim(comp.get("write_prompt") or "", max_len=TRIM["comparison_write_prompt"]),
             }
+            pair_key = tuple(sorted([card["A_label"], card["B_label"]]))
             if card["axis"] and (card["A_highlights"] or card["B_highlights"] or card["citations"]):
+                if pair_seen_counts.get(pair_key, 0) >= 5:
+                    comparisons_dropped_no_highlights += 1
+                    continue
                 comparison_cards.append(card)
+                pair_seen_counts[pair_key] = pair_seen_counts.get(pair_key, 0) + 1
             else:
                 comparisons_dropped_no_highlights += 1
 
             if len(comparison_cards) >= comp_keep_limit:
                 break
+
+        claim_pool: list[dict[str, Any]] = []
+        claim_candidates: list[dict[str, Any]] = []
+        claims_considered = 0
+        claims_dropped_no_cites = 0
+        claims_dropped_sanitized = 0
+        for claim in (raw_claims or [])[:8]:
+            if not isinstance(claim, dict):
+                continue
+            claims_considered += 1
+            cites = _normalize_cite_keys(claim.get("citations") or [], bibkeys=bibkeys)
+            if not cites:
+                claims_dropped_no_cites += 1
+                continue
+            text = _sanitize_source_text(claim.get("claim") or "")
+            if not text:
+                claims_dropped_sanitized += 1
+                text = _trim(claim.get("claim") or "", max_len=TRIM["anchor_fact"])
+            if not text:
+                continue
+            if _GENERIC_META_RE.search(text) or not _text_relevant_to_topic(text, title=title, axes=axes):
+                claims_dropped_sanitized += 1
+                continue
+            claim_pool.append(
+                {
+                    "claim": text,
+                    "citations": cites,
+                    "evidence_field": str(claim.get("evidence_field") or "").strip(),
+                }
+            )
+        claim_candidates = _rank_text_records(claim_pool, title=title, axes=axes, global_text_usage=global_text_usage)[:6]
+        for rec in claim_candidates:
+            key = _normalized_text_key(rec.get("claim") or "")
+            if key:
+                global_text_usage[key] = global_text_usage.get(key, 0) + 1
 
         # Evaluation protocol bullets.
         raw_eval = pack.get("evaluation_protocol") or []
@@ -674,6 +788,7 @@ def main() -> int:
         lim_dropped_no_cites = 0
         lim_dropped_sanitized = 0
 
+        lim_pool: list[dict[str, Any]] = []
         lim_hooks: list[dict[str, Any]] = []
         for it in (raw_lim or [])[:14]:
             if not isinstance(it, dict):
@@ -689,15 +804,21 @@ def main() -> int:
             if not excerpt:
                 lim_dropped_sanitized += 1
                 continue
-            lim_hooks.append(
+            if not _NEGATIVE_LIMIT_RE.search(excerpt):
+                lim_dropped_sanitized += 1
+                continue
+            lim_pool.append(
                 {
                     "excerpt": _trim(excerpt, max_len=TRIM["limitation_excerpt"]),
                     "citations": cites,
                     "pointer": str(it.get("pointer") or "").strip(),
                 }
             )
-            if len(lim_hooks) >= (10 if draft_profile == "deep" else 8):
-                break
+        lim_hooks = _rank_text_records(lim_pool, title=title, axes=axes, global_text_usage=global_text_usage)[: (10 if draft_profile == "deep" else 8)]
+        for rec in lim_hooks:
+            key = _normalized_text_key(rec.get("excerpt") or "")
+            if key:
+                global_text_usage[key] = global_text_usage.get(key, 0) + 1
 
         # Availability minima (used by gates and self-loops).
         if draft_profile == "deep":
@@ -747,6 +868,10 @@ def main() -> int:
             pack_warnings.append(
                 "Too few comparison cards after trimming; strengthen `evidence-draft` (excerpt-level A-vs-B contrasts) to avoid per-paper summaries."
             )
+        if len(claim_candidates) < 2:
+            pack_warnings.append(
+                "Too few usable claim candidates after trimming; strengthen `evidence-draft` so the writer can state concrete subsection-level takeaways instead of replaying comparison templates."
+            )
         if len(eval_proto) < 1:
             pack_warnings.append(
                 "Missing evaluation protocol bullets; strengthen `evidence-draft` so the writer can anchor comparisons to benchmarks/metrics."
@@ -776,6 +901,13 @@ def main() -> int:
                 "dropped_no_highlights": comparisons_dropped_no_highlights,
                 "highlights_dropped_no_cites": hl_dropped_no_cites,
                 "highlights_dropped_sanitized": hl_dropped_sanitized,
+            },
+            "claims": {
+                "raw": len([c for c in (raw_claims or []) if isinstance(c, dict)]),
+                "considered": claims_considered,
+                "kept": len(claim_candidates),
+                "dropped_no_cites": claims_dropped_no_cites,
+                "dropped_sanitized": claims_dropped_sanitized,
             },
             "evaluation_protocol": {
                 "raw": len([e for e in (raw_eval or []) if isinstance(e, dict)]),
@@ -832,6 +964,7 @@ def main() -> int:
             "evidence_ids": [str(e).strip() for e in (binding.get("evidence_ids") or []) if str(e).strip()],
             "anchor_facts": anchor_facts,
             "comparison_cards": comparison_cards,
+            "claim_candidates": claim_candidates,
             "evaluation_protocol": eval_proto,
             "limitation_hooks": lim_hooks,
             "must_use": must_use,

@@ -81,6 +81,36 @@ def _h3_citation_sets(md: str) -> dict[str, set[str]]:
     return out
 
 
+def _split_h3_blocks(md: str) -> list[tuple[str | None, list[str]]]:
+    blocks: list[tuple[str | None, list[str]]] = []
+    current_title: str | None = None
+    current_lines: list[str] = []
+    for raw in (md or "").splitlines():
+        if raw.startswith("### "):
+            if current_title is not None:
+                blocks.append((current_title, current_lines))
+            current_title = raw[4:].strip()
+            current_lines = [raw]
+            continue
+        if raw.startswith("## "):
+            if current_title is not None:
+                blocks.append((current_title, current_lines))
+                current_title = None
+                current_lines = []
+            blocks.append((None, [raw]))
+            continue
+        if current_title is not None:
+            current_lines.append(raw)
+        else:
+            if not blocks:
+                blocks.append((None, [raw]))
+            else:
+                blocks[-1][1].append(raw)
+    if current_title is not None:
+        blocks.append((current_title, current_lines))
+    return blocks
+
+
 def _merge_is_pass(workspace: Path) -> bool:
     report_path = workspace / "output" / "MERGE_REPORT.md"
     if not report_path.exists() or report_path.stat().st_size <= 0:
@@ -200,6 +230,54 @@ def _looks_like_low_value_generic_paragraph(text: str) -> bool:
     return any(re.search(pat, bare) for pat in generic_patterns)
 
 
+def _paragraph_sent_count(text: str) -> int:
+    compact = re.sub(r"\[@[^\]]+\]", "", text or "")
+    compact = re.sub(r"\s+", " ", compact).strip()
+    if not compact:
+        return 0
+    return len([s for s in re.split(r"(?<=[.!?])\s+", compact) if s.strip()])
+
+
+def _paragraph_is_short(text: str) -> bool:
+    compact = re.sub(r"\[@[^\]]+\]", "", text or "")
+    compact = re.sub(r"\s+", " ", compact).strip()
+    if not compact:
+        return False
+    sent_n = _paragraph_sent_count(compact)
+    return sent_n <= 1 or (sent_n <= 2 and len(compact) < 180)
+
+
+def _fuse_short_h3_block(block_text: str) -> str:
+    parts = [p.strip() for p in re.split(r"\n\s*\n", block_text or "") if p.strip()]
+    if not parts:
+        return block_text
+    heading = parts[0] if parts[0].startswith("### ") else ""
+    body = parts[1:] if heading else parts[:]
+    if len(body) < 4:
+        return block_text
+
+    changed = True
+    while changed:
+        changed = False
+        for idx in range(1, len(body)):
+            prev = body[idx - 1]
+            cur = body[idx]
+            prev_len = _section_chars_without_cites(prev)
+            cur_len = _section_chars_without_cites(cur)
+            if not (_paragraph_is_short(prev) or _paragraph_is_short(cur)):
+                continue
+            if prev_len + cur_len > 1050:
+                continue
+            body[idx - 1] = prev.rstrip() + " " + cur.lstrip()
+            del body[idx]
+            changed = True
+            break
+
+    chunks = [heading] if heading else []
+    chunks.extend(body)
+    return "\n\n".join([c for c in chunks if c]).rstrip()
+
+
 def _polish_draft_text(text: str) -> str:
     blocks = re.split(r"(\n\s*\n)", text or "")
     out: list[str] = []
@@ -242,7 +320,17 @@ def _polish_draft_text(text: str) -> str:
 
 
 def _top_up_h3_sections(*, draft: str, packs: dict[str, dict[str, object]]) -> str:
-    return draft
+    blocks = _split_h3_blocks(draft)
+    if not blocks:
+        return draft
+    out_parts: list[str] = []
+    for title, lines in blocks:
+        block = "\n".join(lines).rstrip()
+        if title is None:
+            out_parts.append(block)
+            continue
+        out_parts.append(_fuse_short_h3_block(block))
+    return "\n".join([part for part in out_parts if part is not None]).rstrip() + "\n"
 
 
 def _top_up_global_citations(*, draft: str, packs: dict[str, dict[str, object]], target: int = 165) -> str:
@@ -277,10 +365,12 @@ def main() -> int:
     outputs = parse_semicolon_list(args.outputs) or ["output/DRAFT.md"]
     out_rel = outputs[0] if outputs else "output/DRAFT.md"
     draft_path = workspace / out_rel
+    packs = _load_writer_packs(workspace / "outline" / "writer_context_packs.jsonl")
 
     if draft_path.exists() and draft_path.stat().st_size > 0:
         draft_text = draft_path.read_text(encoding="utf-8", errors="ignore")
         draft_text = _polish_draft_text(draft_text)
+        draft_text = _top_up_h3_sections(draft=draft_text, packs=packs)
         draft_text = _merge_adjacent_citation_blocks(draft_text)
         if draft_text != draft_path.read_text(encoding="utf-8", errors="ignore"):
             atomic_write_text(draft_path, draft_text)

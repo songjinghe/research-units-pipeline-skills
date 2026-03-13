@@ -9,8 +9,8 @@
   "abstract": [
     "{title} methods emphasize {axes_phrase} trade-offs, but synthesis is clearest when claims are tied to explicit evaluation settings and reporting conventions.",
     "For {title}, {axes_phrase} is a recurring axis of variation, and results are easiest to interpret when protocols and failure assumptions are explicit.",
-    "{title} highlights a tension around {axes_phrase}, motivating a protocol-aware synthesis rather than per-paper summaries.",
-    "In {title}, differences in {axes_phrase} frequently imply different evaluation setups, so the key is to compare under consistent protocols where possible."
+    "In {title}, {axes_phrase} only become comparable once the underlying protocols, reporting choices, and failure assumptions are made explicit.",
+    "In {title}, differences in {axes_phrase} often imply different evaluation setups, so the key is to compare under consistent protocols where possible."
   ],
   "fallback": "In {title}, {axes_phrase} is a recurring axis of variation, and results are easiest to interpret when protocols and failure assumptions are explicit."
 }

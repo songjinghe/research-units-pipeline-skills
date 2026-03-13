@@ -42,10 +42,12 @@ _LEADING_CONTEXT_RE = re.compile(
 )
 _LEADING_AUTHOR_FINDING_RE = re.compile(
     r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
+    r"(?:(?:also|further|furthermore|empirically|experimentally)\s+)?"
     r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|quantify|quantifies|reveal|reveals|indicate|indicates)\s+that\s+"
 )
 _LEADING_AUTHOR_PREDICATE_RE = re.compile(
     r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
+    r"(?:(?:also|further|furthermore|empirically|experimentally)\s+)?"
     r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|reveal|reveals|indicate|indicates)\s+"
 )
 _LEADING_AUTHOR_ACTION_RE = re.compile(
@@ -70,7 +72,35 @@ _GENERIC_SELF_NARRATION_RE = re.compile(
     r"(?:(?:also|broadly|comprehensively)\s+)?"
     r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|study|design|build|construct|divide)\b"
 )
-_STUDY_SELF_NARRATION_RE = re.compile(r"(?i)^(?:this|our)\s+(?:survey|paper|work|study|article)\b")
+_STUDY_SELF_NARRATION_RE = re.compile(r"(?i)^(?:this|our)\s+(?:survey|paper|work|study|article|thesis|manuscript|dissertation)\b")
+_LEADING_CONCESSION_RE = re.compile(r"(?i)^(?:while|but|yet|however|nevertheless|in contrast)\s+")
+_FINITE_VERB_RE = re.compile(
+    r"(?i)\b(?:is|are|was|were|has|have|had|can|may|might|does|do|did|remains?|becomes?|"
+    r"shows?|finds?|demonstrates?|reports?|reveals?|suggests?|indicates?|outperforms?|improves?|"
+    r"reduces?|increases?|enables?|supports?|validates?|requires?|limits?|bridges?|prevents?)\b"
+)
+_SURVEY_META_SENTENCE_RE = re.compile(
+    r"(?i)\b(?:survey|review)\b.*\b(?:categoriz|summariz|overview|taxonomy|landscape|scope|history|promising directions?)\b|"
+    r"\bmain contribution\b|\bsynthesis of\b|\bidentification of promising directions\b|\btrace the history\b"
+)
+_META_PAPER_TITLE_RE = re.compile(r"(?i)\b(?:survey|review|overview|taxonomy)\b")
+_GENERIC_EVIDENCE_RE = re.compile(
+    r"(?i)^(?:"
+    r"recent advances? in|"
+    r"evaluations?\s+are\s+critical\s+to|"
+    r"generalist robot policies?,\s+trained on|"
+    r"vision-language-action\s+\(vla\)\s+models\s+have\s+advanced|"
+    r"this field is exploding|"
+    r"offering great potential|"
+    r"in this thesis\b|"
+    r"the results demonstrate that\b"
+    r")"
+)
+_EMBODIED_CONTEXT_RE = re.compile(
+    r"(?i)\b(?:robot|robotic|embod|manipulation|navigation|policy|action|control|real-world|simulation|benchmark|dataset|"
+    r"task|transfer|generalization|latency|failure|robust|deployment|safety|LIBERO|Bridge|RT-2|OpenVLA|ManiSkill|RoboCasa|MOTIF)\b"
+)
+_CONCRETE_CLAIM_RE = re.compile(r"\b\d+(?:\.\d+)?%?\b|\b[A-Z]{2,}(?:-[A-Z0-9]+)*\b|\b[A-Z][a-z]+[A-Z][A-Za-z0-9-]*\b")
 
 
 def _load_json_asset(path: Path) -> dict[str, Any]:
@@ -132,6 +162,31 @@ def _has_numeric_evidence(evidence_snippets: list[dict[str, Any]]) -> bool:
         if re.search(r"\b\d+(?:\.\d+)?%?\b", text):
             return True
     return False
+
+
+def _snippet_specificity_score(text: str) -> int:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return -10
+    low = s.lower()
+    score = 0
+    if _CONCRETE_CLAIM_RE.search(s):
+        score += 3
+    if re.search(r"(?i)\b(?:outperform\w*|baseline|versus|vs\.?|compared with|few-shot|zero-shot|real-world|simulation|ood|stress)\b", s):
+        score += 2
+    if _EMBODIED_CONTEXT_RE.search(s):
+        score += 2
+    if re.search(r"(?i)\b(?:benchmark|dataset|metric|success|accuracy|latency|cost|failure|robust|generaliz|transfer)\b", s):
+        score += 2
+    if len(s) >= 120:
+        score += 1
+    if _GENERIC_EVIDENCE_RE.search(s):
+        score -= 4
+    if _SURVEY_META_SENTENCE_RE.search(s):
+        score -= 5
+    if re.search(r"(?i)\b(?:survey|review|history|taxonomy|landscape)\b", low):
+        score -= 2
+    return score
 
 
 def _append_unique(items: list[str], value: str) -> None:
@@ -331,13 +386,16 @@ def main() -> int:
                 if not eid:
                     continue
                 it = bank_by_eid.get(eid) or {}
+                pid = str(it.get('paper_id') or '').strip()
+                note = notes_by_pid.get(pid) or {}
+                if _is_meta_paper_title(str(note.get('title') or '')):
+                    continue
                 bibkey = str(it.get('bibkey') or '').strip()
                 if not bibkey or (bibkeys and bibkey not in bibkeys):
                     continue
                 snippet = _sanitize_source_text(it.get('snippet') or '', sentence_limit=2)
                 if not snippet:
                     continue
-                pid = str(it.get('paper_id') or '').strip()
                 lvl = str(it.get('evidence_level') or '').strip().lower() or 'unknown'
                 locator = it.get('locator') or {}
                 prov = {
@@ -608,6 +666,7 @@ def _sanitize_source_sentence(text: str) -> str:
     s = re.sub(r"\s{2,}", " ", s).strip(" ,;:")
     s = _LEADING_CONTEXT_RE.sub("", s)
     s = _LEADING_DISCOURSE_RE.sub("", s)
+    s = _LEADING_CONCESSION_RE.sub("", s)
     s = _LEADING_SELF_REF_RE.sub("", s)
     s = _LEADING_AUTHOR_FINDING_RE.sub("", s)
     s = _LEADING_AUTHOR_PREDICATE_RE.sub("", s)
@@ -615,6 +674,8 @@ def _sanitize_source_sentence(text: str) -> str:
     s = _LEADING_PARTICIPLE_RE.sub("", s)
 
     if _PROMISSORY_SELF_NARRATION_RE.match(s) or _FRAGMENT_PARTICIPLE_RE.match(s):
+        return ""
+    if _SURVEY_META_SENTENCE_RE.search(s):
         return ""
 
     m = _NAMED_ARTIFACT_RE.match(s)
@@ -644,6 +705,8 @@ def _sanitize_source_sentence(text: str) -> str:
     s = re.sub(r"\s{2,}", " ", s).strip(" ,;:")
     if len(s) < 16:
         return ""
+    if not _FINITE_VERB_RE.search(s):
+        return ""
     if s[-1] not in ".!?":
         s = f"{s}."
     return s
@@ -670,11 +733,18 @@ def _sanitize_source_text(text: str, *, sentence_limit: int | None = None) -> st
     return " ".join(out).strip()
 
 
+def _is_meta_paper_title(title: str) -> bool:
+    t = re.sub(r"\s+", " ", str(title or "").strip())
+    return bool(t and _META_PAPER_TITLE_RE.search(t))
+
+
 def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[str, dict[str, Any]], bibkeys: set[str], limit: int) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
 
     for pid in pids:
         note = notes_by_pid.get(pid) or {}
+        if _is_meta_paper_title(str(note.get("title") or "")):
+            continue
         bibkey = str(note.get("bibkey") or "").strip()
         if not bibkey or (bibkeys and bibkey not in bibkeys):
             continue
@@ -682,6 +752,7 @@ def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[s
 
         key_results = note.get("key_results")
         preferred_snippet = ""
+        preferred_score = -10
         if isinstance(key_results, list):
             for kr in key_results:
                 raw_kr = str(kr).strip()
@@ -693,8 +764,14 @@ def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[s
                 cleaned = _sanitize_source_text(raw_kr, sentence_limit=1)
                 if not cleaned:
                     continue
-                preferred_snippet = cleaned
-                break
+                if _SURVEY_META_SENTENCE_RE.search(cleaned):
+                    continue
+                score = _snippet_specificity_score(cleaned)
+                if score < 3:
+                    continue
+                if score > preferred_score:
+                    preferred_snippet = cleaned
+                    preferred_score = score
 
         evidence_level = str(note.get("evidence_level") or "").strip().lower() or "unknown"
         abstract = str(note.get("abstract") or "").strip()
@@ -715,12 +792,19 @@ def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[s
         elif abstract:
             # Prefer a more informative sentence (e.g., numeric results / evaluation cues) over the first two sentences.
             sents = [s for s in (_sanitize_source_sentence(raw) for raw in _split_sentences(abstract)) if s]
+            scored = sorted(
+                [( _snippet_specificity_score(s), s) for s in sents],
+                key=lambda item: (-item[0], -len(item[1]), item[1].lower()),
+            )
             chosen = ""
-            for s in sents:
-                if re.search(r"\b\d+(?:\.\d+)?%?\b", s):
+            for score, s in scored:
+                if score >= 2:
                     chosen = s
                     break
-                if re.search(r"(?i)\b(success|accuracy|score|outperform|benchmark|dataset|evaluation|human|tasks?)\b", s):
+            for s in sents:
+                if chosen:
+                    break
+                if _snippet_specificity_score(s) >= 0:
                     chosen = s
                     break
             text = (chosen or " ".join(sents[:2]) or _sanitize_source_text(abstract, sentence_limit=2)).strip()
@@ -741,6 +825,8 @@ def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[s
                         provenance.update({"source": "paper_notes", "pointer": f"papers/paper_notes.jsonl:paper_id={pid}#summary_bullets"})
                         break
 
+        if text and _snippet_specificity_score(text) < 0:
+            text = ""
         if text:
             text = _sanitize_source_text(text, sentence_limit=2)
         if text:
@@ -827,6 +913,8 @@ def _claim_candidates(
             continue
         text = str(snip.get("text") or "").strip()
         if not text:
+            continue
+        if _snippet_specificity_score(text) < 1:
             continue
         low = text.lower()
         if low.startswith("abstract-level evidence") or low.startswith("title-only evidence"):
@@ -917,6 +1005,16 @@ def _comparisons(
     def axis_keywords(axis: str) -> list[str]:
         low = (axis or "").lower()
         kws: list[str] = []
+        if any(k in low for k in ["embod", "manipulation", "navigation", "robot", "task"]):
+            kws += ["robot", "manipulation", "navigation", "embodiment", "task", "policy"]
+        if any(k in low for k in ["policy", "action", "control", "interface", "sensor", "observation"]):
+            kws += ["policy", "action", "control", "interface", "sensor", "observation", "latency"]
+        if any(k in low for k in ["transfer", "generalization", "cross-embodiment", "sim-to-real", "deployment"]):
+            kws += ["transfer", "generalization", "cross-embodiment", "sim-to-real", "real-world", "deployment"]
+        if any(k in low for k in ["data", "supervision", "pretraining", "post-training", "demonstration"]):
+            kws += ["data", "dataset", "supervision", "pretraining", "post-training", "demonstration"]
+        if any(k in low for k in ["failure", "robust", "stress", "safety", "reliability"]):
+            kws += ["failure", "robust", "stress", "safety", "reliability", "recovery"]
         if any(k in low for k in ["tool", "function", "schema", "protocol", "api", "mcp", "router", "interface"]):
             kws += ["tool", "function", "schema", "protocol", "api", "mcp", "router", "interface"]
         if any(k in low for k in ["plan", "reason", "search", "mcts", "cot", "tot"]):
@@ -1015,8 +1113,16 @@ def _comparisons(
 
             a = groups[i]
             b = groups[j]
-            a_pids = a.get("pids") or []
-            b_pids = b.get("pids") or []
+            a_pids = [str(pid).strip() for pid in (a.get("pids") or []) if str(pid).strip()]
+            b_pids = [str(pid).strip() for pid in (b.get("pids") or []) if str(pid).strip()]
+            shared = set(a_pids) & set(b_pids)
+            if shared:
+                a_unique = [pid for pid in a_pids if pid not in shared]
+                b_unique = [pid for pid in b_pids if pid not in shared]
+                if len(a_unique) >= 2:
+                    a_pids = a_unique
+                if len(b_unique) >= 2:
+                    b_pids = b_unique
             a_label = str(a.get("label") or "Cluster A").strip()
             b_label = str(b.get("label") or "Cluster B").strip()
 
@@ -1182,6 +1288,8 @@ def _limitations_from_notes(
         s = re.sub(r"\s+", " ", str(text or "").strip())
         if not s or not limit_re.search(s):
             return False
+        if _GENERIC_EVIDENCE_RE.search(s) and _snippet_specificity_score(s) < 2:
+            return False
         if solution_re.search(s):
             return False
         if remedy_phrase_re.search(s) and not strong_negative_re.search(s):
@@ -1190,10 +1298,14 @@ def _limitations_from_notes(
             return False
         if positive_result_re.search(s) and not strong_negative_re.search(s):
             return False
+        if not strong_negative_re.search(s) and _snippet_specificity_score(s) < 2:
+            return False
         return True
 
     for pid in pids[:40]:
         note = notes_by_pid.get(pid) or {}
+        if _is_meta_paper_title(str(note.get("title") or "")):
+            continue
         bibkey = str(note.get("bibkey") or "").strip()
         cite = [bibkey] if bibkey else (cite_keys[:2] if isinstance(cite_keys, list) else [])
 

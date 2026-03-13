@@ -496,8 +496,9 @@ def main() -> int:
         'high_risk_templates': high_risk,
         'opener_archetypes': palette.get('opener_archetypes') or {
             'tension-first': ['A key tension is', 'The central trade-off is', 'A recurring constraint is'],
-            'decision-first': ['For system builders, the crux is', 'A practical decision is', 'One design choice is'],
-            'lens-first': ['Seen through the lens of', 'From the perspective of', 'Under an interface contract,'],
+            'decision-first': ['A practical decision is', 'One design choice is', 'One consequential design choice is'],
+            'scope-first': ['What matters first is whether', 'The comparison only stabilizes when', 'The useful question is whether'],
+            'contrast-first': ['A useful contrast is between', 'One sharp contrast is between', 'A persistent contrast is between'],
         },
         'synthesis_stems': palette.get('synthesis_stems')
         or ['Across these studies,', 'Collectively,', 'In summary,', 'The evidence suggests that', 'A consistent theme is that'],

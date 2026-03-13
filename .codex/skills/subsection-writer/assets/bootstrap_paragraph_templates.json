@@ -15,33 +15,33 @@
   },
   "items": {
     "comparison": [
-      "A recurrent split along {axis} runs between {a_label} and {b_label}: the former is usually supported by results showing that {a_clause}, whereas the latter is more often justified by evidence that {b_clause} {cite_all}.",
-      "Along {axis}, papers centered on {a_label} emphasize that {a_clause}, while work on {b_label} more often argues that {b_clause} {cite_all}.",
-      "Seen through {axis}, the literature separates {a_label} from {b_label} less by labels alone than by the evidence each side stresses: {a_clause} versus {b_clause} {cite_all}."
+      "Along {axis}, {a_label} are usually backed by evidence that {a_clause}, whereas {b_label} are more often supported by results showing that {b_clause} {cite_all}.",
+      "The contrast between {a_label} and {b_label} is sharpest on {axis}: {a_label} are most convincing when {a_clause}, while {b_label} are usually defended by evidence that {b_clause} {cite_all}.",
+      "What separates {a_label} from {b_label} on {axis} is the kind of evidence each side leans on: {a_label} emphasize that {a_clause}, whereas {b_label} emphasize that {b_clause} {cite_all}."
     ],
     "anchor": [
-      "For example, {text_clause} {cite_all}.",
-      "Representative evidence comes from reports that {text_clause} {cite_all}.",
-      "One concrete result is that {text_clause} {cite_all}."
+      "{text_clause} {cite_all}.",
+      "In one representative setting, {text_clause} {cite_all}.",
+      "A useful reference point is that {text_clause} {cite_all}."
     ],
     "evaluation": [
-      "These comparisons are usually reported against {bullet_clause} {cite_all}.",
-      "The benchmark context most often includes {bullet_clause} {cite_all}."
+      "Comparable evidence usually comes from {bullet_clause} {cite_all}.",
+      "Most evaluations in this slice rely on {bullet_clause} {cite_all}."
     ],
     "limitation": [
-      "That picture has to be read cautiously because {text_clause} {cite_all}.",
-      "The comparison becomes weaker once {text_clause} {cite_all}.",
-      "A persistent caveat is that {text_clause} {cite_all}."
+      "That comparison weakens once {text_clause} {cite_all}.",
+      "A recurring constraint is that {text_clause} {cite_all}.",
+      "The reported gains are less stable when {text_clause} {cite_all}."
     ]
   },
   "paragraphs": {
     "opener": [
-      "In {title_lower}, the key comparison is not breadth alone but which assumptions keep a reported gain interpretable: {thesis} {seed_cites}. The literature diverges most when {tension}.",
-      "{title} looks more settled than it is. Read closely, the papers support a narrower claim: {thesis} {seed_cites}. The comparison shifts whenever {tension}.",
-      "What matters in {title_lower} is less the headline result than the conditions that make it travel: {thesis} {seed_cites}. That is where the literature starts to split, because {tension}.",
-      "The literature on {title_lower} is most informative when read as a comparison problem rather than as a method list: {thesis} {seed_cites}. The hard part is that {tension}.",
-      "A useful way to read {title_lower} is to ask which claims survive a change in assumptions: {thesis} {seed_cites}. That question becomes unavoidable when {tension}.",
-      "The strongest results in {title_lower} do not speak for themselves. They have to be read through the trade-off that structures the subsection: {thesis} {seed_cites}. That trade-off sharpens once {tension}."
+      "{title} turns on a narrower question than the label suggests: {thesis} {seed_cites}. The pressure point is that {tension}.",
+      "In {title_lower}, the decisive comparisons come from where protocols and assumptions diverge rather than from raw headline scores: {thesis} {seed_cites}. That matters because {tension}.",
+      "{title} becomes clearer once the competing assumptions are stated up front: {thesis} {seed_cites}. The resulting friction is that {tension}.",
+      "{title} is not one comparison but several overlapping ones: {thesis} {seed_cites}. The difficult part is that {tension}.",
+      "The useful question in {title_lower} is which results survive a change in setup, embodiment, or reporting frame: {thesis} {seed_cites}. That is exactly where {tension}.",
+      "{title} only starts to cohere once the comparison contract is explicit: {thesis} {seed_cites}. The hard part is that {tension}."
     ],
     "cautious_fallback": [
       "Even when the evidence remains partial, {title_lower} still reveals usable trade-offs once protocol differences and failure cases are kept explicit {used_cites}.",

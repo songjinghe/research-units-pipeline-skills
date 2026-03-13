@@ -20,6 +20,7 @@ class PaperRef:
     evidence_level: str
 
 
+_META_PAPER_TITLE_RE = re.compile(r"(?i)\b(?:survey|review|overview|taxonomy)\b")
 _ASSET_CACHE: dict[str, Any] | None = None
 
 
@@ -145,7 +146,7 @@ def _apply_pack_axis_rules(*, pack: dict[str, Any], title_low: str, goal_low: st
             add(item)
 
 
-def _first_formatted_template(*, title: str, joined: str, rules: Any) -> str:
+def _first_formatted_template(*, title: str, joined: str, rules: Any, **kwargs: str) -> str:
     if not isinstance(rules, list):
         return ""
     for rule in rules:
@@ -156,7 +157,9 @@ def _first_formatted_template(*, title: str, joined: str, rules: Any) -> str:
             continue
         template = str(rule.get("template") or "").strip()
         if template:
-            return template.format(title=title)
+            context = {"title": title}
+            context.update({k: v for k, v in kwargs.items() if isinstance(v, str)})
+            return template.format(**context)
     return ""
 
 
@@ -330,6 +333,7 @@ def main() -> int:
         clusters = _build_clusters(
             paper_refs=paper_refs,
             goal=goal,
+            sub_title=sub_title,
             want=3,
         )
 
@@ -337,6 +341,8 @@ def main() -> int:
             sub_title=sub_title,
             axes=axes,
             evidence_summary=dict(evidence_summary),
+            goal=goal,
+            clusters=clusters,
         )
 
         paragraph_plan = _paragraph_plan(
@@ -516,15 +522,47 @@ def _pick(seed: str, options: list[str]) -> str:
     return options[h % len(options)]
 
 
-def _thesis_statement(*, sub_title: str, axes: list[str], evidence_summary: dict[str, int]) -> str:
+def _thesis_statement(
+    *,
+    sub_title: str,
+    axes: list[str],
+    evidence_summary: dict[str, int],
+    goal: str,
+    clusters: list[dict[str, Any]],
+) -> str:
     """Return a 1-sentence, execution-oriented thesis (NO NEW FACTS)."""
     title = re.sub(r"\s+", " ", (sub_title or "").strip())
     a1 = axes[0] if axes else "mechanism and evaluation"
     a2 = axes[1] if len(axes) > 1 else ""
     axes_phrase = a1 if not a2 else f"{a1} and {a2}"
+    cluster_labels = [re.sub(r"\s+", " ", str(c.get("label") or "").strip()) for c in (clusters or []) if isinstance(c, dict)]
+    cluster_a = cluster_labels[0] if cluster_labels else "one route"
+    cluster_b = cluster_labels[1] if len(cluster_labels) > 1 else "another route"
 
     has_fulltext = int(evidence_summary.get("fulltext", 0) or 0) > 0
     seed = f"thesis:{title}:{axes_phrase}:{'fulltext' if has_fulltext else 'abstract'}"
+    joined = "\n".join(
+        [
+            title.lower(),
+            (goal or "").lower(),
+            " ".join([str(a or "").lower() for a in axes[:5]]),
+            " ".join([cluster_a.lower(), cluster_b.lower()]),
+        ]
+    )
+
+    for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
+        match = _first_formatted_template(
+            title=title,
+            joined=joined,
+            rules=pack.get("thesis_rules"),
+            axes_phrase=axes_phrase,
+            primary_axis=a1,
+            secondary_axis=a2,
+            cluster_a=cluster_a,
+            cluster_b=cluster_b,
+        )
+        if match:
+            return match
 
     pack = (_runtime_assets().get("phrase_packs") or {}).get("thesis_patterns") or {}
     key = "fulltext" if has_fulltext else "abstract"
@@ -555,7 +593,8 @@ def _tension_statement(*, sub_title: str, axes: list[str], goal: str) -> str:
     """
 
     title = re.sub(r"\s+", " ", (sub_title or "").strip())
-    joined = " ".join([title.lower(), (goal or "").lower()])
+    axes_joined = " ".join([str(a or "").lower() for a in (axes or [])[:5]])
+    joined = " ".join([title.lower(), (goal or "").lower(), axes_joined])
 
     for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
         match = _first_formatted_template(title=title, joined=joined, rules=pack.get("tension_rules"))
@@ -563,7 +602,8 @@ def _tension_statement(*, sub_title: str, axes: list[str], goal: str) -> str:
             return match
 
     generic_pack = (_runtime_assets().get("domain_packs") or {}).get("generic") or {}
-    match = _first_formatted_template(title=title, joined=joined, rules=generic_pack.get("tension_rules"))
+    generic_joined = " ".join([title.lower(), axes_joined])
+    match = _first_formatted_template(title=title, joined=generic_joined, rules=generic_pack.get("tension_rules"))
     if match:
         return match
 
@@ -604,7 +644,15 @@ def _evaluation_anchor_minimal(
         task = "code tasks"
         metric = "test pass rate / success"
         constraint = "sandbox and budget"
-    elif any(k in joined for k in ["web", "browser", "search", "navigation"]):
+    elif any(k in joined for k in ["robot", "embodied", "manipulation", "policy", "vla", "mobile"]) and any(
+        k in joined for k in ["navigation", "benchmark", "metric", "dataset", "real-world", "sim-to-real"]
+    ):
+        task = "embodied navigation / manipulation tasks"
+        metric = "task success / generalization"
+        constraint = "embodiment, sensing, and latency"
+    elif any(k in joined for k in ["web", "browser", "search"]) or (
+        "navigation" in joined and not any(k in joined for k in ["robot", "embodied", "manipulation", "policy", "vla", "mobile"])
+    ):
         task = "web/navigation tasks"
         metric = "success rate"
         constraint = "latency and budget"
@@ -925,10 +973,67 @@ def _paper_tags(p: PaperRef) -> set[str]:
     if any(k in text for k in ["reflection", "self-refine", "self improve", "self-improve"]):
         tags.add("reflection")
 
+    # Embodied / robotics specific bootstrap tags.
+    if any(k in text for k in ["robot", "embodied", "manipulation", "navigation", "humanoid", "policy"]):
+        tags.add("robot-task")
+    if any(
+        k in text
+        for k in [
+            "vision-language-action",
+            " vla",
+            "vla ",
+            "policy backbone",
+            "action model",
+            "world model",
+            "control policy",
+        ]
+    ):
+        tags.add("robot-policy")
+    if any(
+        k in text
+        for k in [
+            "pretrain",
+            "pre-training",
+            "post-training",
+            "finetun",
+            "supervision",
+            "demonstration",
+            "dataset",
+            "data scaling",
+        ]
+    ):
+        tags.add("robot-data")
+    if any(
+        k in text
+        for k in [
+            "transfer",
+            "cross-embodiment",
+            "cross embodiment",
+            "generalization",
+            "sim-to-real",
+            "sim2real",
+            "real-world",
+        ]
+    ):
+        tags.add("robot-transfer")
+    if any(
+        k in text
+        for k in [
+            "benchmark",
+            "metric",
+            "deployment",
+            "robustness",
+            "stress",
+            "safety",
+            "reliability",
+        ]
+    ):
+        tags.add("robot-eval")
+
     return tags
 
 
-def _build_clusters(*, paper_refs: list[PaperRef], goal: str, want: int) -> list[dict[str, Any]]:
+def _build_clusters(*, paper_refs: list[PaperRef], goal: str, sub_title: str, want: int) -> list[dict[str, Any]]:
     """Return 2–3 paper clusters for comparison.
 
     Quality-gate requirement: at least **two** clusters, each with >=2 papers.
@@ -937,6 +1042,9 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, want: int) -> list
     """
 
     goal_low = (goal or "").lower()
+    filtered_refs = [p for p in paper_refs if not _META_PAPER_TITLE_RE.search(str(p.title or ''))]
+    if len(filtered_refs) >= 4:
+        paper_refs = filtered_refs
     forbid_video = ("text-to-image" in goal_low or "t2i" in goal_low) and ("video" not in goal_low and "t2v" not in goal_low)
 
     tag_to_papers: dict[str, list[PaperRef]] = {}
@@ -949,6 +1057,17 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, want: int) -> list
 
     candidates = [(tag, ps) for tag, ps in tag_to_papers.items() if len(ps) >= 2]
     candidates.sort(key=lambda t: (-len(t[1]), t[0]))
+    low_value_tags = {"evaluation"}
+    embodied_mode = any(k in goal_low for k in ["embodied", "robot", "vision-language-action", "vla"])
+    title_low = (sub_title or "").lower()
+    if embodied_mode:
+        low_value_tags.update({"agents", "memory", "tool-use", "orchestration"})
+        if "video" not in title_low and "temporal" not in title_low:
+            low_value_tags.add("video")
+        if not any(k in title_low for k in ["planning", "reasoning", "world model", "memory"]):
+            low_value_tags.add("planning")
+    primary_candidates = [(tag, ps) for tag, ps in candidates if tag not in low_value_tags]
+    secondary_candidates = [(tag, ps) for tag, ps in candidates if tag in low_value_tags]
 
     clusters: list[dict[str, Any]] = []
 
@@ -970,7 +1089,7 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, want: int) -> list
         clusters.append({"label": label, "rationale": rationale, "paper_ids": pids, "bibkeys": bibs})
 
     # Tag-based clusters (bootstrap).
-    for tag, ps in candidates[: max(1, want)]:
+    for tag, ps in (primary_candidates + secondary_candidates)[: max(1, want)]:
         label = {
             "diffusion": "Diffusion-family methods",
             "transformer": "Transformer-based generators",
@@ -990,6 +1109,11 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, want: int) -> list
             "orchestration": "Orchestration / workflows",
             "reflection": "Self-improvement / reflection",
             "video": "Video / temporal generation",
+            "robot-task": "Task / embodiment settings",
+            "robot-policy": "Policy backbones / action models",
+            "robot-data": "Data and supervision strategies",
+            "robot-transfer": "Transfer / adaptation studies",
+            "robot-eval": "Benchmark / deployment studies",
         }.get(tag, f"{tag} cluster")
         add_cluster(label, f"Grouped by keyword tag `{tag}` from titles (bootstrap).", ps)
         if len(clusters) >= want:
@@ -1032,22 +1156,8 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, want: int) -> list
 
 
 
-    # Coverage bucket: if mappings are dense, keep a third cluster to increase citation diversity.
-    used: set[str] = set()
-    for c in clusters:
-        if isinstance(c, dict):
-            for pid in c.get("paper_ids") or []:
-                used.add(str(pid).strip())
-
-    remaining = [p for p in paper_refs if p.paper_id and p.paper_id not in used]
-    if len(clusters) < 3 and len(remaining) >= 2:
-        add_cluster(
-            "Additional mapped works",
-            "Coverage bucket to increase citation diversity (use cautiously; avoid over-claiming beyond available evidence).",
-            remaining,
-        )
-    # Keep at most 3 clusters to avoid over-structuring.
-    return clusters[: max(2, min(3, int(want) if int(want) > 0 else 3))]
+    # Keep at most 2 clusters. Extra clusters tend to push the writer into forced pseudo-taxonomy.
+    return clusters[: max(2, min(2, int(want) if int(want) > 0 else 2))]
 
 
 

@@ -30,6 +30,57 @@
   "axis_rules": [
     {
       "match_any": [
+        "task diversity",
+        "environment realism",
+        "transfer constraints"
+      ],
+      "items": [
+        "task diversity and environment realism",
+        "transfer constraints across embodiments and settings",
+        "coverage gaps under deployment shift"
+      ]
+    },
+    {
+      "match_any": [
+        "pretraining data",
+        "data and supervision",
+        "pretrain",
+        "post-training",
+        "finetun",
+        "demonstration"
+      ],
+      "items": [
+        "data source and supervision",
+        "pretraining versus post-training",
+        "adaptation and transfer across embodiments"
+      ]
+    },
+    {
+      "match_any": [
+        "benchmarks",
+        "metrics",
+        "generalization"
+      ],
+      "items": [
+        "benchmark coverage and task realism",
+        "metric validity and success criteria",
+        "generalization across embodiments and environments"
+      ]
+    },
+    {
+      "match_any": [
+        "failure analysis",
+        "robustness",
+        "stress testing"
+      ],
+      "items": [
+        "failure taxonomy and stress scenarios",
+        "robustness criteria under deployment shift",
+        "stress-test protocol and recovery behavior"
+      ]
+    },
+    {
+      "match_any": [
         "manipulation",
         "navigation",
         "mobile",
@@ -99,34 +150,6 @@
     },
     {
       "match_any": [
-        "train",
-        "pretrain",
-        "finetun",
-        "post-training",
-        "adapt",
-        "feedback",
-        "demonstration"
-      ],
-      "items": [
-        "data source and supervision",
-        "pretraining versus post-training",
-        "adaptation and transfer across embodiments"
-      ]
-    },
-    {
-      "match_any": [
-        "benchmark",
-        "metric",
-        "generalization"
-      ],
-      "items": [
-        "benchmark coverage and task realism",
-        "metric validity and success criteria",
-        "generalization across embodiments and environments"
-      ]
-    },
-    {
-      "match_any": [
         "evaluation",
         "benchmark",
         "safety",
@@ -138,18 +161,6 @@
         "benchmark realism and task coverage",
         "sim-to-real and deployment constraints",
         "safety and reliability failure modes"
-      ]
-    },
-    {
-      "match_any": [
-        "task diversity",
-        "environment realism",
-        "transfer constraints"
-      ],
-      "items": [
-        "task diversity and environment realism",
-        "transfer constraints across embodiments and settings",
-        "coverage gaps under deployment shift"
       ]
     },
     {
@@ -166,14 +177,17 @@
     },
     {
       "match_any": [
-        "failure analysis",
-        "robustness",
-        "stress testing"
+        "train",
+        "pretrain",
+        "finetun",
+        "post-training",
+        "adapt",
+        "feedback"
       ],
       "items": [
-        "failure taxonomy and stress scenarios",
-        "robustness criteria under deployment shift",
-        "stress-test protocol and recovery behavior"
+        "data quality and coverage bias",
+        "scaling efficiency versus data fidelity",
+        "distribution shift and robustness limits"
       ]
     }
   ],
@@ -333,6 +347,74 @@
       "label": "robustness / failure analysis"
     }
   ],
+  "thesis_rules": [
+    {
+      "match_any": [
+        "manipulation",
+        "navigation",
+        "task scope"
+      ],
+      "template": "The central comparison in {title} is not raw capability in the abstract but which task and embodiment assumptions remain stable once interfaces and evaluation settings change."
+    },
+    {
+      "match_any": [
+        "observation",
+        "action",
+        "embodiment interface"
+      ],
+      "template": "In {title}, the key divide is between richer perceptual or action interfaces and the execution stability needed to turn those interfaces into controllable behavior."
+    },
+    {
+      "match_any": [
+        "task diversity",
+        "environment realism",
+        "transfer constraints"
+      ],
+      "template": "For {title}, the important question is which gains survive a shift in embodiment, environment, or task distribution rather than staying confined to the original training scope."
+    },
+    {
+      "match_any": [
+        "vision-language-action",
+        "vla",
+        "policy backbone"
+      ],
+      "template": "In {title}, the useful comparison is between larger multimodal backbones and tighter action-centric control routes, because added modeling capacity only matters when grounding and latency remain tractable."
+    },
+    {
+      "match_any": [
+        "pretraining data",
+        "data and supervision",
+        "pretrain",
+        "post-training",
+        "finetun"
+      ],
+      "template": "In {title}, the real distinction is not simply more data versus less data, but which supervision source and adaptation recipe still transfer beyond the original embodiment or benchmark slice."
+    },
+    {
+      "match_any": [
+        "benchmarks",
+        "metrics",
+        "generalization"
+      ],
+      "template": "In {title}, benchmark gains only become meaningful once task realism, metric choice, and cross-embodiment generalization are read as part of the same evaluation contract."
+    },
+    {
+      "match_any": [
+        "safety",
+        "reliability",
+        "deployment"
+      ],
+      "template": "In {title}, the main issue is whether reported robustness survives deployment constraints such as latency, partial observability, and real-world recovery demands."
+    },
+    {
+      "match_any": [
+        "failure analysis",
+        "robustness",
+        "stress testing"
+      ],
+      "template": "In {title}, the most useful evidence comes from stress cases that isolate why a system breaks, not just from aggregate robustness scores."
+    }
+  ],
   "tension_rules": [
     {
       "match_any": [
@@ -387,6 +469,16 @@
         "scaling"
       ],
       "template": "In {title}, a recurring tension is scale versus data fidelity: larger embodied corpora improve coverage, but noisy supervision, heterogeneous sources, and distribution shift can erode downstream robustness."
+    },
+    {
+      "match_any": [
+        "pretraining data",
+        "data and supervision",
+        "pretrain",
+        "post-training",
+        "finetun"
+      ],
+      "template": "In {title}, the main tension is data breadth versus transfer fidelity: larger and more diverse supervision improves coverage, but heterogeneous corpora and weak alignment often make cross-embodiment gains fragile."
     },
     {
       "match_any": [

@@ -7,6 +7,19 @@ import re
 import sys
 from pathlib import Path
 
+_CONCRETE_MARKER_RE = re.compile(
+    r"\b\d+(?:\.\d+)?%?\b|"
+    r"\b[A-Z]{2,}(?:-[A-Z0-9]+)*\b|"
+    r"\b[A-Z][a-z]+[A-Z][A-Za-z0-9-]*\b|"
+    r"\b[A-Z][A-Za-z0-9]+-[A-Z0-9][A-Za-z0-9-]*\b"
+)
+_LEADING_WRAPPER_RULES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"(?i)^A useful reference point is that\s+"), ""),
+    (re.compile(r"(?i)^In one representative setting,\s+"), ""),
+    (re.compile(r"(?i)^The main qualification is\s+"), ""),
+    (re.compile(r"(?i)^Interpretation remains conditional on\s+"), ""),
+]
+
 
 def _sha1(text: str) -> str:
     return hashlib.sha1((text or "").encode("utf-8", errors="ignore")).hexdigest()
@@ -142,6 +155,92 @@ def _section_chars_without_cites(text: str) -> int:
     return len(re.sub(r"\[@[^\]]+\]", "", text or ""))
 
 
+def _normalize_sentence_case(text: str) -> str:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return ""
+    if s[0].islower():
+        s = s[0].upper() + s[1:]
+    return s
+
+
+def _strip_leading_wrapper(text: str) -> str:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return ""
+    original = s
+    for pattern, repl in _LEADING_WRAPPER_RULES:
+        s2 = pattern.sub(repl, s).strip()
+        if s2 != s:
+            s = s2
+            break
+    s = _normalize_sentence_case(s)
+    if s and s[-1] not in ".!?":
+        s += "."
+    return s or original
+
+
+def _looks_like_low_value_generic_paragraph(text: str) -> bool:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return True
+    bare = re.sub(r"\[@[^\]]+\]", "", s).strip()
+    if len(bare) < 80:
+        return False
+    if _CONCRETE_MARKER_RE.search(bare):
+        return False
+    generic_patterns = [
+        r"(?i)^evaluations are critical to assess progress",
+        r"(?i)^recent work has advanced such general robot policies",
+        r"(?i)^internet-scale data has enabled broad reasoning capabilities",
+        r"(?i)^mobile manipulation is the fundamental challenge",
+        r"(?i)^foundational datasets, benchmarks, and simulation platforms",
+        r"(?i)^the main contribution is a detailed breakdown",
+    ]
+    return any(re.search(pat, bare) for pat in generic_patterns)
+
+
+def _polish_draft_text(text: str) -> str:
+    blocks = re.split(r"(\n\s*\n)", text or "")
+    out: list[str] = []
+    for block in blocks:
+        if not block or re.fullmatch(r"\n\s*\n", block):
+            out.append(block)
+            continue
+        stripped = block.strip()
+        if not stripped:
+            out.append(block)
+            continue
+        if stripped.startswith(("#", "|", "```")):
+            out.append(block)
+            continue
+        polished = _strip_leading_wrapper(stripped)
+        out.append(polished)
+    merged = "".join(out)
+    merged = re.sub(r"(?<!\n)(\s+)(###\s+)", r"\n\n\2", merged)
+    merged = re.sub(r"(?<!\n)(\s+)(##\s+)", r"\n\n\2", merged)
+    parts = [part for part in re.split(r"\n\s*\n", merged) if part.strip()]
+    fused: list[str] = []
+    for part in parts:
+        stripped = part.strip()
+        if not fused:
+            fused.append(stripped)
+            continue
+        prev = fused[-1]
+        if stripped.startswith("#") or prev.startswith("#"):
+            fused.append(stripped)
+            continue
+        prev_len = _section_chars_without_cites(prev)
+        curr_len = _section_chars_without_cites(stripped)
+        if prev_len < 500 and curr_len < 500 and (prev_len + curr_len) < 900:
+            fused[-1] = prev.rstrip() + " " + stripped.lstrip()
+            continue
+        fused.append(stripped)
+    merged = "\n\n".join(fused)
+    merged = re.sub(r"\n{3,}", "\n\n", merged).rstrip() + "\n"
+    return merged
+
+
 def _top_up_h3_sections(*, draft: str, packs: dict[str, dict[str, object]]) -> str:
     return draft
 
@@ -181,6 +280,7 @@ def main() -> int:
 
     if draft_path.exists() and draft_path.stat().st_size > 0:
         draft_text = draft_path.read_text(encoding="utf-8", errors="ignore")
+        draft_text = _polish_draft_text(draft_text)
         draft_text = _merge_adjacent_citation_blocks(draft_text)
         if draft_text != draft_path.read_text(encoding="utf-8", errors="ignore"):
             atomic_write_text(draft_path, draft_text)

@@ -33,8 +33,8 @@
           "They instead track changes in metric choice, training regime, and environment assumptions that quietly alter what a result can legitimately be taken to show."
         ],
         "stakes": [
-          "That is why the introduction starts from the conditions under which reported gains remain comparable, rather than from another flat inventory of methods {cite}.",
-          "The introduction therefore asks which differences actually change the meaning of a reported gain, instead of rehearsing another catalog of architectures or benchmarks {cite}."
+          "That is why the opening focus stays on the conditions under which reported gains remain comparable, rather than on another inventory of methods {cite}.",
+          "The question for the rest of the paper is which differences actually change the meaning of a reported gain, rather than which label sounds strongest in isolation {cite}."
         ]
       },
       "lens_commitment": {
@@ -115,16 +115,16 @@
       "closing_bridge": {
         "part_order": ["opener", "pressure", "stakes"],
         "opener": [
-          "Read with that lens, later chapters can compare {goal} without detaching design claims from the conditions that give them meaning.",
-          "With that frame in place, the rest of the paper can follow linked technical pressures instead of slipping back into chapter-sized inventories."
+          "From that point onward, the body can compare {goal} without detaching design claims from the conditions that give them meaning.",
+          "The body that follows can stay with linked technical pressures instead of slipping back into chapter-sized inventories."
         ],
         "pressure": [
-          "What matters next is how each chapter changes the interpretation of the others, especially when task setup, architecture, data, and deployment evidence stop lining up cleanly.",
-          "The useful question from this point onward is not which label sounds strongest in isolation, but which design choices keep their meaning once the same evidence discipline is applied across chapters."
+          "What matters next is how task setup, architecture, data, and deployment evidence change the interpretation of one another when they stop lining up cleanly.",
+          "The useful question from this point onward is which design choices keep their meaning once the same evidence discipline is applied across chapters."
         ],
         "stakes": [
           "That perspective lets the body ask which claims remain stable under the same evidence discipline instead of merely renaming method families {cite}.",
-          "It is also what allows the later chapters to accumulate as one argument rather than as a stack of local summaries {cite}."
+          "It also lets later chapters accumulate as one comparative argument rather than as a stack of local summaries {cite}."
         ]
       }
     },
@@ -147,15 +147,15 @@
       "chapter_positioning": {
         "part_order": ["opener", "pressure", "stakes"],
         "opener": [
-          "Work on {chapter_theme} is especially useful when it clarifies local task definitions, interfaces, and evaluation habits.",
-          "Surveys of {chapter_theme} help most when they sharpen the field's language for local mechanisms and comparison targets."
+          "Prior work on {chapter_theme} is most useful as a local comparison frame.",
+          "Reviews centered on {chapter_theme} are most valuable when they clarify the local comparison vocabulary."
         ],
         "pressure": [
-          "Those papers clarify representative tasks, systems, and local terminology, yet they often stop short of keeping {chapter_key_contrast} on a common comparison scale with the rest of the field.",
-          "That literature is useful for orientation, yet it usually inherits the assumptions of its local subfield rather than re-reading {chapter_key_contrast} against neighboring evidence."
+          "Those papers clarify representative tasks, systems, and local terminology, yet they often stop short of keeping {chapter_key_contrast} on a common comparison scale with adjacent parts of the field.",
+          "That literature is useful for orientation, yet it usually inherits the assumptions of its local slice rather than re-reading {chapter_key_contrast} against neighboring evidence."
         ],
         "stakes": [
-          "The result is helpful local coverage without a stable basis for synthesis across neighboring parts of the field {cite}.",
+          "The result is useful local coverage without, by itself, providing a stable basis for synthesis across neighboring parts of the field {cite}.",
           "Those reviews provide indispensable local structure, but they do not by themselves settle how the evidence should transfer beyond that chapter-sized lens {cite}."
         ]
       },

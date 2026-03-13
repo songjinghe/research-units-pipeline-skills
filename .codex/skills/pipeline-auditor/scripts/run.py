@@ -124,7 +124,7 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.common import atomic_write_text, load_yaml, parse_semicolon_list, read_jsonl
+    from tooling.common import atomic_write_text, load_yaml, parse_semicolon_list, pipeline_quality_contract_value, read_jsonl
     from tooling.quality_gate import _citation_target, _draft_profile, _pipeline_profile
 
     workspace = Path(args.workspace).resolve()
@@ -541,33 +541,36 @@ def main() -> int:
 
     # Global cite coverage (encourage using more of the bibliography, not just a small subset).
     if profile == "arxiv-survey" and expected:
-        h3_n = len(set(expected.values()))
-        floor = 0
         if draft_profile == "deep":
-            per_h3 = 16
-            base = 40
-            frac = 0.60
-            floor = 165
+            default_hard = 165
+            default_rec = 165
         else:
-            per_h3 = 14
-            base = 35
-            # Hard floor: >=150 unique citations (A150++). Recommended target: ~55% of bib,
-            # which is 165 when bib=300.
-            frac = 0.50
-            floor = 150
+            default_hard = 150
+            default_rec = 165
 
-        min_unique_struct = base + per_h3 * h3_n
-        min_unique_frac = int(len(bib_keys) * frac) if bib_keys else 0
-        min_unique_hard = max(min_unique_struct, min_unique_frac, floor)
+        min_unique_hard = int(
+            pipeline_quality_contract_value(
+                workspace,
+                "citation_policy",
+                "unique_hard_floor",
+                default=default_hard,
+            )
+            or default_hard
+        )
+        rec_unique = int(
+            pipeline_quality_contract_value(
+                workspace,
+                "citation_policy",
+                "unique_recommended",
+                default=default_rec,
+            )
+            or default_rec
+        )
         if bib_keys:
             min_unique_hard = min(min_unique_hard, len(bib_keys))
-
-        # Recommended target: encourage using more of the available bibliography.
-        rec_unique = min_unique_hard
-        if draft_profile != "deep" and bib_keys:
-            rec_frac = 0.55
-            rec_unique = max(rec_unique, int(len(bib_keys) * rec_frac))
-            rec_unique = min(rec_unique, len(bib_keys))
+            rec_unique = min(max(rec_unique, min_unique_hard), len(bib_keys))
+        else:
+            rec_unique = max(rec_unique, min_unique_hard)
 
         target = rec_unique if citation_target == "recommended" else min_unique_hard
 
@@ -575,7 +578,7 @@ def main() -> int:
             blocking.append(
                 f"unique citations too low ({len(cited)}; target >= {target} for {draft_profile} profile; policy={citation_target})"
                 + (
-                    f" [struct={min_unique_struct}, hard_frac={min_unique_frac}, hard={min_unique_hard}, rec={rec_unique}, bib={len(bib_keys)}]"
+                    f" [hard={min_unique_hard}, rec={rec_unique}, bib={len(bib_keys)}]"
                     if bib_keys
                     else ""
                 )

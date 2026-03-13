@@ -44,6 +44,14 @@
     "Recent systems include",
     "Examples include",
     "Representative systems include",
+    "Seen through the lens of",
+    "From the perspective of",
+    "Under an interface contract",
+    "A recurrent split",
+    "Representative evidence comes from",
+    "One concrete result is that",
+    "That picture has to be read cautiously because",
+    "The comparison becomes weaker once",
     "Therefore, survey synthesis should",
     "Therefore, survey comparisons should",
     "As a result, survey comparisons should",
@@ -85,10 +93,10 @@
       "One design choice is",
       "For system builders, the crux is"
     ],
-    "lens-first": [
-      "Seen through the lens of",
-      "From the perspective of",
-      "Under an interface contract,"
+    "scope-first": [
+      "What matters first is whether",
+      "The comparison only stabilizes when",
+      "The useful question is whether"
     ],
     "contrast-first": [
       "A useful contrast is between",
@@ -123,6 +131,14 @@
     {
       "avoid_stem": "provides an overview",
       "prefer_stem": "We focus on"
+    },
+    {
+      "avoid_stem": "Seen through the lens of",
+      "prefer_stem": "What matters first is whether"
+    },
+    {
+      "avoid_stem": "From the perspective of",
+      "prefer_stem": "The useful question is whether"
     },
     {
       "avoid_stem": "Next, we move",
@@ -166,6 +182,14 @@
     "For practitioners,",
     "For system builders,",
     "For builders,",
+    "Seen through the lens of",
+    "From the perspective of",
+    "Under an interface contract,",
+    "A recurrent split",
+    "Representative evidence comes from",
+    "One concrete result is that",
+    "That picture has to be read cautiously because",
+    "The comparison becomes weaker once",
     "A caveat is",
     "The safest synthesis is therefore",
     "That conclusion remains",

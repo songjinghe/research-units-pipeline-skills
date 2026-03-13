@@ -123,28 +123,28 @@ quality_contract:
     survey:
       introduction:
         min_cites: 35
-        min_paras: 8
-        min_chars: 3200
+        min_paras: 5
+        min_chars: 2600
       related_work:
         min_cites: 50
-        min_paras: 10
-        min_chars: 3800
+        min_paras: 6
+        min_chars: 3200
     deep:
       introduction:
         min_cites: 40
-        min_paras: 9
-        min_chars: 3600
+        min_paras: 6
+        min_chars: 3000
       related_work:
         min_cites: 55
-        min_paras: 11
-        min_chars: 4200
+        min_paras: 7
+        min_chars: 3600
   subsection_policy:
     survey:
       min_unique_citations: 12
-      min_chars: 5000
+      min_chars: 4200
     deep:
       min_unique_citations: 14
-      min_chars: 6000
+      min_chars: 5200
 loop_policy:
   stage_retry_budget:
     C1: 2

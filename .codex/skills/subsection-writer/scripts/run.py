@@ -12,12 +12,24 @@ from typing import Any
 _ASSET_ROOT = Path(__file__).resolve().parents[1] / 'assets'
 _BOOTSTRAP_TEMPLATES_PATH = _ASSET_ROOT / 'bootstrap_paragraph_templates.json'
 _LEADING_ENUM_RE = re.compile(r'^(?:\(?\d+\)?[.)]\s*)+')
-_LEADING_CUE_RE = re.compile(r'(?i)^(?:however|further|furthermore|additionally|meanwhile|overall|notably|empirically|specifically|for example|in practice|then|further)\s*[:,-]\s*')
+_LEADING_CUE_RE = re.compile(r'(?i)^(?:however|yet|further|furthermore|additionally|meanwhile|overall|notably|empirically|specifically|for example|in practice|then|further)\s*[:,-]\s*')
 _LEADING_AUTHOR_RESULT_RE = re.compile(r'(?i)^(?:we|the authors)\s+(?:also\s+|further\s+)?(?:show|find|demonstrate|report|observe|note)\s+that\s+')
 _LEADING_AUTHOR_ACTION_RE = re.compile(r'(?i)^(?:to (?:fill|address|bridge|tackle|study|understand) this gap,\s*)?(?:here,\s*)?(?:we|the authors)\s+(?:present|introduce|propose|develop|describe|provide|review|summarize|offer|open-?source|release)\b[^,]{0,120},\s*')
 _TRAILING_FRAGMENT_RE = re.compile(r'(?i)(?:\.\.\.|[,;:]\s*$|\b(?:and|or|to|of|in|on|with|for|from|across|between|into|than|that|which|while|because|under|over|at|by)\.?$)')
 _META_SNIPPET_RE = re.compile(r'(?i)\b(?:github\.io|project\s+page|code\s+is\s+available|open-?source|repository|website)\b')
 _GENERIC_LIMIT_RE = re.compile(r'(?i)\b(?:open challenges?|future work|research directions?|provide a review|offer a quantitative comparison|summarize|review of|benchmark suite|comprehensive simulation benchmark)\b')
+_LISTLIKE_EVAL_VERB_RE = re.compile(r'(?i)\b(?:compare|benchmark|evaluate|assessment?|measure|measured|metric|success|accuracy|latency|robust|generaliz|transfer|cost|throughput|real-world|simulation)\b')
+_EVIDENCE_VERB_RE = re.compile(r'(?i)\b(?:is|are|was|were|becomes?|remains?|shows?|demonstrates?|reports?|finds?|observes?|argues?|indicates?|improves?|reduces?|increases?|achieves?|enables?|supports?|validates?|reveals?|suggests?|depends?|requires?|offers?|bridges?|addresses?|outperforms?|fails?|limits?|constrains?)\b')
+_CONCRETE_MARKER_RE = re.compile(
+    r"\b\d+(?:\.\d+)?%?\b|"
+    r"\b[A-Z]{2,}(?:-[A-Z0-9]+)*\b|"
+    r"\b[A-Z][a-z]+[A-Z][A-Za-z0-9-]*\b|"
+    r"\b[A-Z][A-Za-z0-9]+-[A-Z0-9][A-Za-z0-9-]*\b"
+)
+_CONCRETE_CONTEXT_RE = re.compile(
+    r"(?i)\b(?:benchmark|dataset|task|real-world|simulation|robot|robotic|policy|action|control|embod|"
+    r"manipulation|navigation|transfer|generaliz|latency|cost|failure|robust|deployment|safety|baseline)\b"
+)
 _LABEL_REWRITES = {
     'recent representative works': 'recent systems',
     'additional mapped works': 'other mapped systems',
@@ -183,12 +195,14 @@ def _normalize_evidence_text(text: Any, *, limit: int = 240) -> str:
     s = _LEADING_CUE_RE.sub('', s)
     s = _LEADING_AUTHOR_RESULT_RE.sub('', s)
     s = _LEADING_AUTHOR_ACTION_RE.sub('', s)
+    s = re.sub(r'(?i)^(?:in|throughout)\s+(?:this|our)\s+(?:thesis|paper|study|manuscript),?\s*', '', s)
     s = re.sub(r'(?i)\bour\s+', 'the ', s)
     s = re.sub(r'(?i)\bwe\s+(?:also\s+|further\s+)?(?:show|find|demonstrate|report|observe|note)\s+that\s+', '', s)
     s = re.sub(r'(?i)\bwe\s+(?:also\s+|further\s+)?can\s+', '', s)
     s = re.sub(r'(?i)\bempirically:\s*', '', s)
     s = re.sub(r'(?i)\bhowever:\s*', '', s)
     s = re.sub(r'(?i)\bthen:\s*', '', s)
+    s = re.sub(r'(?i)^(?:while|but|and|yet|however|nevertheless|in contrast)\s+', '', s)
     s = re.sub(r'(?i)\(\d+\)\s*', '', s)
     s = re.sub(r'(?i)\b(\d+)\)\s*', '', s)
     s = re.sub(r'(?i),\s*(?:supports?|enables?|provides?|including|and)\b[^.]{0,40}$', '', s)
@@ -198,6 +212,10 @@ def _normalize_evidence_text(text: Any, *, limit: int = 240) -> str:
     if re.search(r'(?i)\b(?:we|our)\b', s):
         return ''
     if re.search(r'(?i)^is a significant gap exists\b', s):
+        return ''
+    if re.match(r'(?i)^[a-z-]+ing\b', s):
+        return ''
+    if not _EVIDENCE_VERB_RE.search(s):
         return ''
     if s and s[0].islower():
         s = s[0].upper() + s[1:]
@@ -221,6 +239,11 @@ def _valid_clause(text: str) -> str:
     return clause
 
 
+def _has_concrete_marker(text: str) -> bool:
+    s = str(text or '')
+    return bool(_CONCRETE_MARKER_RE.search(s) or _CONCRETE_CONTEXT_RE.search(s))
+
+
 def _deslash(text: str) -> str:
     s = re.sub(r'\s*/\s*', ' and ', str(text or ''))
     s = re.sub(r'\band\s+and\b', 'and', s)
@@ -240,9 +263,12 @@ def _strip_title_prefix(text: str, title: str) -> str:
 
 def _normalize_thesis(text: str, title: str) -> str:
     s = _strip_title_prefix(text, title)
+    s = re.sub(r'(?i)^in\s+[^,]+,\s*', '', s)
+    s = re.sub(r'(?i)^for\s+[^,]+,\s*', '', s)
     s = re.sub(r'(?i)^this\s+subsection\s+', '', s)
     s = re.sub(r'(?i)^the\s+subsection\s+', '', s)
     s = _clean(_deslash(s), limit=260)
+    s = s.rstrip(' .;:')
     if s and s[0].islower():
         s = s[0].upper() + s[1:]
     return s
@@ -251,9 +277,17 @@ def _normalize_thesis(text: str, title: str) -> str:
 def _normalize_tension(text: str, title: str) -> str:
     s = _strip_title_prefix(text, title)
     s = re.sub(r'(?i)^(?:a|the)\s+(?:central|main|recurring|key)\s+tension\s+is\s+', '', s)
+    s = re.sub(r'(?i)^(?:a|the)\s+tension\s+around\s+[^,:]+[:,-]\s*', '', s)
+    s = re.sub(r'(?i)^(?:a|the)\s+tension\s+between\s+[^,:]+[:,-]\s*', '', s)
     s = re.sub(r'(?i)^(?:the\s+)?main\s+interpretive\s+risk\s+is\s+that\s+', '', s)
     s = re.sub(r'(?i)^reported\s+gains\s+stay\s+readable\s+only\s+when\s+', '', s)
-    return _clean(_deslash(s), limit=260)
+    s = re.sub(r'(?i),?\s*motivating a protocol-aware synthesis rather than per-paper summaries\.?$', '', s).strip()
+    if ':' in s:
+        left, right = s.split(':', 1)
+        right = right.strip()
+        if right and _EVIDENCE_VERB_RE.search(right):
+            s = right
+    return _clean(_deslash(s), limit=260).rstrip(' .;:')
 
 
 def _uniq(items: list[str]) -> list[str]:
@@ -287,9 +321,44 @@ def _stem(text: str, *, n_words: int = 4) -> str:
     return " ".join(words[: int(n_words)])
 
 
+def _normalized_opener_stem(text: str, title: str) -> str:
+    base = _first_sentence_no_cites(text)
+    title_low = str(title or '').strip().lower()
+    if title_low:
+        base = re.sub(re.escape(title_low), '', base.lower())
+    base = re.sub(
+        r'(?i)\b(?:work on|the literature on|a stable reading of|what matters in|the most consequential contrast in)\b',
+        '',
+        base,
+    )
+    base = re.sub(r'\s+', ' ', base).strip(' ,.;:')
+    return _stem(base, n_words=6)
+
+
+def _opener_specificity_score(text: str) -> int:
+    s = _clean(text, limit=320)
+    if not s:
+        return -10
+    score = 0
+    if _CONCRETE_MARKER_RE.search(s):
+        score += 3
+    if _CONCRETE_CONTEXT_RE.search(s):
+        score += 2
+    if re.search(r'(?i)\b(?:because|whereas|while|under|across|latency|real-world|benchmark|transfer)\b', s):
+        score += 1
+    if re.search(r'(?i)\b(?:only becomes comparable once|is best read through|most informative when read through)\b', s):
+        score -= 2
+    if re.search(r'(?i)^(?:that comparison weakens once|a recurring constraint is|the reported gains are less stable when)\b', s):
+        score -= 4
+    if re.search(r'(?i)^the most consequential contrast in\b', s):
+        score -= 2
+    return score
+
+
 def _render_seeded_opener(
     *,
     seed: str,
+    title: str,
     stem_counts: dict[str, int] | None,
     max_repeats: int = 1,
     **kwargs: str,
@@ -300,15 +369,17 @@ def _render_seeded_opener(
     options = _ordered_options(seed, section.get('opener'))
     if not options:
         raise KeyError('missing template paragraphs.opener')
+    context = dict(kwargs)
+    context.setdefault('title', title)
     if stem_counts is None:
-        return options[0].format(**kwargs)
+        return options[0].format(**context)
 
     best_rendered = ''
     best_stem = ''
     best_count: int | None = None
     for template in options:
-        rendered = template.format(**kwargs)
-        stem = _stem(_first_sentence_no_cites(rendered), n_words=4)
+        rendered = template.format(**context)
+        stem = _normalized_opener_stem(rendered, title)
         count = stem_counts.get(stem, 0)
         if best_count is None or count < best_count:
             best_rendered = rendered
@@ -325,7 +396,7 @@ def _render_seeded_opener(
     raise KeyError('missing template paragraphs.opener')
 
 
-def _pick_text_candidate(*, seed: str, options: list[str], stem_counts: dict[str, int] | None) -> str:
+def _pick_text_candidate(*, seed: str, title: str, options: list[str], stem_counts: dict[str, int] | None) -> str:
     cleaned = [str(option or '').strip() for option in options if str(option or '').strip()]
     if not cleaned:
         return ''
@@ -334,16 +405,19 @@ def _pick_text_candidate(*, seed: str, options: list[str], stem_counts: dict[str
         return ordered[0]
 
     best = ordered[0]
-    best_stem = _stem(_first_sentence_no_cites(best), n_words=4)
+    best_stem = _normalized_opener_stem(best, title)
     best_count = stem_counts.get(best_stem, 0) if best_stem else 0
+    best_score = _opener_specificity_score(best)
     for option in ordered:
-        stem = _stem(_first_sentence_no_cites(option), n_words=4)
+        stem = _normalized_opener_stem(option, title)
         count = stem_counts.get(stem, 0) if stem else 0
-        if count < best_count:
+        score = _opener_specificity_score(option)
+        if count < best_count or (count == best_count and score > best_score):
             best = option
             best_stem = stem
             best_count = count
-        if stem and count == 0:
+            best_score = score
+        if stem and count == 0 and score >= best_score:
             stem_counts[stem] = 1
             return option
     if best_stem:
@@ -378,26 +452,36 @@ def _item_from_comp(card: dict[str, Any], title: str) -> tuple[str, list[str]]:
     b_excerpt = _best_highlight_text(b_hls)
     a_clause = _valid_clause(a_excerpt)
     b_clause = _valid_clause(b_excerpt)
-    if not a_clause or not b_clause or a_clause == b_clause:
-        return '', []
     citations: list[str] = [str(x).strip() for x in (card.get('citations') or []) if str(x).strip()]
     for pool in [a_hls, b_hls]:
         for item in pool[:2]:
             for k in item.get('citations') or []:
                 citations.append(str(k).strip())
-    sentence = _render_seeded(
-        'items',
-        'comparison',
-        seed=f"comparison:{title}:{axis}:{a_label}:{b_label}",
-        title_lower=title.lower(),
-        axis=axis,
-        a_label=a_label,
-        b_label=b_label,
-        a_excerpt=_clean(a_excerpt, limit=220),
-        b_excerpt=_clean(b_excerpt, limit=220),
-        a_clause=a_clause,
-        b_clause=b_clause,
-        cite_all=_cites(citations, max_keys=4),
+    if not a_clause and not b_clause:
+        return '', []
+    if a_clause and b_clause and a_clause != b_clause:
+        sentence = _render_seeded(
+            'items',
+            'comparison',
+            seed=f"comparison:{title}:{axis}:{a_label}:{b_label}",
+            title_lower=title.lower(),
+            axis=axis,
+            a_label=a_label,
+            b_label=b_label,
+            a_excerpt=_clean(a_excerpt, limit=220),
+            b_excerpt=_clean(b_excerpt, limit=220),
+            a_clause=a_clause,
+            b_clause=b_clause,
+            cite_all=_cites(citations, max_keys=4),
+        )
+        return sentence, citations
+
+    dominant_label = a_label if a_clause else b_label
+    counterpart_label = b_label if a_clause else a_label
+    dominant_clause = a_clause or b_clause
+    sentence = (
+        f"On {axis}, {dominant_label} are the better-grounded side of the current comparison: {dominant_clause}, "
+        f"whereas reports for {counterpart_label} remain thinner or less directly comparable {_cites(citations, max_keys=4)}."
     )
     return sentence, citations
 
@@ -406,6 +490,8 @@ def _item_from_anchor(anchor: dict[str, Any], title: str) -> tuple[str, list[str
     text = _normalize_evidence_text(anchor.get('text') or '', limit=240)
     text_clause = _valid_clause(text)
     if not text_clause:
+        return '', []
+    if not _has_concrete_marker(text_clause):
         return '', []
     citations = [str(x).strip() for x in (anchor.get('citations') or []) if str(x).strip()]
     sentence = _render_seeded(
@@ -445,10 +531,10 @@ def _normalize_eval_bullet(value: Any) -> str:
     low = bullet.lower()
     if low.startswith('evaluation mentions include:'):
         rest = bullet.split(':', 1)[1].strip().strip(' .')
-        return rest
+        return f"benchmarks and settings such as {rest}"
     if low.startswith('evaluation mentions include'):
         rest = bullet[len('evaluation mentions include'):].strip(' :.')
-        return rest
+        return f"benchmarks and settings such as {rest}"
     return _normalize_evidence_text(bullet, limit=240)
 
 
@@ -456,6 +542,8 @@ def _keep_eval_item(item: dict[str, Any]) -> bool:
     bullet = _clean(_deslash(item.get('bullet') or ''), limit=220).lower()
     if not bullet:
         return False
+    if bullet.startswith('evaluation mentions include'):
+        return True
     blocked = (
         'when comparing results, anchor the paragraph with',
         'prefer head-to-head comparisons only when',
@@ -466,6 +554,13 @@ def _keep_eval_item(item: dict[str, Any]) -> bool:
     )
     if any(bullet.startswith(prefix) for prefix in blocked):
         return False
+    tokens = [tok for tok in re.findall(r"[A-Za-z0-9-]+", bullet) if re.search(r"[A-Za-z]", tok)]
+    if bullet.count(',') >= 3:
+        if not _LISTLIKE_EVAL_VERB_RE.search(bullet):
+            return False
+        shortish = sum(1 for tok in tokens if len(tok) <= 6 or tok.isupper())
+        if tokens and shortish / max(1, len(tokens)) >= 0.7:
+            return False
     return True
 
 
@@ -476,6 +571,8 @@ def _item_from_limit(item: dict[str, Any], title: str) -> tuple[str, list[str]]:
     text = _normalize_evidence_text(raw_text, limit=240)
     text_clause = _valid_clause(text)
     if not text_clause:
+        return '', []
+    if not _has_concrete_marker(text_clause):
         return '', []
     citations = [str(x).strip() for x in (item.get('citations') or []) if str(x).strip()]
     sentence = _render_seeded(
@@ -516,10 +613,46 @@ def _make_paragraphs(pack: dict[str, Any], title: str, *, opener_stem_counts: di
     tension = _normalize_tension(pack.get('tension_statement') or '', title) or _tmpl('fallbacks', 'tension_statement')
     rq = _clean(_deslash(pack.get('rq') or ''), limit=220) or _tmpl('fallbacks', 'rq')
 
-    cards = [x for x in (pack.get('comparison_cards') or []) if isinstance(x, dict)]
-    anchors = [x for x in (pack.get('anchor_facts') or []) if isinstance(x, dict)]
+    raw_cards = [x for x in (pack.get('comparison_cards') or []) if isinstance(x, dict)]
+    cards: list[dict[str, Any]] = []
+    seen_pairs: set[tuple[str, str, str]] = set()
+    for card in raw_cards:
+        a_label = _normalize_label(card.get('A_label') or '')
+        b_label = _normalize_label(card.get('B_label') or '')
+        axis = _normalize_axis(card.get('axis') or '') or 'axis'
+        pair = tuple(sorted([a_label or 'a', b_label or 'b'])) + (axis,)
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+        cards.append(card)
+        if len(cards) >= 6:
+            break
+
+    raw_anchors = [x for x in (pack.get('anchor_facts') or []) if isinstance(x, dict)]
+    anchors: list[dict[str, Any]] = []
+    seen_anchor_papers: set[str] = set()
+    for anchor in raw_anchors:
+        pid = str(anchor.get('paper_id') or '').strip()
+        if pid and pid in seen_anchor_papers:
+            continue
+        if pid:
+            seen_anchor_papers.add(pid)
+        anchors.append(anchor)
+        if len(anchors) >= 8:
+            break
     evals = [x for x in (pack.get('evaluation_protocol') or []) if isinstance(x, dict) and _keep_eval_item(x)]
-    limits = [x for x in (pack.get('limitation_hooks') or []) if isinstance(x, dict)]
+    raw_limits = [x for x in (pack.get('limitation_hooks') or []) if isinstance(x, dict)]
+    limits: list[dict[str, Any]] = []
+    seen_limit_papers: set[str] = set()
+    for item in raw_limits:
+        pid = str(item.get('paper_id') or '').strip()
+        if pid and pid in seen_limit_papers:
+            continue
+        if pid:
+            seen_limit_papers.add(pid)
+        limits.append(item)
+        if len(limits) >= 6:
+            break
     support_keys = _uniq(
         [str(x).strip() for x in (pack.get('allowed_bibkeys_selected') or []) if str(x).strip()]
         + [str(x).strip() for x in (pack.get('allowed_bibkeys_chapter') or []) if str(x).strip()]
@@ -538,8 +671,8 @@ def _make_paragraphs(pack: dict[str, Any], title: str, *, opener_stem_counts: di
     opener_candidates: list[str] = [
         _render_seeded_opener(
             seed=f"opener:{title}:{thesis}:{tension}",
-            stem_counts=None,
             title=title,
+            stem_counts=None,
             title_lower=title.lower(),
             thesis=thesis,
             seed_cites=opener_seed_cites,
@@ -553,31 +686,33 @@ def _make_paragraphs(pack: dict[str, Any], title: str, *, opener_stem_counts: di
         a_label = _normalize_label(card0.get('A_label') or '')
         b_label = _normalize_label(card0.get('B_label') or '')
         if axis and a_label and b_label:
-            opener_candidates.append(
-                f"One recurrent split in {title.lower()} runs between {a_label} and {b_label} along {axis}. {thesis} {opener_seed_cites}."
-            )
-    if evals:
-        eval_anchor = _normalize_eval_bullet((evals[0] or {}).get('bullet') or '')
-        if eval_anchor:
-            opener_candidates.append(
-                f"Results in {title.lower()} only stay comparable when they are read against {eval_anchor}. {thesis} {opener_seed_cites}."
-            )
+            comparison_openers = [
+                f"The sharpest split in {title.lower()} is between {a_label} and {b_label}, because their reported gains depend on different assumptions about {axis}. {thesis} {opener_seed_cites}.",
+                f"What most separates the literature on {title.lower()} is the contrast between {a_label} and {b_label}, especially once {axis} changes. {thesis} {opener_seed_cites}.",
+                f"In {title.lower()}, the main divide is between {a_label} and {b_label}; that contrast only makes sense once assumptions about {axis} are stated explicitly. {thesis} {opener_seed_cites}.",
+            ]
+            opener_candidates.extend(comparison_openers)
+    if anchors:
+        anchor_sentence, _ = _item_from_anchor(anchors[0], title)
+        if anchor_sentence:
+            opener_candidates.append(f"{anchor_sentence} {thesis} {opener_seed_cites}.".strip())
 
     paragraphs: list[str] = []
     picked_opener = _pick_text_candidate(
         seed=f"opener-candidate:{title}:{thesis}:{tension}",
+        title=title,
         options=opener_candidates,
         stem_counts=opener_stem_counts,
     )
     if picked_opener:
         paragraphs.append(picked_opener)
 
-    comp_items = [_item_from_comp(card, title) for card in cards[:7]]
-    anchor_items = [_item_from_anchor(anchor, title) for anchor in anchors[:10]]
-    eval_items = [_item_from_eval(item, title) for item in evals[:4]]
-    limit_items = [_item_from_limit(item, title) for item in limits[:8]]
+    comp_items = [('comparison',) + _item_from_comp(card, title) for card in cards[:6]]
+    anchor_items = [('anchor',) + _item_from_anchor(anchor, title) for anchor in anchors[:8]]
+    eval_items = [('evaluation',) + _item_from_eval(item, title) for item in evals[:4]]
+    limit_items = [('limitation',) + _item_from_limit(item, title) for item in limits[:6]]
 
-    body_items: list[tuple[str, list[str]]] = []
+    body_items: list[tuple[str, str, list[str]]] = []
     for idx in range(max(len(comp_items), len(anchor_items), len(eval_items), len(limit_items), 1)):
         if idx < len(comp_items):
             body_items.append(comp_items[idx])
@@ -588,9 +723,9 @@ def _make_paragraphs(pack: dict[str, Any], title: str, *, opener_stem_counts: di
         if idx < len(limit_items):
             body_items.append(limit_items[idx])
 
-    deduped_items: list[tuple[str, list[str]]] = []
+    deduped_items: list[tuple[str, str, list[str]]] = []
     seen_texts: set[str] = set()
-    for text, cites in body_items:
+    for kind, text, cites in body_items:
         cleaned = re.sub(r'\s+', ' ', str(text or '').strip())
         if not cleaned:
             continue
@@ -598,15 +733,57 @@ def _make_paragraphs(pack: dict[str, Any], title: str, *, opener_stem_counts: di
         if not key or key in seen_texts:
             continue
         seen_texts.add(key)
-        deduped_items.append((cleaned, cites))
+        deduped_items.append((kind, cleaned, cites))
 
-    used: list[str] = opener_cites[:] or seed_cites[:]
+    plan_len = len(pack.get('paragraph_plan') or []) if isinstance(pack.get('paragraph_plan'), list) else 0
+    max_items = max(14, min(20, (plan_len * 2) if plan_len else 16))
+    used_cites: set[str] = set(opener_cites[:] or seed_cites[:])
+    selected_types: dict[str, int] = {}
+    remaining = deduped_items[:]
+    chosen: list[tuple[str, str, list[str]]] = []
+
+    def pick_best(*, only_kind: str | None = None) -> bool:
+        best_idx = -1
+        best_score: int | None = None
+        for idx, (kind, text, cites) in enumerate(remaining):
+            if only_kind and kind != only_kind:
+                continue
+            cite_gain = len([c for c in _uniq(cites) if c and c not in used_cites])
+            type_bonus = {'comparison': 4, 'anchor': 3, 'evaluation': 2, 'limitation': 2}.get(kind, 0)
+            repeat_penalty = selected_types.get(kind, 0) * 3
+            score = cite_gain * 6 + type_bonus - repeat_penalty
+            if _has_concrete_marker(text):
+                score += 2
+            if best_score is None or score > best_score:
+                best_idx = idx
+                best_score = score
+        if best_idx < 0:
+            return False
+        kind, text, cites = remaining.pop(best_idx)
+        chosen.append((kind, text, cites))
+        selected_types[kind] = selected_types.get(kind, 0) + 1
+        for cite in _uniq(cites):
+            if cite:
+                used_cites.add(cite)
+        return True
+
+    for kind, minimum in (('comparison', 2), ('anchor', 2), ('evaluation', 2), ('limitation', 1)):
+        while len(chosen) < max_items and selected_types.get(kind, 0) < minimum:
+            if not pick_best(only_kind=kind):
+                break
+
+    while remaining and len(chosen) < max_items:
+        if not pick_best():
+            break
+
     body_sentences: list[str] = []
-    for text, cites in deduped_items[:24]:
+    for _, text, cites in chosen:
         body_sentences.append(text)
-        used.extend(cites)
-
-    target_paragraphs = max(9, min(len(body_sentences), len(pack.get('paragraph_plan') or []) - 1 if isinstance(pack.get('paragraph_plan'), list) else 9))
+    if plan_len:
+        desired_paragraphs = max(6, min(10, plan_len - 1))
+    else:
+        desired_paragraphs = 8
+    target_paragraphs = max(4, min(len(body_sentences), desired_paragraphs))
     paragraphs.extend(_bundle_sentences(body_sentences, target=target_paragraphs))
 
     return [p.strip() for p in paragraphs if p.strip()]
@@ -619,6 +796,7 @@ def main() -> int:
     parser.add_argument('--inputs', default='')
     parser.add_argument('--outputs', default='')
     parser.add_argument('--checkpoint', default='')
+    parser.add_argument('--rewrite', action='store_true', help='rewrite existing H3 files instead of bootstrapping missing ones only')
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve()
@@ -714,6 +892,8 @@ def main() -> int:
                 path = sections_dir / f'{slug_unit_id(sub_id)}.md'
                 should_write = True
                 if freeze_marker.exists() and path.exists() and path.stat().st_size > 0:
+                    should_write = False
+                elif path.exists() and path.stat().st_size > 0 and not args.rewrite:
                     should_write = False
                 if should_write:
                     pack = packs.get(sub_id) or {'title': title}

@@ -187,6 +187,19 @@ def _series_text(items: list[str]) -> str:
     return f"{', '.join(values[:-1])}, and {values[-1]}"
 
 
+def _prose_surface_text(text: str, *, limit: int = 120) -> str:
+    s = str(text or '').strip()
+    if not s:
+        return ''
+    s = re.sub(r'\s*/\s*', ' and ', s)
+    s = re.sub(r'\s*&\s*', ' and ', s)
+    s = re.sub(r'\s+', ' ', s).strip(' ,;:')
+    if len(s) <= limit:
+        return s
+    clipped = s[:limit].rsplit(' ', 1)[0].strip()
+    return clipped if clipped else s[:limit].strip()
+
+
 def _chapter_theme_phrase(title: str) -> str:
     low = re.sub(r'\s+', ' ', str(title or '').strip().lower())
     if not low:
@@ -226,8 +239,8 @@ def _chapter_contexts(outline: Any, chapter_briefs: list[dict[str, Any]], *, int
         brief = briefs_by_sec.get(sid) or {}
         throughline = [str(x).strip() for x in (brief.get('throughline') or []) if str(x).strip()]
         key_contrasts = [str(x).strip() for x in (brief.get('key_contrasts') or []) if str(x).strip()]
-        focus_summary = ', '.join(throughline[:2]) if throughline else title.lower()
-        key_contrast = key_contrasts[0] if key_contrasts else title.lower()
+        focus_summary = _prose_surface_text(', '.join(throughline[:2]) if throughline else title.lower())
+        key_contrast = _prose_surface_text(key_contrasts[0] if key_contrasts else focus_summary or title.lower())
         chapters.append(
             {
                 'section_id': sid,
@@ -239,6 +252,33 @@ def _chapter_contexts(outline: Any, chapter_briefs: list[dict[str, Any]], *, int
             }
         )
     return chapters
+
+
+def _group_chapter_contexts(chapters: list[dict[str, str]], *, max_groups: int = 2) -> list[dict[str, str]]:
+    if len(chapters) <= max_groups:
+        return chapters
+    group_size = max(2, (len(chapters) + max_groups - 1) // max_groups)
+    grouped: list[dict[str, str]] = []
+    for idx in range(0, len(chapters), group_size):
+        chunk = chapters[idx: idx + group_size]
+        if not chunk:
+            continue
+        titles = [c.get('chapter_title', '') for c in chunk if c.get('chapter_title')]
+        themes = [_prose_surface_text(c.get('chapter_theme', '')) for c in chunk if c.get('chapter_theme')]
+        focuses = [_prose_surface_text(c.get('chapter_focus_summary', '')) for c in chunk if c.get('chapter_focus_summary')]
+        contrasts = [_prose_surface_text(c.get('chapter_key_contrast', '')) for c in chunk if c.get('chapter_key_contrast')]
+        chapter_title = _chapter_path_text(titles) if titles else 'adjacent parts of the field'
+        grouped.append(
+            {
+                'section_id': ','.join(str(c.get('section_id') or '').strip() for c in chunk if str(c.get('section_id') or '').strip()),
+                'chapter_title': chapter_title,
+                'chapter_title_lower': chapter_title.lower(),
+                'chapter_theme': _series_text([t for t in themes if t]) or 'adjacent parts of the field',
+                'chapter_focus_summary': _series_text([f for f in focuses if f][:2]) or chapter_title.lower(),
+                'chapter_key_contrast': _series_text([c for c in contrasts if c][:2]) or _series_text([f for f in focuses if f][:2]) or chapter_title.lower(),
+            }
+        )
+    return grouped[:max_groups]
 
 
 def _global_values(*, goal: str, time_window: str, candidate_pool: str, core_set_size: str, evidence_mode: str, chapter_contexts: list[dict[str, str]]) -> dict[str, str]:
@@ -366,7 +406,9 @@ def _render_job_graph(section_name: str, section_contract: dict[str, Any], hook_
         stride = max(1, int(spec.get('cite_stride') or width))
         if str(spec.get('repeat_from') or '').strip() == 'chapters':
             limit = max(0, int(spec.get('limit') or len(chapter_contexts)))
-            for chapter_index, chapter in enumerate(chapter_contexts[:limit]):
+            max_groups = 3 if section_name == 'related_work' else 2
+            grouped_chapters = _group_chapter_contexts(chapter_contexts[:limit], max_groups=max_groups)
+            for chapter_index, chapter in enumerate(grouped_chapters):
                 local_values = dict(values)
                 local_values.update(chapter)
                 cite_text = _cite_range(all_keys, start + chapter_index * stride, start + chapter_index * stride + width)
@@ -393,6 +435,12 @@ def _lint_reader_facing(*, label: str, text: str, contract: dict[str, Any]) -> N
         (r'(?i)\bfor this run\b', 'run-local narration'),
         (r'(?i)\bthis review\b', 'deictic review narration'),
         (r'(?i)\bthis survey\b', 'deictic survey narration'),
+        (r'(?i)\bthe introduction therefore asks\b', 'planner-talk opener'),
+        (r'(?i)\bsurveys? of [^.]+ help most when\b', 'survey-positioning template'),
+        (r'(?i)\bused this way\b', 'planner-talk stem'),
+        (r'(?i)\bthat stance keeps\b', 'planner-talk stem'),
+        (r'(?i)\bthe transition to the body\b', 'planner-talk bridge'),
+        (r'(?i)\bfunctions as the opening orientation\b', 'planner-talk framing'),
         (r'(?i)\bevidence-first treatment\b', 'internal method phrasing'),
         (r'(?i)\bthe discussion below\b', 'slide-like narration'),
         (r'(?i)\bwhat follows\b', 'slide-like narration'),

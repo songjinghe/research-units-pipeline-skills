@@ -70,23 +70,13 @@
           "cite_width": 6
         },
         {
-          "job": "chapter_map",
+          "job": "methodology_note",
           "cite_start": 24,
           "cite_width": 6
         },
         {
-          "job": "methodology_note",
-          "cite_start": 30,
-          "cite_width": 6
-        },
-        {
-          "job": "reader_contract",
-          "cite_start": 36,
-          "cite_width": 6
-        },
-        {
           "job": "closing_bridge",
-          "cite_start": 42,
+          "cite_start": 30,
           "cite_width": 6
         }
       ]
@@ -109,32 +99,17 @@
         },
         {
           "job": "evaluation_calibration",
-          "cite_start": 30,
-          "cite_width": 6
-        },
-        {
-          "job": "coverage_positioning",
-          "cite_start": 36,
+          "cite_start": 18,
           "cite_width": 6
         },
         {
           "job": "gap_statement",
-          "cite_start": 42,
-          "cite_width": 6
-        },
-        {
-          "job": "wedge",
-          "cite_start": 48,
-          "cite_width": 6
-        },
-        {
-          "job": "survey_role",
-          "cite_start": 54,
+          "cite_start": 24,
           "cite_width": 6
         },
         {
           "job": "closing_bridge",
-          "cite_start": 60,
+          "cite_start": 30,
           "cite_width": 6
         }
       ]

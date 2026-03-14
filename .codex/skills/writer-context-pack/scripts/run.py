@@ -8,59 +8,135 @@ import sys
 from pathlib import Path
 from typing import Any
 
-_URL_RE = re.compile(r"https?://\S+")
-_AVAILABILITY_VERB_RE = re.compile(
-    r"(?i)\b(?:is|are|was|were|will\s+be|can\s+be|has\s+been)?\s*(?:publicly\s+)?(?:available|released|open-?sourced|shared)\b"
+_ASSET_ROOT = Path(__file__).resolve().parents[1] / "assets"
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    if not path.exists() or path.stat().st_size <= 0:
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+_SOURCE_HYGIENE = _load_json(_ASSET_ROOT / "source_text_hygiene.json")
+_CONTEXT_PACK_POLICY = _load_json(_ASSET_ROOT / "context_pack_policy.json")
+
+
+def _compile_hygiene_pattern(key: str, default: str) -> re.Pattern[str]:
+    pattern = str(_SOURCE_HYGIENE.get(key) or default).strip()
+    return re.compile(pattern)
+
+
+def _compile_hygiene_pattern_list(key: str, default: list[str]) -> list[re.Pattern[str]]:
+    raw = _SOURCE_HYGIENE.get(key)
+    if not isinstance(raw, list):
+        raw = default
+    out: list[re.Pattern[str]] = []
+    for item in raw:
+        pattern = str(item or "").strip()
+        if not pattern:
+            continue
+        out.append(re.compile(pattern))
+    return out
+
+
+_URL_RE = _compile_hygiene_pattern("url_pattern", r"https?://\S+")
+_AVAILABILITY_VERB_RE = _compile_hygiene_pattern(
+    "availability_verb_pattern",
+    r"(?i)\b(?:is|are|was|were|will\s+be|can\s+be|has\s+been)?\s*(?:publicly\s+)?(?:available|released|open-?sourced|shared)\b",
 )
-_LEADING_SELF_REF_RE = re.compile(
-    r"(?i)^(?:to (?:address|overcome|tackle|mitigate|study|investigate|examine|understand|analyze|explore|bridge)[^,]{0,180},\s*)?"
-    r"(?:(?:in|throughout)\s+(?:this|our)\s+(?:survey|paper|work|study|article),?\s*)?"
+_AVAILABILITY_ARTIFACT_RE = _compile_hygiene_pattern(
+    "availability_artifact_pattern",
+    r"(?i)\b(?:project\s+(?:website|site|web\s*page|page)|website|site|web\s*page|repository|repo|code|dataset|data|collection|resources?)\b",
 )
-_LEADING_CONTEXT_RE = re.compile(
-    r"(?i)^(?:building on this foundation|against this backdrop|in this context|to this end|towards this end|specifically|for example|based on this proposition|throughout [^,]{1,120}|moreover|furthermore|additionally),?\s*"
+_INVITE_READERS_RE = _compile_hygiene_pattern("invite_readers_pattern", r"(?i)\b(?:encourage|invite)\s+readers?\b")
+_AVAILABILITY_ACTION_RE = _compile_hygiene_pattern("availability_action_pattern", r"(?i)\b(?:view|visit|see|consult|check)\b")
+_AVAILABILITY_LOCATION_RE = _compile_hygiene_pattern("availability_location_pattern", r"(?i)\b(?:github|repository|repo|website|project\s+site)\b")
+_OUR_ARTIFACT_RE = _compile_hygiene_pattern("our_artifact_pattern", r"(?i)\bour\s+(?:living\s+)?(?:github\s+)?repository\b")
+_AVAILABILITY_PHRASE_RE = _compile_hygiene_pattern("availability_phrase_pattern", r"(?i)\b(?:available at|can be found at)\b")
+_AVAILABILITY_GENERIC_ARTIFACT_RE = _compile_hygiene_pattern("availability_generic_artifact_pattern", r"(?i)\b(?:code|dataset|data|collection|resources?)\b")
+_LEADING_SELF_REF_RE = _compile_hygiene_pattern(
+    "leading_self_reference_pattern",
+    r"(?i)^(?:to (?:address|overcome|tackle|mitigate|study|investigate|examine|understand|analyze|explore|bridge)[^,]{0,180},\s*)?(?:(?:in|throughout)\s+(?:this|our)\s+(?:survey|paper|work|study|article),?\s*)?",
 )
-_LEADING_AUTHOR_FINDING_RE = re.compile(
-    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
-    r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|quantify|quantifies|reveal|reveals|indicate|indicates)\s+that\s+"
+_LEADING_CONTEXT_RE = _compile_hygiene_pattern(
+    "leading_context_pattern",
+    r"(?i)^(?:building on this foundation|against this backdrop|in this context|to this end|towards this end|specifically|for example|for instance|based on this proposition|throughout [^,]{1,120}|moreover|furthermore|additionally|recently|further|notably),?\s*",
 )
-_LEADING_AUTHOR_PREDICATE_RE = re.compile(
-    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
-    r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|reveal|reveals|indicate|indicates)\s+"
+_LEADING_AUTHOR_FINDING_RE = _compile_hygiene_pattern(
+    "leading_author_finding_pattern",
+    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|quantify|quantifies|reveal|reveals|indicate|indicates)\s+that\s+",
 )
-_LEADING_AUTHOR_ACTION_RE = re.compile(
-    r"(?i)^(?:here,\s*)?(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
-    r"(?:(?:also|broadly|comprehensively)\s+)?"
-    r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|quantify|study|design|build|construct|divide)\b[^,]{0,160},\s*"
+_LEADING_AUTHOR_PREDICATE_RE = _compile_hygiene_pattern(
+    "leading_author_predicate_pattern",
+    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|reveal|reveals|indicate|indicates)\s+",
 )
-_LEADING_PARTICIPLE_RE = re.compile(
-    r"(?i)^(?:demonstrating|showing|finding|observing|revealing|indicating|suggesting)\s+that\s+"
+_LEADING_AUTHOR_ACTION_RE = _compile_hygiene_pattern(
+    "leading_author_action_pattern",
+    r"(?i)^(?:here,\s*)?(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+(?:(?:also|broadly|comprehensively)\s+)?(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|quantify|study|design|build|construct|divide)\b[^,]{0,160},\s*",
 )
-_FRAGMENT_PARTICIPLE_RE = re.compile(r"(?i)^(?:demonstrating|showing|revealing|highlighting|indicating)\b")
-_PROMISSORY_SELF_NARRATION_RE = re.compile(
-    r"(?i)^(?:we\s+hope|we\s+aim|our\s+(?:survey|paper|work|study)\s+aims?|this\s+(?:survey|paper|work|study)\s+aims?)\b"
+_LEADING_PARTICIPLE_RE = _compile_hygiene_pattern(
+    "leading_participle_pattern",
+    r"(?i)^(?:demonstrating|showing|finding|observing|revealing|indicating|suggesting)\s+that\s+",
 )
-_LEADING_DISCOURSE_RE = re.compile(r"(?i)^(?:moreover|furthermore|additionally|in addition),\s*")
-_POST_ACTION_ARTIFACT_RE = re.compile(r"^([A-Z][A-Za-z0-9._-]{1,80}),\s+(.*)$")
-_NAMED_ARTIFACT_RE = re.compile(
-    r"(?i)^(?:here,\s*)?(?:we|the authors)\s+(?:introduce|present|propose|develop|describe)\s+([A-Z][A-Za-z0-9][^,.;:]{0,120}),\s+(.*)$"
+_FRAGMENT_PARTICIPLE_RE = _compile_hygiene_pattern("fragment_participle_pattern", r"(?i)^(?:demonstrating|showing|revealing|highlighting|indicating)\b")
+_PROMISSORY_SELF_NARRATION_RE = _compile_hygiene_pattern(
+    "promissory_self_narration_pattern",
+    r"(?i)^(?:we\s+hope|we\s+aim|our\s+(?:survey|paper|work|study)\s+aims?|this\s+(?:survey|paper|work|study)\s+aims?)\b",
 )
-_GENERIC_SELF_NARRATION_RE = re.compile(
-    r"(?i)^(?:here,\s*)?(?:we|our)\s+"
-    r"(?:(?:also|broadly|comprehensively)\s+)?"
-    r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|study|design|build|construct|divide)\b"
+_LEADING_DISCOURSE_RE = _compile_hygiene_pattern("leading_discourse_pattern", r"(?i)^(?:moreover|furthermore|additionally|in addition),\s*")
+_LEADING_WHERE_ARTIFACT_RE = _compile_hygiene_pattern(
+    "leading_where_artifact_pattern",
+    r"(?i)^where\s+([A-Z][A-Za-z0-9._-]{1,80})\s+",
 )
-_STUDY_SELF_NARRATION_RE = re.compile(r"(?i)^(?:this|our)\s+(?:survey|paper|work|study|article)\b")
-_NEGATIVE_LIMIT_RE = re.compile(
-    r"(?i)\b(?:limit\w*|challeng\w*|risk\w*|unsafe|fail\w*|fragil\w*|gap\w*|bottleneck\w*|"
-    r"latency|cost\w*|complexit\w*|domain\s+shift|out-of-distribution|ood|partial\s+observability|"
-    r"generalization\s+(?:gap|limit|challenge)|poor\s+instruction|hinder\w*|constrain\w*|restrict\w*)\b"
+_RELATIVE_CLAUSE_ARTIFACT_RE = _compile_hygiene_pattern(
+    "relative_clause_artifact_pattern",
+    r"^([A-Z][A-Za-z0-9._-]{1,80}),\s+(?:which|that)\s+",
 )
-_GENERIC_META_RE = re.compile(
-    r"(?i)\b(?:survey|review|overview|taxonomy|history|landscape|main contribution is a detailed breakdown)\b"
+_POST_ACTION_ARTIFACT_RE = _compile_hygiene_pattern("post_action_artifact_pattern", r"^([A-Z][A-Za-z0-9._-]{1,80}),\s+(.*)$")
+_NAMED_ARTIFACT_RE = _compile_hygiene_pattern(
+    "named_artifact_pattern",
+    r"(?i)^(?:here,\s*)?(?:we|the authors)\s+(?:introduce|present|propose|develop|describe)\s+([A-Z][A-Za-z0-9][^,.;:]{0,120}),\s+(.*)$",
+)
+_GENERIC_SELF_NARRATION_RE = _compile_hygiene_pattern(
+    "generic_self_narration_pattern",
+    r"(?i)^(?:here,\s*)?(?:we|our)\s+(?:(?:also|broadly|comprehensively)\s+)?(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|study|design|build|construct|divide)\b",
+)
+_STUDY_SELF_NARRATION_RE = _compile_hygiene_pattern("study_self_narration_pattern", r"(?i)^(?:this|our)\s+(?:survey|paper|work|study|article)\b")
+_NEGATIVE_LIMIT_RE = _compile_hygiene_pattern(
+    "negative_limit_pattern",
+    r"(?i)\b(?:limit\w*|challeng\w*|risk\w*|unsafe|fail\w*|fragil\w*|gap\w*|bottleneck\w*|latency|cost\w*|complexit\w*|domain\s+shift|out-of-distribution|ood|partial\s+observability|generalization\s+(?:gap|limit|challenge)|poor\s+instruction|hinder\w*|constrain\w*|restrict\w*)\b",
+)
+_GENERIC_META_RE = _compile_hygiene_pattern(
+    "generic_meta_pattern",
+    r"(?i)\b(?:survey|review|overview|taxonomy|history|landscape|main contribution is a detailed breakdown)\b",
+)
+_GENERIC_SUMMARY_PATTERNS = _compile_hygiene_pattern_list(
+    "generic_summary_patterns",
+    [
+        r"(?i)^benchmarks? are crucial for evaluating progress\b",
+        r"(?i)^evaluations? are critical to assess progress\b",
+        r"(?i)^recent work has advanced such general robot policies\b",
+        r"(?i)^in this machine learning-focused workflow\b",
+        r"(?i)^we benchmark our method against\b",
+        r"(?i)^from a detailed search of \d+ articles\b",
+        r"(?i)^the experiments also provide an extensive evaluation\b",
+    ],
 )
 _TOKEN_STOPWORDS = {
-    "and","the","with","from","into","across","under","over","between","task","tasks","study","studies",
-    "design","system","systems","model","models","method","methods","paper","papers","evaluation","protocol"
+    str(x).strip().lower()
+    for x in (
+        _SOURCE_HYGIENE.get("topic_token_stopwords")
+        if isinstance(_SOURCE_HYGIENE.get("topic_token_stopwords"), list)
+        else [
+            "and","the","with","from","into","across","under","over","between","task","tasks","study","studies",
+            "design","system","systems","model","models","method","methods","paper","papers","evaluation","protocol",
+        ]
+    )
+    if str(x).strip()
 }
 
 
@@ -92,25 +168,20 @@ def _is_availability_boilerplate(text: str) -> bool:
         return True
     low = s.lower()
     has_link = bool(_URL_RE.search(s))
-    mentions_artifact = bool(
-        re.search(
-            r"(?i)\b(?:project\s+(?:website|site|web\s*page|page)|website|site|web\s*page|repository|repo|code|dataset|data|collection|resources?)\b",
-            s,
-        )
-    )
+    mentions_artifact = bool(_AVAILABILITY_ARTIFACT_RE.search(s))
     if has_link and mentions_artifact:
         return True
-    if re.search(r"(?i)\b(?:encourage|invite)\s+readers?\b", s) and mentions_artifact:
+    if _INVITE_READERS_RE.search(s) and mentions_artifact:
         return True
-    if re.search(r"(?i)\b(?:view|visit|see|consult|check)\b", s) and re.search(r"(?i)\b(?:github|repository|repo|website|project\s+site)\b", s):
+    if _AVAILABILITY_ACTION_RE.search(s) and _AVAILABILITY_LOCATION_RE.search(s):
         return True
-    if re.search(r"(?i)\bour\s+(?:living\s+)?(?:github\s+)?repository\b", s):
+    if _OUR_ARTIFACT_RE.search(s):
         return True
-    if "available at" in low or "can be found at" in low:
+    if _AVAILABILITY_PHRASE_RE.search(low):
         return mentions_artifact or has_link
     if re.search(r"(?i)\b(?:our|the)\s+(?:code|project|repository|repo|dataset|data|collection|resources?)\b", s):
         return has_link or bool(_AVAILABILITY_VERB_RE.search(s))
-    if re.search(r"(?i)\b(?:code|dataset|data|collection|resources?)\b", s) and _AVAILABILITY_VERB_RE.search(s):
+    if _AVAILABILITY_GENERIC_ARTIFACT_RE.search(s) and _AVAILABILITY_VERB_RE.search(s):
         return True
     return False
 
@@ -120,6 +191,8 @@ def _sanitize_source_sentence(text: str) -> str:
     if not s:
         return ""
     if _is_availability_boilerplate(s):
+        return ""
+    if any(pattern.search(s) for pattern in _GENERIC_SUMMARY_PATTERNS):
         return ""
 
     s = _URL_RE.sub("", s)
@@ -133,6 +206,7 @@ def _sanitize_source_sentence(text: str) -> str:
     s = _LEADING_AUTHOR_PREDICATE_RE.sub("", s)
     s = _LEADING_AUTHOR_ACTION_RE.sub("", s)
     s = _LEADING_PARTICIPLE_RE.sub("", s)
+    s = _LEADING_WHERE_ARTIFACT_RE.sub(r"\1 ", s)
 
     if _PROMISSORY_SELF_NARRATION_RE.match(s) or _FRAGMENT_PARTICIPLE_RE.match(s):
         return ""
@@ -141,7 +215,10 @@ def _sanitize_source_sentence(text: str) -> str:
     if m:
         name = re.sub(r"\s+", " ", m.group(1).strip(" ,;:"))
         rest = re.sub(r"\s+", " ", m.group(2).strip(" ,;:"))
-        if rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
+        if rest and re.match(r"(?i)^(?:which|that)\b", rest):
+            rest = re.sub(r"(?i)^(?:which|that)\s+", "", rest).strip()
+            s = f"{name} {rest}"
+        elif rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
             s = f"{name} is {rest}"
         elif rest:
             s = f"{name}: {rest}"
@@ -150,11 +227,23 @@ def _sanitize_source_sentence(text: str) -> str:
     elif _STUDY_SELF_NARRATION_RE.match(s) or _GENERIC_SELF_NARRATION_RE.match(s):
         return ""
 
+    rel_clause = _RELATIVE_CLAUSE_ARTIFACT_RE.match(s)
+    if rel_clause:
+        name = rel_clause.group(1).strip()
+        rest = _RELATIVE_CLAUSE_ARTIFACT_RE.sub("", s, count=1).strip(" ,;:")
+        if rest:
+            s = f"{name} {rest}"
+        else:
+            s = name
+
     artifact_match = _POST_ACTION_ARTIFACT_RE.match(s)
     if artifact_match:
         name = artifact_match.group(1).strip()
         rest = artifact_match.group(2).strip()
-        if rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
+        if rest and re.match(r"(?i)^(?:which|that)\b", rest):
+            rest = re.sub(r"(?i)^(?:which|that)\s+", "", rest).strip()
+            s = f"{name} {rest}"
+        elif rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
             s = f"{name} is {rest}"
         elif rest:
             s = f"{name}: {rest}"
@@ -162,6 +251,8 @@ def _sanitize_source_sentence(text: str) -> str:
     if s:
         s = s[:1].upper() + s[1:]
     s = re.sub(r"\s{2,}", " ", s).strip(" ,;:")
+    if any(pattern.search(s) for pattern in _GENERIC_SUMMARY_PATTERNS):
+        return ""
     if len(s) < 16:
         return ""
     if s[-1] not in ".!?":
@@ -191,8 +282,18 @@ def _sanitize_source_text(text: str) -> str:
     return " ".join(out).strip()
 
 
-def _topic_tokens(*, title: str, axes: list[str]) -> set[str]:
-    raw = " ".join([title] + [str(a or "") for a in (axes or [])])
+def _profile_limits(draft_profile: str) -> dict[str, int]:
+    key = "deep" if str(draft_profile or "").strip().lower() == "deep" else "survey"
+    cfg = ((_CONTEXT_PACK_POLICY.get("profile_limits") or {}).get(key) or {})
+    return {
+        "comparison_keep_limit": max(5, int(cfg.get("comparison_keep_limit") or (9 if key == "deep" else 7))),
+        "comparison_pair_limit": max(5, int(cfg.get("comparison_pair_limit") or (9 if key == "deep" else 7))),
+        "claim_keep_limit": max(4, int(cfg.get("claim_keep_limit") or 6)),
+    }
+
+
+def _topic_tokens(*, title: str, axes: list[str], extras: list[str] | None = None) -> set[str]:
+    raw = " ".join([title] + [str(a or "") for a in (axes or [])] + [str(x or "") for x in (extras or [])])
     tokens = {
         tok
         for tok in re.findall(r"[A-Za-z][A-Za-z0-9-]{2,}", raw.lower())
@@ -201,9 +302,9 @@ def _topic_tokens(*, title: str, axes: list[str]) -> set[str]:
     return tokens
 
 
-def _text_relevant_to_topic(text: str, *, title: str, axes: list[str]) -> bool:
+def _text_relevant_to_topic(text: str, *, title: str, axes: list[str], extras: list[str] | None = None) -> bool:
     low = re.sub(r"\s+", " ", str(text or "").lower())
-    tokens = _topic_tokens(title=title, axes=axes)
+    tokens = _topic_tokens(title=title, axes=axes, extras=extras)
     if not tokens:
         return True
     return any(tok in low for tok in tokens)
@@ -218,6 +319,7 @@ def _rank_text_records(
     *,
     title: str,
     axes: list[str],
+    extras: list[str] | None = None,
     global_text_usage: dict[str, int],
 ) -> list[dict[str, Any]]:
     deduped: list[dict[str, Any]] = []
@@ -233,7 +335,7 @@ def _rank_text_records(
         text = str(rec.get("text") or rec.get("claim") or rec.get("excerpt") or "").strip()
         key = _normalized_text_key(text)
         reuse = global_text_usage.get(key, 0)
-        relevant = 1 if _text_relevant_to_topic(text, title=title, axes=axes) else 0
+        relevant = 1 if _text_relevant_to_topic(text, title=title, axes=axes, extras=extras) else 0
         concrete = 1 if re.search(r"(?i)\d|\b(?:benchmark|dataset|metric|transfer|real-world|simulation|failure|latency|cost|robust)\b", text) else 0
         return (reuse, -relevant, -concrete, -len(text))
 
@@ -609,6 +711,11 @@ def main() -> int:
         eval_anchor = brief.get("evaluation_anchor_minimal") or {}
         if not isinstance(eval_anchor, dict):
             eval_anchor = {}
+        bridge_terms = [str(x).strip() for x in (brief.get("bridge_terms") or []) if str(x).strip()]
+        contrast_hook = re.sub(r"\s+", " ", str(brief.get("contrast_hook") or "").strip())
+        required_fields = [str(x).strip() for x in (brief.get("required_evidence_fields") or []) if str(x).strip()]
+        relevance_terms = bridge_terms + ([contrast_hook] if contrast_hook else []) + required_fields
+        profile_limits = _profile_limits(draft_profile)
 
         mapped = [str(x).strip() for x in (binding.get("mapped_bibkeys") or []) if str(x).strip()]
         selected = [str(x).strip() for x in (binding.get("bibkeys") or []) if str(x).strip()]
@@ -647,7 +754,7 @@ def main() -> int:
                     "pointer": str(a.get("pointer") or "").strip(),
                 }
             )
-        anchor_facts = _rank_text_records(anchor_pool, title=title, axes=axes, global_text_usage=global_text_usage)[:keep_limit]
+        anchor_facts = _rank_text_records(anchor_pool, title=title, axes=axes, extras=relevance_terms, global_text_usage=global_text_usage)[:keep_limit]
         for rec in anchor_facts:
             key = _normalized_text_key(rec.get("text") or "")
             if key:
@@ -663,7 +770,8 @@ def main() -> int:
 
         comparison_cards: list[dict[str, Any]] = []
         comp_raw_limit = 14
-        comp_keep_limit = 9 if draft_profile == "deep" else 7
+        comp_keep_limit = int(profile_limits.get("comparison_keep_limit") or (9 if draft_profile == "deep" else 7))
+        pair_keep_limit = int(profile_limits.get("comparison_pair_limit") or comp_keep_limit)
 
         pair_seen_counts: dict[tuple[str, str], int] = {}
         for comp in (raw_comparisons or [])[:comp_raw_limit]:
@@ -709,7 +817,7 @@ def main() -> int:
             }
             pair_key = tuple(sorted([card["A_label"], card["B_label"]]))
             if card["axis"] and (card["A_highlights"] or card["B_highlights"] or card["citations"]):
-                if pair_seen_counts.get(pair_key, 0) >= 5:
+                if pair_seen_counts.get(pair_key, 0) >= pair_keep_limit:
                     comparisons_dropped_no_highlights += 1
                     continue
                 comparison_cards.append(card)
@@ -736,10 +844,8 @@ def main() -> int:
             text = _sanitize_source_text(claim.get("claim") or "")
             if not text:
                 claims_dropped_sanitized += 1
-                text = _trim(claim.get("claim") or "", max_len=TRIM["anchor_fact"])
-            if not text:
                 continue
-            if _GENERIC_META_RE.search(text) or not _text_relevant_to_topic(text, title=title, axes=axes):
+            if _GENERIC_META_RE.search(text) or not _text_relevant_to_topic(text, title=title, axes=axes, extras=relevance_terms):
                 claims_dropped_sanitized += 1
                 continue
             claim_pool.append(
@@ -749,7 +855,7 @@ def main() -> int:
                     "evidence_field": str(claim.get("evidence_field") or "").strip(),
                 }
             )
-        claim_candidates = _rank_text_records(claim_pool, title=title, axes=axes, global_text_usage=global_text_usage)[:6]
+        claim_candidates = _rank_text_records(claim_pool, title=title, axes=axes, extras=relevance_terms, global_text_usage=global_text_usage)[: int(profile_limits.get("claim_keep_limit") or 6)]
         for rec in claim_candidates:
             key = _normalized_text_key(rec.get("claim") or "")
             if key:
@@ -814,7 +920,7 @@ def main() -> int:
                     "pointer": str(it.get("pointer") or "").strip(),
                 }
             )
-        lim_hooks = _rank_text_records(lim_pool, title=title, axes=axes, global_text_usage=global_text_usage)[: (10 if draft_profile == "deep" else 8)]
+        lim_hooks = _rank_text_records(lim_pool, title=title, axes=axes, extras=relevance_terms, global_text_usage=global_text_usage)[: (10 if draft_profile == "deep" else 8)]
         for rec in lim_hooks:
             key = _normalized_text_key(rec.get("excerpt") or "")
             if key:

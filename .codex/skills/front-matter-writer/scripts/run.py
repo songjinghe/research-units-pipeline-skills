@@ -200,22 +200,28 @@ def _prose_surface_text(text: str, *, limit: int = 120) -> str:
     return clipped if clipped else s[:limit].strip()
 
 
-def _chapter_theme_phrase(title: str) -> str:
+def _chapter_theme_phrase(title: str, projection: dict[str, Any] | None = None) -> str:
     low = re.sub(r'\s+', ' ', str(title or '').strip().lower())
     if not low:
         return ''
-    if 'problem settings' in low or 'embodiment' in low:
-        return 'problem settings and embodiment assumptions'
-    if 'model' in low or 'policy' in low or 'architecture' in low:
-        return 'model and policy design'
-    if 'data' in low or 'training' in low or 'post-training' in low:
-        return 'data, supervision, and post-training strategy'
-    if 'evaluation' in low or 'deployment' in low or 'safety' in low:
-        return 'evaluation, safety, and deployment constraints'
+    for rule in (projection or {}).get('chapter_theme_rules') or []:
+        if not isinstance(rule, dict):
+            continue
+        terms = [str(x).strip().lower() for x in (rule.get('match_any') or []) if str(x).strip()]
+        emitted = re.sub(r'\s+', ' ', str(rule.get('emit') or '').strip())
+        if terms and emitted and any(term in low for term in terms):
+            return emitted
     return low.replace('&', 'and')
 
 
-def _chapter_contexts(outline: Any, chapter_briefs: list[dict[str, Any]], *, intro_id: str, related_id: str) -> list[dict[str, str]]:
+def _chapter_contexts(
+    outline: Any,
+    chapter_briefs: list[dict[str, Any]],
+    *,
+    intro_id: str,
+    related_id: str,
+    projection: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
     briefs_by_sec = {}
     for rec in chapter_briefs:
         sid = str(rec.get('section_id') or '').strip()
@@ -239,14 +245,18 @@ def _chapter_contexts(outline: Any, chapter_briefs: list[dict[str, Any]], *, int
         brief = briefs_by_sec.get(sid) or {}
         throughline = [str(x).strip() for x in (brief.get('throughline') or []) if str(x).strip()]
         key_contrasts = [str(x).strip() for x in (brief.get('key_contrasts') or []) if str(x).strip()]
-        focus_summary = _prose_surface_text(', '.join(throughline[:2]) if throughline else title.lower())
-        key_contrast = _prose_surface_text(key_contrasts[0] if key_contrasts else focus_summary or title.lower())
+        focus_policy = (projection or {}).get('chapter_focus_policy') or {}
+        throughline_take = max(1, int(focus_policy.get('throughline_take') or 2))
+        contrast_take = max(1, int(focus_policy.get('contrast_take') or 1))
+        surface_limit = max(60, int(focus_policy.get('surface_limit') or 120))
+        focus_summary = _prose_surface_text(', '.join(throughline[:throughline_take]) if throughline else title.lower(), limit=surface_limit)
+        key_contrast = _prose_surface_text(', '.join(key_contrasts[:contrast_take]) if key_contrasts else focus_summary or title.lower(), limit=surface_limit)
         chapters.append(
             {
                 'section_id': sid,
                 'chapter_title': title,
                 'chapter_title_lower': title.lower(),
-                'chapter_theme': _chapter_theme_phrase(title),
+                'chapter_theme': _chapter_theme_phrase(title, projection),
                 'chapter_focus_summary': focus_summary,
                 'chapter_key_contrast': key_contrast,
             }
@@ -254,10 +264,19 @@ def _chapter_contexts(outline: Any, chapter_briefs: list[dict[str, Any]], *, int
     return chapters
 
 
-def _group_chapter_contexts(chapters: list[dict[str, str]], *, max_groups: int = 2) -> list[dict[str, str]]:
+def _group_chapter_contexts(
+    chapters: list[dict[str, str]],
+    *,
+    section_name: str,
+    projection: dict[str, Any] | None = None,
+) -> list[dict[str, str]]:
+    grouping = (projection or {}).get('chapter_grouping_policy') or {}
+    section_override = ((grouping.get('section_overrides') or {}).get(section_name) or {}) if isinstance(grouping, dict) else {}
+    max_groups = max(1, int(section_override.get('max_groups') or grouping.get('default_max_groups') or 2))
+    min_group_size = max(1, int(grouping.get('min_group_size') or 2))
     if len(chapters) <= max_groups:
         return chapters
-    group_size = max(2, (len(chapters) + max_groups - 1) // max_groups)
+    group_size = max(min_group_size, (len(chapters) + max_groups - 1) // max_groups)
     grouped: list[dict[str, str]] = []
     for idx in range(0, len(chapters), group_size):
         chunk = chapters[idx: idx + group_size]
@@ -281,10 +300,22 @@ def _group_chapter_contexts(chapters: list[dict[str, str]], *, max_groups: int =
     return grouped[:max_groups]
 
 
-def _global_values(*, goal: str, time_window: str, candidate_pool: str, core_set_size: str, evidence_mode: str, chapter_contexts: list[dict[str, str]]) -> dict[str, str]:
+def _global_values(
+    *,
+    goal: str,
+    time_window: str,
+    candidate_pool: str,
+    core_set_size: str,
+    evidence_mode: str,
+    chapter_contexts: list[dict[str, str]],
+    projection: dict[str, Any] | None = None,
+) -> dict[str, str]:
     chapter_titles = [chapter['chapter_title'] for chapter in chapter_contexts if chapter.get('chapter_title')]
     title_join = _chapter_path_text(chapter_titles)
     chapter_themes = [chapter.get('chapter_theme', '') for chapter in chapter_contexts if chapter.get('chapter_theme')]
+    global_policy = (projection or {}).get('global_value_projection') or {}
+    lens_take = max(1, int(global_policy.get('lens_take') or 4))
+    comparison_take = max(1, int(global_policy.get('comparison_take') or 3))
 
     lens_bits: list[str] = []
     compare_bits: list[str] = []
@@ -295,8 +326,8 @@ def _global_values(*, goal: str, time_window: str, candidate_pool: str, core_set
             lens_bits.append(focus)
         if contrast and contrast not in compare_bits:
             compare_bits.append(contrast)
-    lens_summary = '; '.join(lens_bits[:4]) if lens_bits else 'mechanism, protocol, transfer, and deployment conditions'
-    comparison_summary = ', '.join(compare_bits[:3]) if compare_bits else 'mechanism, protocol, and limitations'
+    lens_summary = '; '.join(lens_bits[:lens_take]) if lens_bits else 'mechanism, protocol, transfer, and deployment conditions'
+    comparison_summary = ', '.join(compare_bits[:comparison_take]) if compare_bits else 'mechanism, protocol, and limitations'
     theme_summary = _series_text(chapter_themes) if chapter_themes else 'problem settings, model design, data strategy, and evaluation constraints'
     if chapter_themes:
         if len(chapter_themes) == 1:
@@ -391,7 +422,16 @@ def _render_hook_job(job_name: str, hook_spec: dict[str, Any], values: dict[str,
     return text
 
 
-def _render_job_graph(section_name: str, section_contract: dict[str, Any], hook_bank: dict[str, Any], values: dict[str, str], *, all_keys: list[str], chapter_contexts: list[dict[str, str]]) -> str:
+def _render_job_graph(
+    section_name: str,
+    section_contract: dict[str, Any],
+    hook_bank: dict[str, Any],
+    values: dict[str, str],
+    *,
+    all_keys: list[str],
+    chapter_contexts: list[dict[str, str]],
+    projection: dict[str, Any] | None = None,
+) -> str:
     paragraphs: list[str] = []
     jobs = section_contract.get('jobs') or []
     stem_counts: dict[str, int] = {}
@@ -406,8 +446,7 @@ def _render_job_graph(section_name: str, section_contract: dict[str, Any], hook_
         stride = max(1, int(spec.get('cite_stride') or width))
         if str(spec.get('repeat_from') or '').strip() == 'chapters':
             limit = max(0, int(spec.get('limit') or len(chapter_contexts)))
-            max_groups = 4 if section_name == 'related_work' else 2
-            grouped_chapters = _group_chapter_contexts(chapter_contexts[:limit], max_groups=max_groups)
+            grouped_chapters = _group_chapter_contexts(chapter_contexts[:limit], section_name=section_name, projection=projection)
             for chapter_index, chapter in enumerate(grouped_chapters):
                 local_values = dict(values)
                 local_values.update(chapter)
@@ -517,16 +556,6 @@ def main() -> int:
                 related_id = sid
 
     chapter_briefs = _load_jsonl(workspace / 'outline' / 'chapter_briefs.jsonl')
-    chapter_contexts = _chapter_contexts(outline, chapter_briefs, intro_id=intro_id, related_id=related_id)
-    values = _global_values(
-        goal=goal,
-        time_window=time_window,
-        candidate_pool=candidate_pool,
-        core_set_size=core_set_size,
-        evidence_mode=evidence_mode,
-        chapter_contexts=chapter_contexts,
-    )
-
     packs = _load_jsonl(workspace / 'outline' / 'writer_context_packs.jsonl')
     all_keys: list[str] = []
     for rec in packs:
@@ -551,18 +580,33 @@ def main() -> int:
     package_root = Path(__file__).resolve().parents[1]
     template_asset_path = package_root / 'assets' / 'front_matter_templates.json'
     contract_asset_path = package_root / 'assets' / 'front_matter_contract.json'
+    projection_asset_path = package_root / 'assets' / 'front_matter_context_projection.json'
     template_bank = _load_json(template_asset_path)
     contract = _load_json(contract_asset_path)
+    projection = _load_json(projection_asset_path)
     if not template_bank:
         raise SystemExit(f'Missing or invalid front-matter template asset: {template_asset_path}')
     if not contract:
         raise SystemExit(f'Missing or invalid front-matter contract asset: {contract_asset_path}')
+    if not projection:
+        raise SystemExit(f'Missing or invalid front-matter projection asset: {projection_asset_path}')
 
     domain_id = _detect_domain(workspace)
     if domain_id:
         overlay = _load_domain_overlay(domain_id)
         if overlay:
             template_bank = _merge_template_bank(template_bank, overlay)
+
+    chapter_contexts = _chapter_contexts(outline, chapter_briefs, intro_id=intro_id, related_id=related_id, projection=projection)
+    values = _global_values(
+        goal=goal,
+        time_window=time_window,
+        candidate_pool=candidate_pool,
+        core_set_size=core_set_size,
+        evidence_mode=evidence_mode,
+        chapter_contexts=chapter_contexts,
+        projection=projection,
+    )
 
     headings = template_bank.get('headings') or {}
     hook_banks = template_bank.get('hook_banks') or {}
@@ -582,13 +626,13 @@ def main() -> int:
         intro_lines = _render_lines(list(template_bank.get('introduction_paragraphs') or []), values, seed_prefix='intro-legacy')
         introduction = '\n\n'.join(intro_lines).rstrip() + '\n'
     else:
-        introduction = _render_job_graph('introduction', section_contracts.get('introduction') or {}, hook_banks.get('introduction') or {}, values, all_keys=all_keys, chapter_contexts=chapter_contexts)
+        introduction = _render_job_graph('introduction', section_contracts.get('introduction') or {}, hook_banks.get('introduction') or {}, values, all_keys=all_keys, chapter_contexts=chapter_contexts, projection=projection)
 
     if template_bank.get('related_work_paragraphs'):
         related_lines = _render_lines(list(template_bank.get('related_work_paragraphs') or []), values, seed_prefix='related-legacy')
         related_work = '\n\n'.join(related_lines).rstrip() + '\n'
     else:
-        related_work = _render_job_graph('related_work', section_contracts.get('related_work') or {}, hook_banks.get('related_work') or {}, values, all_keys=all_keys, chapter_contexts=chapter_contexts)
+        related_work = _render_job_graph('related_work', section_contracts.get('related_work') or {}, hook_banks.get('related_work') or {}, values, all_keys=all_keys, chapter_contexts=chapter_contexts, projection=projection)
 
     abstract_lines = _render_lines(list(template_bank.get('abstract_sentences') or []), abstract_values, seed_prefix='abstract')
     abstract = str(headings.get('abstract') or '## Abstract') + '\n\n' + ' '.join(abstract_lines).strip() + '\n'
@@ -627,8 +671,9 @@ def main() -> int:
             'conclusion': str(conclusion_path.relative_to(workspace)),
         },
         'reference_pack': contract.get('reference_pack') or [],
-        'asset_pack': contract.get('asset_pack') or [],
+        'asset_pack': (contract.get('asset_pack') or []) + ['assets/front_matter_context_projection.json'],
         'template_asset': 'assets/front_matter_templates.json',
+        'projection_asset': 'assets/front_matter_context_projection.json',
         'voice_hygiene': {
             'forbid_pipeline_voice': True,
             'forbid_domain_default_fallback': True,
@@ -652,6 +697,7 @@ def main() -> int:
         '- Context sidecar: `output/FRONT_MATTER_CONTEXT.json`',
         '- Template asset: `assets/front_matter_templates.json`',
         '- Contract asset: `assets/front_matter_contract.json`',
+        '- Context projection asset: `assets/front_matter_context_projection.json`',
         '- Discussion: `sections/discussion.md`',
         '- Conclusion: `sections/conclusion.md`',
         '- Compatibility mode: prose outputs preserved; introduction and related work now render from hook-bank jobs instead of whole-paragraph banks.',

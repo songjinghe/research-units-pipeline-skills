@@ -19,3 +19,8 @@ A good pack gives downstream writing:
 - real A-vs-B comparisons grounded in clusters/snippets
 - protocol-aware evaluation anchors
 - failure/limitation evidence without padding
+
+It should also keep raw source sentences under control:
+- strip paper self-narration before snippets become claim candidates
+- keep artifact/result payloads when possible, but drop scaffolding wrappers
+- avoid passing `we validate ...`, `third: ...`, or `extensive experimental results ...` sentences downstream as if they were ready-made prose

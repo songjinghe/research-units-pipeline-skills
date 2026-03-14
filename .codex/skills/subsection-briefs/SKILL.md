@@ -39,9 +39,10 @@ Machine-readable assets:
 - `assets/phrase_packs/bridge_contrast.json`
 - `assets/domain_packs/generic.json`
 - `assets/domain_packs/llm_agents.json`
+- `assets/domain_packs/embodied_ai.json`
 - `assets/domain_packs/text_to_image.json`
 
-The script loads these packs first; patch them before changing Python when the issue is phrasing, domain routing, or axis inventory.
+The script loads these packs first; patch them before changing Python when the issue is phrasing, domain routing, axis inventory, cluster purity, or lexical bridge coverage.
 
 ## Inputs
 
@@ -79,6 +80,9 @@ Required record shape remains compatibility-preserving:
 
 - If outline, mapping, or notes are missing, stop.
 - If evidence is thin, keep `thesis`/`tension_statement` conservative and let downstream evidence skills strengthen the subsection.
+- If contrast clusters collapse into overlapping paper pools, reroute before writing: after removing bridge papers, each side should still retain at least 2 unique papers.
+- Use `bridge_terms` to surface concrete lexical handles that later evidence/ranking stages can still match (`OOD`, `sim-to-real`, `world model`, `failure detector`, specific benchmark families), not only generic axis names.
+- Prefer domain-pack `cluster_rules` over ad-hoc bootstrap overlaps when the mapped set is already large enough to support disjoint clusters.
 - Do not “fix” thin evidence by inventing more specific axes or stronger claims.
 
 

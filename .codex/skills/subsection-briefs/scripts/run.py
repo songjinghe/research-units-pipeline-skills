@@ -127,6 +127,24 @@ def _selected_domain_packs(*, sub_title: str, goal: str) -> list[dict[str, Any]]
     return [pack for _, _, pack in ranked]
 
 
+def _planner_policy(*, sub_title: str, goal: str) -> dict[str, int]:
+    assets = _runtime_assets()
+    generic = (assets.get("domain_packs") or {}).get("generic") or {}
+    policy: dict[str, Any] = {}
+    if isinstance(generic.get("planner_policy"), dict):
+        policy.update(generic.get("planner_policy") or {})
+    for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
+        if isinstance(pack.get("planner_policy"), dict):
+            policy.update(pack.get("planner_policy") or {})
+    return {
+        "axis_target": max(5, int(policy.get("axis_target") or 5)),
+        "bridge_target": max(3, int(policy.get("bridge_target") or 6)),
+        "cluster_min_size": max(2, int(policy.get("cluster_min_size") or 2)),
+        "allow_overlap_below_papers": max(3, int(policy.get("allow_overlap_below_papers") or 4)),
+        "max_clusters": max(2, int(policy.get("max_clusters") or 2)),
+    }
+
+
 def _apply_pack_axis_rules(*, pack: dict[str, Any], title_low: str, goal_low: str, add: Any) -> None:
     for rule in pack.get("axis_rules") or []:
         if not isinstance(rule, dict):
@@ -795,7 +813,7 @@ def _choose_axes(*, sub_title: str, goal: str, evidence_needs: list[str], outlin
         add(generic_seed_axes, a)
 
     out: list[str] = []
-    target = 5
+    target = _planner_policy(sub_title=sub_title, goal=goal).get("axis_target", 7)
     for bucket in (pack_axes, specific_seed_axes, generic_seed_axes):
         for a in bucket:
             if a not in out:
@@ -842,7 +860,8 @@ def _bridge_terms(*, sub_title: str, axes: list[str], goal: str) -> list[str]:
         for item in _list_strings(generic_pack.get("bridge_fallback")):
             add(item)
 
-    return terms[:6]
+    target = _planner_policy(sub_title=sub_title, goal=goal).get("bridge_target", 6)
+    return terms[:target]
 
 
 def _contrast_hook(*, sub_title: str, axes: list[str], goal: str) -> str:
@@ -1036,15 +1055,21 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, sub_title: str, wa
     """Return 2–3 paper clusters for comparison.
 
     Quality-gate requirement: at least **two** clusters, each with >=2 papers.
-    When a subsection has only ~3 mapped papers, we allow overlap across clusters
-    (e.g., [A,B] vs [B,C]) to keep the drafting plan executable.
+    For mapped sets with >=4 papers, prefer disjoint clusters; overlapping fallback
+    is reserved for truly tiny mapped sets only.
     """
 
     goal_low = (goal or "").lower()
+    title_low = (sub_title or "").lower()
+    policy = _planner_policy(sub_title=sub_title, goal=goal)
+    min_cluster_size = int(policy.get("cluster_min_size") or 2)
+    allow_overlap_below_papers = int(policy.get("allow_overlap_below_papers") or 4)
+    max_clusters = int(policy.get("max_clusters") or 2)
     filtered_refs = [p for p in paper_refs if not _META_PAPER_TITLE_RE.search(str(p.title or ''))]
     if len(filtered_refs) >= 4:
         paper_refs = filtered_refs
     forbid_video = ("text-to-image" in goal_low or "t2i" in goal_low) and ("video" not in goal_low and "t2v" not in goal_low)
+    allow_overlap = len(paper_refs) < allow_overlap_below_papers
 
     tag_to_papers: dict[str, list[PaperRef]] = {}
     for p in paper_refs:
@@ -1058,7 +1083,6 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, sub_title: str, wa
     candidates.sort(key=lambda t: (-len(t[1]), t[0]))
     low_value_tags = {"evaluation"}
     embodied_mode = any(k in goal_low for k in ["embodied", "robot", "vision-language-action", "vla"])
-    title_low = (sub_title or "").lower()
     if embodied_mode:
         low_value_tags.update({"agents", "memory", "tool-use", "orchestration"})
         if "video" not in title_low and "temporal" not in title_low:
@@ -1069,26 +1093,73 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, sub_title: str, wa
     secondary_candidates = [(tag, ps) for tag, ps in candidates if tag in low_value_tags]
 
     clusters: list[dict[str, Any]] = []
+    used_pids: set[str] = set()
 
-    def add_cluster(label: str, rationale: str, ps: list[PaperRef]) -> None:
+    def add_cluster(label: str, rationale: str, ps: list[PaperRef], *, permit_overlap: bool = False) -> bool:
         pids: list[str] = []
         bibs: list[str] = []
+        local_seen: set[str] = set()
         for p in sorted(ps, key=lambda x: (-x.year, x.paper_id)):
+            if p.paper_id in local_seen:
+                continue
+            local_seen.add(p.paper_id)
+            if not permit_overlap and p.paper_id in used_pids:
+                continue
             pids.append(p.paper_id)
             if p.bibkey:
                 bibs.append(p.bibkey)
             if len(pids) >= 8:
                 break
-        # Dedupe while preserving order.
-        seen: set[str] = set()
-        pids = [pid for pid in pids if not (pid in seen or seen.add(pid))]
         bibs = [b for b in bibs if b]
-        if len(pids) < 2:
-            return
+        if len(pids) < min_cluster_size:
+            return False
         clusters.append({"label": label, "rationale": rationale, "paper_ids": pids, "bibkeys": bibs})
+        if not permit_overlap:
+            used_pids.update(pids)
+        return True
+
+    def _cluster_rule_groups() -> list[dict[str, Any]]:
+        joined = "\n".join([title_low, goal_low])
+        built: list[dict[str, Any]] = []
+        for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
+            for rule in pack.get("cluster_rules") or []:
+                if not isinstance(rule, dict):
+                    continue
+                match_any = _list_strings(rule.get("match_any"))
+                if match_any and not _contains_any(joined, match_any):
+                    continue
+                for spec in rule.get("clusters") or []:
+                    if not isinstance(spec, dict):
+                        continue
+                    label = re.sub(r"\s+", " ", str(spec.get("label") or "").strip())
+                    rationale = re.sub(r"\s+", " ", str(spec.get("rationale") or "").strip())
+                    match_terms = _list_strings(spec.get("match_any"))
+                    match_tags = {x.lower() for x in _list_strings(spec.get("match_tags_any"))}
+                    if not label:
+                        continue
+                    selected: list[PaperRef] = []
+                    for p in paper_refs:
+                        title_text = str(p.title or "").lower()
+                        paper_tags = _paper_tags(p)
+                        if match_terms and _contains_any(title_text, match_terms):
+                            selected.append(p)
+                            continue
+                        if match_tags and any(tag in paper_tags for tag in match_tags):
+                            selected.append(p)
+                    if add_cluster(label, rationale or "Grouped by domain-pack title keywords.", selected, permit_overlap=False):
+                        built.append(clusters[-1])
+                    if len(clusters) >= max_clusters:
+                        return built
+                if len(clusters) >= 2:
+                    return built
+        return built
+
+    _cluster_rule_groups()
 
     # Tag-based clusters (bootstrap).
     for tag, ps in (primary_candidates + secondary_candidates)[: max(1, want)]:
+        if len(clusters) >= max_clusters:
+            break
         label = {
             "diffusion": "Diffusion-family methods",
             "transformer": "Transformer-based generators",
@@ -1114,8 +1185,8 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, sub_title: str, wa
             "robot-transfer": "Transfer / adaptation studies",
             "robot-eval": "Benchmark / deployment studies",
         }.get(tag, f"{tag} cluster")
-        add_cluster(label, f"Grouped by keyword tag `{tag}` from titles (bootstrap).", ps)
-        if len(clusters) >= want:
+        added = add_cluster(label, f"Grouped by keyword tag `{tag}` from titles (bootstrap).", ps, permit_overlap=allow_overlap)
+        if added and len(clusters) >= max_clusters:
             break
 
     # Fallback 1: recency split.
@@ -1124,39 +1195,54 @@ def _build_clusters(*, paper_refs: list[PaperRef], goal: str, sub_title: str, wa
         cutoff = (max(years) - 2) if years else 0
         recent = [p for p in paper_refs if p.year and p.year >= cutoff]
         classic = [p for p in paper_refs if p not in recent]
-        add_cluster("Recent representative works", "Grouped by recency (bootstrap).", recent)
-        add_cluster("Earlier / related works", "Grouped by older years (bootstrap).", classic)
+        add_cluster("Recent representative works", "Grouped by recency (bootstrap).", recent, permit_overlap=allow_overlap)
+        add_cluster("Earlier / related works", "Grouped by older years (bootstrap).", classic, permit_overlap=allow_overlap)
 
-    # Fallback 2: ensure at least two clusters via overlapping split.
+    # Fallback 2: ensure at least two clusters via disjoint split when enough papers remain.
     if len(clusters) < 2:
         ranked = sorted(paper_refs, key=lambda x: (-x.year, x.paper_id))
-        if len(ranked) >= 3:
+        if len(ranked) >= max(min_cluster_size * 2, 4):
+            mid = max(min_cluster_size, len(ranked) // 2)
+            add_cluster(
+                "Mapped subset A",
+                "Disjoint split to keep two comparable clusters when bootstrap tags are too entangled.",
+                ranked[:mid],
+                permit_overlap=False,
+            )
+            add_cluster(
+                "Mapped subset B",
+                "Disjoint split to keep two comparable clusters when bootstrap tags are too entangled.",
+                ranked[mid:],
+                permit_overlap=False,
+            )
+        elif len(ranked) >= 3:
             add_cluster(
                 "Mapped subset A",
                 "Overlap-allowed split to ensure two comparable clusters when the mapped set is small.",
                 ranked[:2],
+                permit_overlap=True,
             )
             add_cluster(
                 "Mapped subset B",
                 "Overlap-allowed split to ensure two comparable clusters when the mapped set is small.",
                 ranked[1:3],
+                permit_overlap=True,
             )
         elif len(ranked) >= 2:
             add_cluster(
                 "Mapped subset",
                 "Small mapped set; use the same pair for both paragraphs, focusing on axis-by-axis contrasts.",
                 ranked[:2],
+                permit_overlap=True,
             )
             add_cluster(
                 "Mapped subset (alt)",
                 "Small mapped set; duplicate cluster (writer should compare within the pair along different axes).",
                 ranked[:2],
+                permit_overlap=True,
             )
 
-
-
-    # Keep at most 2 clusters. Extra clusters tend to push the writer into forced pseudo-taxonomy.
-    return clusters[: max(2, min(2, int(want) if int(want) > 0 else 2))]
+    return clusters[:max_clusters]
 
 
 

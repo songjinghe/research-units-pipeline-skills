@@ -3,10 +3,38 @@ from __future__ import annotations
 import argparse
 import hashlib
 import csv
+import json
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
+_ASSET_ROOT = Path(__file__).resolve().parents[1] / "assets"
+
+
+def _load_json_asset(path: Path) -> dict[str, Any]:
+    if not path.exists() or path.stat().st_size <= 0:
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+_SOURCE_HYGIENE = _load_json_asset(_ASSET_ROOT / "source_text_hygiene.json")
+_LEADING_CONTEXT_RE = re.compile(str(_SOURCE_HYGIENE.get("leading_context_pattern") or r"$^"))
+_LEADING_AUTHOR_FINDING_RE = re.compile(str(_SOURCE_HYGIENE.get("leading_author_finding_pattern") or r"$^"))
+_LEADING_AUTHOR_ACTION_RE = re.compile(str(_SOURCE_HYGIENE.get("leading_author_action_pattern") or r"$^"))
+_DEPLOY_AND_FIND_RE = re.compile(str(_SOURCE_HYGIENE.get("deploy_and_find_pattern") or r"$^"))
+_EMBEDDED_AUTHOR_PREDICATE_RE = re.compile(str(_SOURCE_HYGIENE.get("embedded_author_predicate_pattern") or r"$^"))
+_RESULT_APPLY_AND_SHOW_RE = re.compile(str(_SOURCE_HYGIENE.get("result_apply_and_show_pattern") or r"$^"))
+_RESULT_EVALUATE_WHERE_RE = re.compile(str(_SOURCE_HYGIENE.get("result_evaluate_where_pattern") or r"$^"))
+_METHOD_SKIP_PATTERNS = [re.compile(str(x).strip()) for x in (_SOURCE_HYGIENE.get("method_skip_patterns") or []) if str(x).strip()]
+_RESULT_SKIP_PATTERNS = [re.compile(str(x).strip()) for x in (_SOURCE_HYGIENE.get("result_skip_patterns") or []) if str(x).strip()]
+_RESULT_DROP_PATTERNS = [re.compile(str(x).strip()) for x in (_SOURCE_HYGIENE.get("result_drop_patterns") or []) if str(x).strip()]
+_LIMITATION_KEEP_RE = re.compile(str(_SOURCE_HYGIENE.get("limitation_keep_pattern") or r"$^"))
+_LIMITATION_DROP_PATTERNS = [re.compile(str(x).strip()) for x in (_SOURCE_HYGIENE.get("limitation_drop_patterns") or []) if str(x).strip()]
 
 
 def main() -> int:
@@ -335,16 +363,24 @@ def _high_priority_bullets(*, title: str, abstract: str, mapped_sections: list[s
 def _infer_method(*, title: str, abstract: str, bullets: list[str]) -> str:
     abstract = (abstract or "").strip()
     if abstract:
-        sent = _pick_sentence(
-            abstract,
-            patterns=[r"\bwe\s+(propose|present|introduce|develop|study|analyze)\b", r"\bour\s+(method|approach|framework|model)\b"],
-        )
-        if sent:
-            return sent
+        for sent in _split_sentences(abstract):
+            sent = re.sub(r"\s+", " ", (sent or "").strip())
+            if len(sent) < 16:
+                continue
+            if any(p.search(sent) for p in _METHOD_SKIP_PATTERNS):
+                continue
+            if not re.search(
+                r"(?i)\b(?:we\s+(?:propose|present|introduce|develop|apply|design)|our\s+(?:method|approach|framework|model|recipe)|framework|architecture|recipe|autoregressive|diffusion)\b",
+                sent,
+            ):
+                continue
+            cleaned = _sanitize_note_sentence(sent, kind="method")
+            if cleaned:
+                return cleaned
 
     for b in bullets or []:
         b = str(b).strip()
-        if b:
+        if b and not any(p.search(b) for p in _METHOD_SKIP_PATTERNS):
             return b
 
     title = (title or "").strip()
@@ -377,17 +413,10 @@ def _infer_key_results(*, abstract: str, max_items: int = 1) -> list[str]:
         low = s.lower()
         if low.startswith("project site") or "code:" in low:
             continue
+        if any(p.search(s) for p in _RESULT_SKIP_PATTERNS):
+            continue
 
-        score = 0.0
-        if re.search(r"\b\d+(?:\.\d+)?%?\b", s):
-            score += 3.0
-        if re.search(
-            r"(?i)\b(benchmark|benchmarks|dataset|datasets|metric|metrics|evaluation|human|accuracy|success(?: rate)?|f1|bleu|rouge|mmlu|gsm8k|hotpotqa|fever|alfworld|webshop)\b",
-            s,
-        ):
-            score += 2.0
-        if re.search(r"(?i)\b(outperform|improv|achiev|state[- ]of[- ]the[- ]art|sota|gain|increase|decrease)\b", s):
-            score += 1.0
+        score = _result_sentence_score(s)
 
         if score > 0:
             scored.append((score, idx, s))
@@ -400,7 +429,10 @@ def _infer_key_results(*, abstract: str, max_items: int = 1) -> list[str]:
             if s in seen:
                 continue
             seen.add(s)
-            out.append(s)
+            cleaned = _sanitize_note_sentence(s, kind="result")
+            if not cleaned:
+                continue
+            out.append(cleaned)
             if len(out) >= max_n:
                 break
         if out:
@@ -409,7 +441,9 @@ def _infer_key_results(*, abstract: str, max_items: int = 1) -> list[str]:
     # Fall back to the last sentence as a coarse "result" proxy.
     last = _last_sentence(abstract)
     if last:
-        return [re.sub(r"\s+", " ", last).strip()]
+        cleaned = _sanitize_note_sentence(re.sub(r"\s+", " ", last).strip(), kind="result")
+        if cleaned:
+            return [cleaned]
 
     return [abstract[:240].strip()]
 
@@ -441,7 +475,7 @@ def _infer_limitations(*, evidence_level: str, mapped_sections: list[str], abstr
             ],
         )
         if sent:
-            sent = re.sub(r"\s+", " ", sent).strip()
+            sent = _sanitize_note_sentence(re.sub(r"\s+", " ", sent).strip(), kind="limitation")
             low = sent.lower()
             if sent and not low.startswith("project site") and sent not in lims:
                 lims.append(sent)
@@ -545,6 +579,121 @@ def _salient_terms(title: str) -> list[str]:
     return out
 
 
+def _sanitize_note_sentence(text: str, *, kind: str) -> str:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return ""
+
+    if kind in {"result", "limitation", "method"}:
+        s = _LEADING_CONTEXT_RE.sub("", s)
+        s = _DEPLOY_AND_FIND_RE.sub("", s)
+        s = _LEADING_AUTHOR_FINDING_RE.sub("", s)
+        s = _LEADING_AUTHOR_ACTION_RE.sub("", s)
+        s = re.sub(r"^[\s:;,\-]+", "", s)
+        s = re.sub(r"(?i)^that[:\s]+", "", s)
+        s = re.sub(r"(?i)^\(\d+\)\s*", "", s)
+
+    if kind == "result":
+        m = _RESULT_APPLY_AND_SHOW_RE.match(s)
+        if m:
+            artifact = re.sub(r"\s+", " ", m.group(1).strip(" ,;:"))
+            tail = re.sub(r"\s+", " ", m.group(2).strip(" ,;:"))
+            if artifact and tail:
+                s = f"{artifact} {tail}"
+        m = _RESULT_EVALUATE_WHERE_RE.match(s)
+        if m:
+            scope = re.sub(r"\s+", " ", m.group(1).strip(" ,;:"))
+            tail = re.sub(r"\s+", " ", m.group(2).strip(" ,;:"))
+            if scope and tail:
+                s = f"Across {scope}, the model {tail}"
+
+    s = re.sub(r"\s+", " ", s).strip(" ,;:")
+    if not s:
+        return ""
+
+    if kind == "method" and any(p.search(s) for p in _METHOD_SKIP_PATTERNS):
+        return ""
+
+    if s:
+        s = s[:1].upper() + s[1:]
+
+    if kind == "result":
+        if _EMBEDDED_AUTHOR_PREDICATE_RE.search(s):
+            return ""
+        s = re.sub(
+            r"(?i)^it\s+(improves|permits|enables|achieves|reduces|increases|outperforms|supports|demonstrates|reveals)\b",
+            r"The method \1",
+            s,
+        )
+
+    low = s.lower()
+    if kind == "result":
+        if any(p.search(s) for p in _RESULT_DROP_PATTERNS):
+            return ""
+    if kind == "limitation":
+        if low.startswith("abstract-level evidence") or low.startswith("title-only evidence") or low.startswith("even with extracted text"):
+            return s
+        if any(p.search(s) for p in _LIMITATION_DROP_PATTERNS):
+            return ""
+        if not _LIMITATION_KEEP_RE.search(s):
+            return ""
+
+    if len(s) < 16:
+        return ""
+    if s[-1] not in ".!?":
+        s += "."
+    return s
+
+
+def _sanitize_note_list(items: list[Any], *, kind: str, max_items: int) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in items or []:
+        cleaned = _sanitize_note_sentence(str(item or ""), kind=kind)
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(cleaned)
+        if len(out) >= max_items:
+            break
+    return out
+
+
+def _result_sentence_score(text: str) -> float:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return 0.0
+
+    score = 0.0
+    if re.search(r"\b\d+(?:\.\d+)?%?\b", s):
+        score += 3.0
+    if re.search(
+        r"(?i)\b(benchmark|benchmarks|dataset|datasets|metric|metrics|evaluation|accuracy|success(?: rate)?|f1|bleu|rouge|mmlu|gsm8k|hotpotqa|fever|alfworld|webshop)\b",
+        s,
+    ):
+        score += 2.0
+    if re.search(r"(?i)\b(outperform|improv|achiev|state[- ]of[- ]the[- ]art|sota|gain|increase|decrease)\b", s):
+        score += 1.0
+    return score
+
+
+def _result_list_score(items: list[str]) -> float:
+    return sum(_result_sentence_score(item) for item in items or [])
+
+
+def _refresh_key_results(existing_items: list[Any], *, abstract: str, max_items: int = 2) -> list[str]:
+    cleaned_existing = _sanitize_note_list([str(x) for x in (existing_items or [])], kind="result", max_items=max_items)
+    inferred = _infer_key_results(abstract=abstract, max_items=max_items)
+    if not cleaned_existing:
+        return inferred
+    if _result_list_score(inferred) > (_result_list_score(cleaned_existing) + 1.0):
+        return inferred
+    return cleaned_existing
+
+
 def _abstract_to_bullets(abstract: str, *, max_items: int = 3) -> list[str]:
     abstract = (abstract or "").strip()
     if not abstract:
@@ -563,7 +712,8 @@ def _abstract_to_bullets(abstract: str, *, max_items: int = 3) -> list[str]:
         p = p.strip()
         if not p:
             continue
-        bullets.append(p)
+        cleaned = _sanitize_note_sentence(p, kind="summary") or p
+        bullets.append(cleaned)
         if len(bullets) >= max_n:
             break
     if not bullets:
@@ -621,19 +771,26 @@ def _backfill_note(
         bullets = note.get("summary_bullets")
         if not isinstance(bullets, list) or len([b for b in bullets if str(b).strip()]) < 3:
             bullets = _high_priority_bullets(title=str(note.get("title") or ""), abstract=abstract, mapped_sections=mapped_sections)
-            note["summary_bullets"] = bullets
+        bullets = _sanitize_note_list([str(x) for x in (bullets or [])], kind="summary", max_items=5) or _abstract_to_bullets(abstract, max_items=5)
+        note["summary_bullets"] = bullets
 
         method = str(note.get("method") or "").strip()
         if not method:
-            note["method"] = _infer_method(title=str(note.get("title") or ""), abstract=abstract, bullets=bullets or [])
+            method = _infer_method(title=str(note.get("title") or ""), abstract=abstract, bullets=bullets or [])
+        cleaned_method = _sanitize_note_sentence(method, kind="method")
+        if not cleaned_method:
+            cleaned_method = _infer_method(title=str(note.get("title") or ""), abstract=abstract, bullets=bullets or [])
+        note["method"] = cleaned_method or method
 
         key_results = note.get("key_results")
         if not isinstance(key_results, list) or not key_results:
-            note["key_results"] = _infer_key_results(abstract=abstract, max_items=2)
+            key_results = _infer_key_results(abstract=abstract, max_items=2)
+        note["key_results"] = _refresh_key_results(key_results or [], abstract=abstract, max_items=2)
 
         lims = note.get("limitations")
         if (not isinstance(lims, list)) or (not lims) or (len(lims) == 1 and str(lims[0]).lower().startswith("evidence level:")):
-            note["limitations"] = _infer_limitations(evidence_level=str(note.get("evidence_level") or ""), mapped_sections=mapped_sections, abstract=abstract)
+            lims = _infer_limitations(evidence_level=str(note.get("evidence_level") or ""), mapped_sections=mapped_sections, abstract=abstract)
+        note["limitations"] = _sanitize_note_list([str(x) for x in (lims or [])], kind="limitation", max_items=3) or _infer_limitations(evidence_level=str(note.get("evidence_level") or ""), mapped_sections=mapped_sections, abstract=abstract)
 
 
 
@@ -641,19 +798,25 @@ def _backfill_note(
     bullets = note.get("summary_bullets")
     if not isinstance(bullets, list) or len([b for b in bullets if str(b).strip()]) < 1:
         bullets = _abstract_to_bullets(abstract, max_items=5)
-        note["summary_bullets"] = bullets
+    note["summary_bullets"] = _sanitize_note_list([str(x) for x in (bullets or [])], kind="summary", max_items=5) or _abstract_to_bullets(abstract, max_items=5)
 
     method = str(note.get("method") or "").strip()
     if not method:
-        note["method"] = _infer_method(title=str(note.get("title") or ""), abstract=abstract, bullets=bullets or [])
+        method = _infer_method(title=str(note.get("title") or ""), abstract=abstract, bullets=note.get("summary_bullets") or [])
+    cleaned_method = _sanitize_note_sentence(method, kind="method")
+    if not cleaned_method:
+        cleaned_method = _infer_method(title=str(note.get("title") or ""), abstract=abstract, bullets=note.get("summary_bullets") or [])
+    note["method"] = cleaned_method or method
 
     key_results = note.get("key_results")
     if not isinstance(key_results, list) or not [k for k in key_results if str(k).strip()]:
-        note["key_results"] = _infer_key_results(abstract=abstract)
+        key_results = _infer_key_results(abstract=abstract, max_items=2)
+    note["key_results"] = _refresh_key_results(key_results or [], abstract=abstract, max_items=2)
 
     lims = note.get("limitations")
     if not isinstance(lims, list) or not [x for x in lims if str(x).strip()]:
-        note["limitations"] = _infer_limitations(evidence_level=str(note.get("evidence_level") or ""), mapped_sections=mapped_sections, abstract=abstract)
+        lims = _infer_limitations(evidence_level=str(note.get("evidence_level") or ""), mapped_sections=mapped_sections, abstract=abstract)
+    note["limitations"] = _sanitize_note_list([str(x) for x in (lims or [])], kind="limitation", max_items=3) or _infer_limitations(evidence_level=str(note.get("evidence_level") or ""), mapped_sections=mapped_sections, abstract=abstract)
 
     # Ensure bibkey exists (never overwrite).
     used: set[str] = set()

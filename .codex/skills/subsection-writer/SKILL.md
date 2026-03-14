@@ -23,6 +23,7 @@ Compatibility mode:
 Always read:
 - `references/overview.md`
 - `references/paragraph_jobs.md`
+- `references/paragraph_job_archetypes.md` when adjusting paragraph-role behavior or refactoring writer policy out of Python
 - `references/bootstrap_assembly.md` when reasoning about compatibility-mode bootstrap behavior
 
 Read as needed:
@@ -35,6 +36,7 @@ Read as needed:
 Machine-readable contract:
 - `assets/subsection_writer_context.schema.json`
 - `assets/bootstrap_paragraph_templates.json`
+- `assets/paragraph_job_templates.json`
 
 ## Inputs
 

@@ -13,6 +13,7 @@
   "asset_pack": [
     "assets/front_matter_contract.json",
     "assets/front_matter_templates.json",
+    "assets/front_matter_context_projection.json",
     "assets/front_matter_context.schema.json",
     "assets/front_matter_context_schema.json"
   ],

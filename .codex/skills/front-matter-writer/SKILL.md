@@ -20,6 +20,7 @@ Always read:
 
 Read by task:
 - `references/abstract_archetypes.md` for `sections/abstract.md`
+- `references/context_projection.md` when adjusting how chapter briefs are projected into Introduction / Related Work context
 - `references/introduction_jobs.md` for Introduction body files
 - `references/related_work_positioning.md` for Related Work body files
 - `references/discussion_conclusion_patterns.md` for `sections/discussion.md` and `sections/conclusion.md`
@@ -31,6 +32,7 @@ Machine-readable assets:
 - `assets/front_matter_context_schema.json` (compatibility alias for checklist-aligned naming)
 - `assets/front_matter_contract.json`
 - `assets/front_matter_templates.json`
+- `assets/front_matter_context_projection.json`
 
 ## Inputs
 

@@ -19,6 +19,12 @@ def _slug_unit_id(unit_id: str) -> str:
     return f"S{safe}" if safe else "S"
 
 
+def _normalize_heading_title(text: str) -> str:
+    title = re.sub(r"\s+", " ", str(text or "").strip())
+    title = re.sub(r"\.+$", "", title).strip()
+    return title
+
+
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore") if path.exists() else ""
 
@@ -251,7 +257,7 @@ def main() -> int:
     tables_insert_note = ""
 
     for idx, sec in enumerate(outline_sections):
-        sec_title = sec["title"]
+        sec_title = _normalize_heading_title(sec["title"])
         out_lines.append(f"## {sec_title}")
         out_lines.append("")
 
@@ -263,7 +269,7 @@ def main() -> int:
 
             for j, sub in enumerate(subs):
                 sid = sub["id"]
-                stitle = sub["title"]
+                stitle = _normalize_heading_title(sub["title"])
                 out_lines.append(f"### {stitle}")
                 out_lines.append("")
                 body_rel = f"sections/{_slug_unit_id(sid)}.md"

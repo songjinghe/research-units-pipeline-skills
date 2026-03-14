@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -8,6 +9,50 @@ from typing import Any
 
 
 _TABLE_SEP = re.compile(r"(?m)^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$")
+_ASSET_ROOT = Path(__file__).resolve().parents[1] / "assets"
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    if not path.exists() or path.stat().st_size <= 0:
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+_CELL_HYGIENE = _load_json(_ASSET_ROOT / "table_cell_hygiene.json")
+
+
+def _compile_pattern(key: str, default: str) -> re.Pattern[str]:
+    return re.compile(str(_CELL_HYGIENE.get(key) or default).strip())
+
+
+def _compile_pattern_list(key: str, default: list[str]) -> list[re.Pattern[str]]:
+    raw = _CELL_HYGIENE.get(key)
+    if not isinstance(raw, list):
+        raw = default
+    return [re.compile(str(item).strip()) for item in raw if str(item).strip()]
+
+
+_LEADING_CONTEXT_RE = _compile_pattern(
+    "leading_context_pattern",
+    r"(?i)^(?:building on this foundation|against this backdrop|in this context|to this end|towards this end|specifically|for example|for instance|in addition|moreover|furthermore|additionally|then|crucially)[: ,]+\s*",
+)
+_LEADING_AUTHOR_FINDING_RE = _compile_pattern(
+    "leading_author_finding_pattern",
+    r"(?i)^(?:we|our\s+(?:results|analysis|study|experiments?))\s+(?:show|shows|find|finds|demonstrate|demonstrates|validate|validates|reveal|reveals|indicate|indicates)\s+(?:that\s+)?",
+)
+_LEADING_AUTHOR_ACTION_RE = _compile_pattern(
+    "leading_author_action_pattern",
+    r"(?i)^(?:we|our\s+(?:approach|method|framework|system))\s+(?:introduce|present|propose|develop|describe|analyze|review|explore|evaluate|design|conduct)\b[^,]{0,220},\s*",
+)
+_GENERIC_SUMMARY_PATTERNS = _compile_pattern_list(
+    "generic_summary_patterns",
+    [r"(?i)^our extensive evaluation\b", r"(?i)^we propose\s+1\)"],
+)
+_DROP_PREFIXES = [str(x).strip().lower() for x in (_CELL_HYGIENE.get("drop_if_starts_with") or []) if str(x).strip()]
 
 
 def _is_placeholder(text: str) -> bool:
@@ -45,6 +90,22 @@ def _clean(text: str, *, limit: int = 140) -> str:
         return s
     clipped = s[:limit].rsplit(" ", 1)[0].strip()
     return clipped if clipped else s[:limit].strip()
+
+
+def _sanitize_cell_text(text: str, *, limit: int = 140) -> str:
+    s = _clean(text, limit=limit * 2)
+    if not s:
+        return ""
+    if any(p.search(s) for p in _GENERIC_SUMMARY_PATTERNS):
+        return ""
+    s = _LEADING_CONTEXT_RE.sub("", s)
+    s = _LEADING_AUTHOR_FINDING_RE.sub("", s)
+    s = _LEADING_AUTHOR_ACTION_RE.sub("", s)
+    s = re.sub(r"\s+", " ", s).strip(" ,;:-")
+    low = s.lower()
+    if any(low.startswith(prefix) for prefix in _DROP_PREFIXES):
+        return ""
+    return _clean(s, limit=limit)
 
 
 def _uniq(items: list[str]) -> list[str]:
@@ -156,7 +217,7 @@ def main() -> int:
                     for hl in comp.get(hl_key) or []:
                         if not isinstance(hl, dict):
                             continue
-                        excerpt = _clean(hl.get("excerpt") or "", limit=100)
+                        excerpt = _sanitize_cell_text(hl.get("excerpt") or "", limit=100)
                         if excerpt:
                             highlights.append(excerpt)
                         ref_keys.extend([str(x).strip() for x in (hl.get("citations") or []) if str(x).strip()])
@@ -168,7 +229,7 @@ def main() -> int:
             rows_a1.append([
                 area,
                 lens or _clean(title, limit=64),
-                "<br>".join(_uniq(highlights)[:2]) or _clean((pack.get("definitions_setup") or [{}])[0].get("bullet") or "evidence-backed comparison", limit=120),
+                "<br>".join(_uniq(highlights)[:2]) or _sanitize_cell_text((pack.get("definitions_setup") or [{}])[0].get("bullet") or "evidence-backed comparison", limit=120) or "evidence-backed comparison",
                 _cite_cell(ref_keys),
             ])
 
@@ -177,14 +238,14 @@ def main() -> int:
             for rec in (anchor_rec.get("anchors") or [])[:3]:
                 if not isinstance(rec, dict):
                     continue
-                txt = _clean(rec.get("text") or "", limit=120)
+                txt = _sanitize_cell_text(rec.get("text") or "", limit=120)
                 if txt:
                     anchor_bits.append(txt)
                 anchor_keys.extend([str(x).strip() for x in (rec.get("citations") or []) if str(x).strip()])
             for rec in (pack.get("evaluation_protocol") or [])[:2]:
                 if not isinstance(rec, dict):
                     continue
-                txt = _clean(rec.get("bullet") or "", limit=100)
+                txt = _sanitize_cell_text(rec.get("bullet") or "", limit=100)
                 if txt:
                     anchor_bits.append(txt)
                 anchor_keys.extend([str(x).strip() for x in (rec.get("citations") or []) if str(x).strip()])
@@ -199,7 +260,7 @@ def main() -> int:
             for rec in (pack.get("failures_limitations") or [])[:2]:
                 if not isinstance(rec, dict):
                     continue
-                txt = _clean(rec.get("bullet") or rec.get("excerpt") or "", limit=110)
+                txt = _sanitize_cell_text(rec.get("bullet") or rec.get("excerpt") or "", limit=110)
                 if txt:
                     risk_bits.append(txt)
                 risk_keys.extend([str(x).strip() for x in (rec.get("citations") or []) if str(x).strip()])

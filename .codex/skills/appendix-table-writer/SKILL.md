@@ -32,6 +32,12 @@ Index tables remain in `outline/tables_index.md` and should not be copied verbat
 - `citations/ref.bib`
 - Optional: `GOAL.md`
 
+Read as needed:
+- `references/table_cell_hygiene.md` when Appendix table cells still copy raw paper self-narration or generic result wrappers
+
+Machine-readable assets:
+- `assets/table_cell_hygiene.json`
+
 ## Output
 
 - `outline/tables_appendix.md`

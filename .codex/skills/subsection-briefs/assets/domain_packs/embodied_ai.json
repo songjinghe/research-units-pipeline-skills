@@ -1,6 +1,13 @@
 {
   "name": "embodied_ai",
   "priority": 25,
+  "planner_policy": {
+    "axis_target": 7,
+    "bridge_target": 6,
+    "cluster_min_size": 2,
+    "allow_overlap_below_papers": 4,
+    "max_clusters": 2
+  },
   "detect": {
     "goal_any": [
       "embodied ai",
@@ -28,6 +35,78 @@
     ]
   },
   "axis_rules": [
+    {
+      "match_any": [
+        "manipulation, navigation, and task scope"
+      ],
+      "items": [
+        "task setting and embodiment assumptions",
+        "observation / action interface",
+        "mobile manipulation and navigation horizon",
+        "policy backbone versus structured control",
+        "generalization across tasks and environments"
+      ]
+    },
+    {
+      "match_any": [
+        "task diversity, environment realism, and transfer constraints"
+      ],
+      "items": [
+        "task diversity and environment realism",
+        "transfer constraints across embodiments and settings",
+        "simulation-to-real transfer and task-generation coverage",
+        "benchmark realism and deployment boundaries",
+        "data curation and action-verified supervision"
+      ]
+    },
+    {
+      "match_any": [
+        "benchmarks, metrics, and generalization"
+      ],
+      "items": [
+        "benchmark coverage and task realism",
+        "metric validity and success criteria",
+        "OOD and cross-embodiment generalization",
+        "sim-to-real validity and deployment transfer",
+        "benchmark construction and evaluation bottlenecks"
+      ]
+    },
+    {
+      "match_any": [
+        "world models, planning, and reasoning"
+      ],
+      "items": [
+        "world-model role in control and planning",
+        "long-horizon state tracking and memory",
+        "reward / verifier signals for closed-loop reasoning",
+        "planner-executor coupling under deployment constraints",
+        "reasoning-grounded action selection"
+      ]
+    },
+    {
+      "match_any": [
+        "failure analysis, robustness, and stress testing"
+      ],
+      "items": [
+        "failure taxonomy and stress scenarios",
+        "OOD and contradictory-instruction robustness",
+        "failure detection and recovery triggers",
+        "stress-test realism across simulation and deployment",
+        "robustness evaluation and leakage controls"
+      ]
+    },
+    {
+      "match_any": [
+        "safety, reliability, and real-world deployment"
+      ],
+      "items": [
+        "world-model-assisted safety and reliability",
+        "real-world evaluation and deployment reliability",
+        "failure detection and recovery under distribution shift",
+        "benchmark realism and task coverage",
+        "safety alignment and constraint enforcement"
+      ]
+    },
     {
       "match_any": [
         "task diversity",
@@ -194,6 +273,78 @@
   "bridge_rules": [
     {
       "match_any": [
+        "manipulation, navigation, and task scope"
+      ],
+      "items": [
+        "mobile manipulation",
+        "long-horizon execution",
+        "VLA",
+        "structured control",
+        "energy/latency"
+      ]
+    },
+    {
+      "match_any": [
+        "task diversity, environment realism, and transfer constraints"
+      ],
+      "items": [
+        "task diversity",
+        "benchmark realism",
+        "sim-to-real",
+        "task generation",
+        "transfer"
+      ]
+    },
+    {
+      "match_any": [
+        "benchmarks, metrics, and generalization"
+      ],
+      "items": [
+        "benchmark coverage",
+        "OOD",
+        "sim-to-real",
+        "generalization",
+        "task realism"
+      ]
+    },
+    {
+      "match_any": [
+        "world models, planning, and reasoning"
+      ],
+      "items": [
+        "world model",
+        "closed-loop planning",
+        "reward model",
+        "long-horizon reasoning",
+        "planner/executor"
+      ]
+    },
+    {
+      "match_any": [
+        "failure analysis, robustness, and stress testing"
+      ],
+      "items": [
+        "failure detector",
+        "OOD robustness",
+        "stress test",
+        "corrupted inputs",
+        "recovery policy"
+      ]
+    },
+    {
+      "match_any": [
+        "safety, reliability, and real-world deployment"
+      ],
+      "items": [
+        "world model",
+        "real-world evaluation",
+        "failure recovery",
+        "safety alignment",
+        "deployment reliability"
+      ]
+    },
+    {
+      "match_any": [
         "manipulation",
         "navigation",
         "mobile",
@@ -345,6 +496,208 @@
         "stress testing"
       ],
       "label": "robustness / failure analysis"
+    }
+  ],
+  "cluster_rules": [
+    {
+      "match_any": [
+        "manipulation, navigation, and task scope"
+      ],
+      "clusters": [
+        {
+          "label": "Policy / action-model studies",
+          "rationale": "Title-level grouping for VLA, latent-action, and policy-backbone papers inside the subsection.",
+          "match_any": [
+            "vla",
+            "policy",
+            "latent action",
+            "neuro-symbolic",
+            "memory",
+            "crossformer",
+            "interleave",
+            "echo"
+          ]
+        },
+        {
+          "label": "Embodiment / task-setting studies",
+          "rationale": "Title-level grouping for manipulation/navigation scope, embodiment assumptions, and task-setting papers.",
+          "match_any": [
+            "mobile",
+            "navigation",
+            "manipulation",
+            "ecosystem",
+            "bench",
+            "skill-state",
+            "interaction-aware"
+          ]
+        }
+      ]
+    },
+    {
+      "match_any": [
+        "task diversity, environment realism, and transfer constraints"
+      ],
+      "clusters": [
+        {
+          "label": "Benchmark / transfer-realism studies",
+          "rationale": "Title-level grouping for benchmark, evaluation, and transfer-realism work.",
+          "match_any": [
+            "benchmark",
+            "benchmarking",
+            "evaluation",
+            "transfer",
+            "sim-to-real",
+            "deploy",
+            "realism",
+            "mind and motion"
+          ]
+        },
+        {
+          "label": "Task-generation / environment-construction studies",
+          "rationale": "Title-level grouping for data curation, task-generation, and environment-building work.",
+          "match_any": [
+            "curate",
+            "task generator",
+            "taskgen",
+            "control stack",
+            "coral",
+            "robocurate",
+            "gemini",
+            "ecosystem"
+          ]
+        }
+      ]
+    },
+    {
+      "match_any": [
+        "benchmarks, metrics, and generalization"
+      ],
+      "clusters": [
+        {
+          "label": "Transfer / generalization studies",
+          "rationale": "Title-level grouping for transfer, cross-embodiment, and generalization studies.",
+          "match_any": [
+            "generalization",
+            "transfer",
+            "cross-embodiment",
+            "zero-shot",
+            "modularity",
+            "scale",
+            "dreaming"
+          ]
+        },
+        {
+          "label": "Benchmark / realism studies",
+          "rationale": "Title-level grouping for benchmark construction, evaluation realism, and platform-side studies.",
+          "match_any": [
+            "benchmark",
+            "evaluation",
+            "platform",
+            "representation",
+            "molmospaces",
+            "agentworld",
+            "robot manipulation"
+          ]
+        }
+      ]
+    },
+    {
+      "match_any": [
+        "world models, planning, and reasoning"
+      ],
+      "clusters": [
+        {
+          "label": "World-model / closed-loop studies",
+          "rationale": "Title-level grouping for world-model-centered, closed-loop, and dynamics-grounded work.",
+          "match_any": [
+            "world model",
+            "world-vla-loop",
+            "dreamdojo",
+            "unified world models",
+            "scaling cross-embodiment world models",
+            "spatial ai agents"
+          ]
+        },
+        {
+          "label": "Reasoning / planning-signal studies",
+          "rationale": "Title-level grouping for reward, planning, and embodied-reasoning work around long-horizon control.",
+          "match_any": [
+            "reward",
+            "planning",
+            "reasoning",
+            "mind to hand",
+            "underwater",
+            "objectvla",
+            "foundation models"
+          ]
+        }
+      ]
+    },
+    {
+      "match_any": [
+        "failure analysis, robustness, and stress testing"
+      ],
+      "clusters": [
+        {
+          "label": "Stress-test / environment-side studies",
+          "rationale": "Title-level grouping for stress-test construction, simulation-side robustness, and task/environment-side failure exposure.",
+          "match_any": [
+            "bootstrap",
+            "egozero",
+            "rig",
+            "scarcity",
+            "text2touch",
+            "infiniteworld",
+            "autort",
+            "planning"
+          ]
+        },
+        {
+          "label": "VLA robustness / failure-detection studies",
+          "rationale": "Title-level grouping for VLA corruption robustness, language grounding recovery, and failure detection work.",
+          "match_any": [
+            "vision-language-action",
+            "vla",
+            "failure detection",
+            "restoring",
+            "robustness",
+            "safe"
+          ]
+        }
+      ]
+    },
+    {
+      "match_any": [
+        "safety, reliability, and real-world deployment"
+      ],
+      "clusters": [
+        {
+          "label": "World-model / policy-loop studies",
+          "rationale": "Title-level grouping for world-model-centered safety and closed-loop policy work.",
+          "match_any": [
+            "world model",
+            "world-gymnast",
+            "dreamdojo",
+            "world-vla-loop",
+            "worldeval",
+            "causal world modeling"
+          ]
+        },
+        {
+          "label": "Deployment / reliability studies",
+          "rationale": "Title-level grouping for real-world evaluation, safety, deployment, and reliability studies.",
+          "match_any": [
+            "safety",
+            "underwater",
+            "autoeval",
+            "objectvla",
+            "humanoid",
+            "galaxea",
+            "real-world",
+            "deploy"
+          ]
+        }
+      ]
     }
   ],
   "thesis_rules": [

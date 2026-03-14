@@ -24,10 +24,12 @@ Always read:
 Read by task:
 - `references/limitation_taxonomy.md` when writing or reviewing limitations (avoid boilerplate)
 - `references/result_extraction_examples.md` when extracting key_results (good vs bad examples)
+- `references/source_text_hygiene.md` when result/limitation fields still preserve paper self-narration or author-result wrappers
 
 Machine-readable assets:
 - `assets/note_schema.json` — JSONL record schema for validation
 - `assets/evidence_tags.json` — evidence bank tagging categories (extensible without code changes)
+- `assets/source_text_hygiene.json` — note-field source sentence cleanup policy
 
 ## Script Boundary
 
@@ -52,6 +54,8 @@ Do not treat `run.py` as the place for:
   - Mission: capture evaluation anchors that later writing needs.
   - Do: record task + metric + constraints (budget/tool access) whenever available.
   - Avoid: copying numbers without the evaluation setting that makes them meaningful.
+  - Avoid: promoting artifact introductions (`X enables ...`, `our framework features ...`) into `key_results`.
+  - Avoid: promoting benchmark-positioning, field-motivation, or author-navigation lines (`we apply ... and show ...`, `we then discuss how ...`) into `key_results`.
 
 - **Limitation Logger**
   - Mission: capture the caveats that change interpretation.

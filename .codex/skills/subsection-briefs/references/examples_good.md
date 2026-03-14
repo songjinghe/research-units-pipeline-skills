@@ -14,7 +14,7 @@ Minimal good brief fragment:
     "evaluation protocol",
     "failure modes and limitations"
   ],
-  "bridge_terms": ["planner/executor", "search", "deliberation", "benchmarks/metrics"],
+  "bridge_terms": ["planner/executor", "search", "deliberation", "benchmarks/metrics", "latency budget"],
   "tension_statement": "In Planning and reasoning loops, a recurring tension is deliberation depth versus cost: more planning can improve reliability but increases latency and budget sensitivity."
 }
 ```
@@ -23,5 +23,6 @@ Why this is good:
 
 - thesis is execution-oriented, not narration
 - axes are atomic and checkable
-- bridge terms are compact handles
+- bridge terms are compact handles with lexical value for later evidence matching
 - tension states a real trade-off without inventing results
+- later clusters should still retain unique paper pools on both sides after bridge-paper removal

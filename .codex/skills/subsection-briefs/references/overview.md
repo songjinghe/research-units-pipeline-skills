@@ -19,3 +19,9 @@ Suggested read order:
 6. `examples_good.md` for calibration
 
 The script should stay deterministic: read inputs, load packs, choose stable phrases/axes, and write JSONL. It should not invent papers, citations, or reader-facing prose.
+
+Cluster quality still matters upstream:
+- contrast clusters should remain disjoint after removing bridge papers
+- each side should retain enough unique papers to support later A-vs-B cards
+- `bridge_terms` should preserve concrete lexical hooks for later evidence matching, not just polished abstract nouns
+- when a domain pack can express subsection-specific clusters, that asset should lead and the generic bootstrap should only be the fallback

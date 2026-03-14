@@ -23,6 +23,7 @@ Keep scripts out of:
 ## What lives in these references
 
 - `abstract_archetypes.md`: how to choose an abstract shape without freezing a sentence template
+- `context_projection.md`: how chapter-level structure should be projected into front-matter context values
 - `introduction_jobs.md`: paragraph jobs for Introduction and the single methodology note
 - `related_work_positioning.md`: how to position related work through a lens instead of a survey dump
 - `forbidden_stems.md`: high-signal phrases to rewrite or avoid

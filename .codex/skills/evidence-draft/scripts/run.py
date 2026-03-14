@@ -7,6 +7,42 @@ import sys
 from pathlib import Path
 from typing import Any
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+ASSETS_DIR = PACKAGE_ROOT / "assets"
+POLICY_PATH = ASSETS_DIR / "evidence_policy.json"
+SCHEMA_PATH = ASSETS_DIR / "evidence_pack_schema.json"
+SOURCE_HYGIENE_PATH = ASSETS_DIR / "source_text_hygiene.json"
+
+
+def _load_optional_json_asset(path: Path) -> dict[str, Any]:
+    if not path.exists() or path.stat().st_size <= 0:
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+_SOURCE_HYGIENE = _load_optional_json_asset(SOURCE_HYGIENE_PATH)
+
+
+def _compile_hygiene_pattern(key: str, default: str) -> re.Pattern[str]:
+    pattern = str(_SOURCE_HYGIENE.get(key) or default).strip()
+    return re.compile(pattern)
+
+
+def _compile_hygiene_pattern_list(key: str, default: list[str]) -> list[re.Pattern[str]]:
+    raw = _SOURCE_HYGIENE.get(key)
+    if not isinstance(raw, list):
+        raw = default
+    out: list[re.Pattern[str]] = []
+    for item in raw:
+        pattern = str(item or "").strip()
+        if pattern:
+            out.append(re.compile(pattern))
+    return out
+
 
 _EVAL_STOP = {
     "ai",
@@ -25,35 +61,29 @@ _EVAL_STOP = {
     "transformer",
 }
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-ASSETS_DIR = PACKAGE_ROOT / "assets"
-POLICY_PATH = ASSETS_DIR / "evidence_policy.json"
-SCHEMA_PATH = ASSETS_DIR / "evidence_pack_schema.json"
 _URL_RE = re.compile(r"https?://\S+")
 _AVAILABILITY_VERB_RE = re.compile(
     r"(?i)\b(?:is|are|was|were|will\s+be|can\s+be|has\s+been)?\s*(?:publicly\s+)?(?:available|released|open-?sourced|shared)\b"
 )
 _LEADING_SELF_REF_RE = re.compile(
-    r"(?i)^(?:to (?:address|overcome|tackle|mitigate|study|investigate|examine|understand|analyze|explore|bridge)[^,]{0,180},\s*)?"
+    r"(?i)^(?:to (?:address|overcome|tackle|mitigate|study|investigate|examine|understand|analyze|explore|bridge|enhance|improve)[^,]{0,180},\s*)?"
     r"(?:(?:in|throughout)\s+(?:this|our)\s+(?:survey|paper|work|study|article),?\s*)?"
 )
-_LEADING_CONTEXT_RE = re.compile(
-    r"(?i)^(?:building on this foundation|against this backdrop|in this context|to this end|towards this end|specifically|for example|based on this proposition|throughout [^,]{1,120}|moreover|furthermore|additionally),?\s*"
+_LEADING_CONTEXT_RE = _compile_hygiene_pattern(
+    "leading_context_pattern",
+    r"(?i)^(?:building on this foundation|against this backdrop|in this context|to this end|towards this end|specifically|for example|based on this proposition|throughout [^,]{1,120}|moreover|furthermore|additionally),?\s*",
 )
-_LEADING_AUTHOR_FINDING_RE = re.compile(
-    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
-    r"(?:(?:also|further|furthermore|empirically|experimentally)\s+)?"
-    r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|quantify|quantifies|reveal|reveals|indicate|indicates)\s+that\s+"
+_LEADING_AUTHOR_FINDING_RE = _compile_hygiene_pattern(
+    "leading_author_finding_pattern",
+    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+(?:(?:also|further|furthermore|empirically|experimentally)\s+)?(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|quantify|quantifies|reveal|reveals|indicate|indicates)\s+that\s+",
 )
-_LEADING_AUTHOR_PREDICATE_RE = re.compile(
-    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
-    r"(?:(?:also|further|furthermore|empirically|experimentally)\s+)?"
-    r"(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|reveal|reveals|indicate|indicates)\s+"
+_LEADING_AUTHOR_PREDICATE_RE = _compile_hygiene_pattern(
+    "leading_author_predicate_pattern",
+    r"(?i)^(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+(?:(?:also|further|furthermore|empirically|experimentally)\s+)?(?:show|shows|find|finds|observe|observes|demonstrate|demonstrates|reveal|reveals|indicate|indicates)\s+",
 )
-_LEADING_AUTHOR_ACTION_RE = re.compile(
-    r"(?i)^(?:here,\s*)?(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+"
-    r"(?:(?:also|broadly|comprehensively)\s+)?"
-    r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|quantify|study|design|build|construct|divide)\b[^,]{0,160},\s*"
+_LEADING_AUTHOR_ACTION_RE = _compile_hygiene_pattern(
+    "leading_author_action_pattern",
+    r"(?i)^(?:here,\s*)?(?:we|our\s+(?:results|analysis|study|evaluations?|experiments?))\s+(?:(?:also|broadly|comprehensively)\s+)?(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|quantify|study|design|build|construct|divide)\b[^,]{0,160},\s*",
 )
 _LEADING_PARTICIPLE_RE = re.compile(
     r"(?i)^(?:demonstrating|showing|finding|observing|revealing|indicating|suggesting)\s+that\s+"
@@ -68,12 +98,20 @@ _NAMED_ARTIFACT_RE = re.compile(
     r"(?i)^(?:here,\s*)?(?:we|the authors)\s+(?:introduce|present|propose|develop|describe)\s+([A-Z][A-Za-z0-9][^,.;:]{0,120}),\s+(.*)$"
 )
 _GENERIC_SELF_NARRATION_RE = re.compile(
-    r"(?i)^(?:here,\s*)?(?:we|our)\s+"
-    r"(?:(?:also|broadly|comprehensively)\s+)?"
-    r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|study|design|build|construct|divide)\b"
+    r"(?i)^(?:(?:here,\s*)?(?:we|our)\s+(?:(?:also|broadly|comprehensively)\s+)?"
+    r"(?:introduce|present|propose|develop|describe|compare|conduct|discuss|summarize|review|explore|analyze|evaluate|study|design|build|construct|divide)|"
+    r"our\s+(?:approach|method|framework|pipeline|system|model)\s+(?:facilitates?|enables?|allows?|uses?))\b"
 )
 _STUDY_SELF_NARRATION_RE = re.compile(r"(?i)^(?:this|our)\s+(?:survey|paper|work|study|article|thesis|manuscript|dissertation)\b")
 _LEADING_CONCESSION_RE = re.compile(r"(?i)^(?:while|but|yet|however|nevertheless|in contrast)\s+")
+_LEADING_WHERE_ARTIFACT_RE = _compile_hygiene_pattern(
+    "leading_where_artifact_pattern",
+    r"(?i)^where\s+([A-Z][A-Za-z0-9._-]{1,80})\s+",
+)
+_RELATIVE_CLAUSE_ARTIFACT_RE = _compile_hygiene_pattern(
+    "relative_clause_artifact_pattern",
+    r"^([A-Z][A-Za-z0-9._-]{1,80}),\s+(?:which|that)\s+",
+)
 _FINITE_VERB_RE = re.compile(
     r"(?i)\b(?:is|are|was|were|has|have|had|can|may|might|does|do|did|remains?|becomes?|"
     r"shows?|finds?|demonstrates?|reports?|reveals?|suggests?|indicates?|outperforms?|improves?|"
@@ -101,6 +139,17 @@ _EMBODIED_CONTEXT_RE = re.compile(
     r"task|transfer|generalization|latency|failure|robust|deployment|safety|LIBERO|Bridge|RT-2|OpenVLA|ManiSkill|RoboCasa|MOTIF)\b"
 )
 _CONCRETE_CLAIM_RE = re.compile(r"\b\d+(?:\.\d+)?%?\b|\b[A-Z]{2,}(?:-[A-Z0-9]+)*\b|\b[A-Z][a-z]+[A-Z][A-Za-z0-9-]*\b")
+_GENERIC_SUMMARY_PATTERNS = _compile_hygiene_pattern_list(
+    "generic_summary_patterns",
+    [
+        r"(?i)^benchmarks? are crucial for evaluating progress\b",
+        r"(?i)^evaluations? are critical to assess progress\b",
+        r"(?i)^recent work has advanced such general robot policies\b",
+        r"(?i)^in this machine learning-focused workflow\b",
+        r"(?i)^we benchmark our method against\b",
+        r"(?i)^the experiments also provide an extensive evaluation\b",
+    ],
+)
 
 
 def _load_json_asset(path: Path) -> dict[str, Any]:
@@ -659,6 +708,8 @@ def _sanitize_source_sentence(text: str) -> str:
         return ""
     if _is_availability_boilerplate(s):
         return ""
+    if any(pattern.search(s) for pattern in _GENERIC_SUMMARY_PATTERNS):
+        return ""
 
     s = _URL_RE.sub("", s)
     s = re.sub(r"\s+([,.;:])", r"\1", s)
@@ -672,6 +723,7 @@ def _sanitize_source_sentence(text: str) -> str:
     s = _LEADING_AUTHOR_PREDICATE_RE.sub("", s)
     s = _LEADING_AUTHOR_ACTION_RE.sub("", s)
     s = _LEADING_PARTICIPLE_RE.sub("", s)
+    s = _LEADING_WHERE_ARTIFACT_RE.sub(r"\1 ", s)
 
     if _PROMISSORY_SELF_NARRATION_RE.match(s) or _FRAGMENT_PARTICIPLE_RE.match(s):
         return ""
@@ -682,7 +734,10 @@ def _sanitize_source_sentence(text: str) -> str:
     if m:
         name = re.sub(r"\s+", " ", m.group(1).strip(" ,;:"))
         rest = re.sub(r"\s+", " ", m.group(2).strip(" ,;:"))
-        if rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
+        if rest and re.match(r"(?i)^(?:which|that)\b", rest):
+            rest = re.sub(r"(?i)^(?:which|that)\s+", "", rest).strip()
+            s = f"{name} {rest}"
+        elif rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
             s = f"{name} is {rest}"
         elif rest:
             s = f"{name}: {rest}"
@@ -691,11 +746,23 @@ def _sanitize_source_sentence(text: str) -> str:
     elif _STUDY_SELF_NARRATION_RE.match(s) or _GENERIC_SELF_NARRATION_RE.match(s):
         return ""
 
+    rel_clause = _RELATIVE_CLAUSE_ARTIFACT_RE.match(s)
+    if rel_clause:
+        name = rel_clause.group(1).strip()
+        rest = _RELATIVE_CLAUSE_ARTIFACT_RE.sub("", s, count=1).strip(" ,;:")
+        if rest:
+            s = f"{name} {rest}"
+        else:
+            s = name
+
     artifact_match = _POST_ACTION_ARTIFACT_RE.match(s)
     if artifact_match:
         name = artifact_match.group(1).strip()
         rest = artifact_match.group(2).strip()
-        if rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
+        if rest and re.match(r"(?i)^(?:which|that)\b", rest):
+            rest = re.sub(r"(?i)^(?:which|that)\s+", "", rest).strip()
+            s = f"{name} {rest}"
+        elif rest and re.match(r"(?i)^(?:a|an|the|one|\d+)\b", rest):
             s = f"{name} is {rest}"
         elif rest:
             s = f"{name}: {rest}"
@@ -703,6 +770,8 @@ def _sanitize_source_sentence(text: str) -> str:
     if s:
         s = s[:1].upper() + s[1:]
     s = re.sub(r"\s{2,}", " ", s).strip(" ,;:")
+    if any(pattern.search(s) for pattern in _GENERIC_SUMMARY_PATTERNS):
+        return ""
     if len(s) < 16:
         return ""
     if not _FINITE_VERB_RE.search(s):
@@ -1267,8 +1336,12 @@ def _limitations_from_notes(
     positive_result_re = re.compile(
         r"(?i)\b(?:outperform\w*|surpass\w*|superior\w*|state-of-the-art|sota|achiev\w*|excelling?|strong\s+results?)\b"
     )
+    positive_gap_re = re.compile(r"(?i)\b(?:narrowing|closing|bridging)\s+the\s+gap\b")
     positive_challenge_re = re.compile(
         r"(?i)\bchalleng\w*\s+(?:task|tasks|benchmark|benchmarks|environment|environments|setting|settings)\b"
+    )
+    solution_tail_re = re.compile(
+        r"(?i)[,;:]\s*(?:we|the authors)\s+(?:introduce|present|propose|develop|devise|design)\b"
     )
 
     out: list[dict[str, Any]] = []
@@ -1284,6 +1357,24 @@ def _limitations_from_notes(
         seen.add(key)
         out.append({"bullet": b, "citations": citations})
 
+    def trim_solution_tail(text: str) -> str:
+        s = re.sub(r"\s+", " ", str(text or "").strip())
+        if not s:
+            return ""
+        m = solution_tail_re.search(s)
+        if not m:
+            return s
+        head = s[: m.start()].strip(" ,;:")
+        if not head or not strong_negative_re.search(head):
+            return s
+        if head.lower().startswith("because "):
+            head = head[8:].strip()
+            if head:
+                head = head[:1].upper() + head[1:]
+        if head[-1] not in ".!?":
+            head += "."
+        return head
+
     def is_caveat_sentence(text: str) -> bool:
         s = re.sub(r"\s+", " ", str(text or "").strip())
         if not s or not limit_re.search(s):
@@ -1295,6 +1386,8 @@ def _limitations_from_notes(
         if remedy_phrase_re.search(s) and not strong_negative_re.search(s):
             return False
         if positive_challenge_re.search(s) and not strong_negative_re.search(s):
+            return False
+        if positive_gap_re.search(s):
             return False
         if positive_result_re.search(s) and not strong_negative_re.search(s):
             return False
@@ -1318,6 +1411,7 @@ def _limitations_from_notes(
                 lim = _sanitize_source_text(lim, sentence_limit=2)
                 if not lim:
                     continue
+                lim = trim_solution_tail(lim)
                 low = lim.lower()
                 if low.startswith("evidence level"):
                     continue
@@ -1340,6 +1434,7 @@ def _limitations_from_notes(
         for raw in scan_fields:
             for s in _split_sentences(str(raw)):
                 s = _sanitize_source_sentence(s)
+                s = trim_solution_tail(s)
                 if not is_caveat_sentence(s):
                     continue
                 add(s, cite)
@@ -1359,6 +1454,7 @@ def _limitations_from_notes(
             cites = cite_keys[:2] if isinstance(cite_keys, list) else []
         for s in _split_sentences(text):
             s = _sanitize_source_sentence(s)
+            s = trim_solution_tail(s)
             if not is_caveat_sentence(s):
                 continue
             add(s, cites)

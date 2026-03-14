@@ -25,10 +25,12 @@ Read by task:
 - `references/block_vs_downgrade.md` when deciding whether thin evidence should block drafting or only downgrade claim strength
 - `references/evaluation_anchor_rules.md` when evaluation tokens, protocol context, or numeric claims are weak
 - `references/examples_sparse_evidence.md` for evidence-thin pack calibration
+- `references/source_text_hygiene.md` when paper self-narration or generic result wrappers are leaking into pack snippets / claim candidates
 
 Machine-readable assets:
 - `assets/evidence_pack_schema.json`
 - `assets/evidence_policy.json`
+- `assets/source_text_hygiene.json`
 
 ## Inputs
 

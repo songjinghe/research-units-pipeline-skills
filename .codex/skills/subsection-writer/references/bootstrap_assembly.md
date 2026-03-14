@@ -23,6 +23,7 @@ It should not:
 - invent new prose policy that is not visible in `references/` or `assets/`
 - enforce a hidden paragraph quota
 - smuggle in reusable sentence banks from Python constants
+- lean on one reusable implementation / caveat closer across many H3s
 
 ## Paragraph jobs in bootstrap mode
 
@@ -46,5 +47,6 @@ When a pack is thin:
 
 Reusable bootstrap wording should live in:
 - `assets/bootstrap_paragraph_templates.json`
+- `assets/paragraph_job_templates.json` for job-level semantic move families
 
 That keeps the script focused on choosing fields and assembling them, while keeping reusable policy inspectable without reading all Python.

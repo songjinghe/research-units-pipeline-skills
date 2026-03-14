@@ -1,5 +1,12 @@
 {
   "name": "generic",
+  "planner_policy": {
+    "axis_target": 7,
+    "bridge_target": 6,
+    "cluster_min_size": 2,
+    "allow_overlap_below_papers": 4,
+    "max_clusters": 2
+  },
   "fallback_axes": [
     "core mechanism and system architecture",
     "methodology and design",

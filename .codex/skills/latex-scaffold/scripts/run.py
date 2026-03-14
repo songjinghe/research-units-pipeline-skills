@@ -485,7 +485,8 @@ def _render_table_chunk(*, header: list[str], rows: list[list[str]], colspec: st
 def _strip_heading_prefix(text: str) -> str:
     # Avoid duplicated numbering like "\section{1 Introduction}".
     text = (text or "").strip()
-    return re.sub(r"^\d+(?:\.\d+)*\s+", "", text)
+    text = re.sub(r"^\d+(?:\.\d+)*\s+", "", text)
+    return re.sub(r"\.+$", "", text).strip()
 
 
 if __name__ == "__main__":

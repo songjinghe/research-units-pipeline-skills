@@ -11,15 +11,21 @@ from typing import Any
 
 _ASSET_ROOT = Path(__file__).resolve().parents[1] / 'assets'
 _BOOTSTRAP_TEMPLATES_PATH = _ASSET_ROOT / 'bootstrap_paragraph_templates.json'
+_PARAGRAPH_JOB_TEMPLATES_PATH = _ASSET_ROOT / 'paragraph_job_templates.json'
 _LEADING_ENUM_RE = re.compile(r'^(?:\(?\d+\)?[.)]\s*)+')
 _LEADING_CUE_RE = re.compile(r'(?i)^(?:however|yet|further|furthermore|additionally|meanwhile|overall|notably|empirically|specifically|for example|in practice|then|further)\s*[:,-]\s*')
 _LEADING_AUTHOR_RESULT_RE = re.compile(r'(?i)^(?:we|the authors)\s+(?:also\s+|further\s+)?(?:show|find|demonstrate|report|observe|note)\s+that\s+')
 _LEADING_AUTHOR_ACTION_RE = re.compile(r'(?i)^(?:to (?:fill|address|bridge|tackle|study|understand) this gap,\s*)?(?:here,\s*)?(?:we|the authors)\s+(?:present|introduce|propose|develop|describe|provide|review|summarize|offer|open-?source|release)\b[^,]{0,120},\s*')
 _TRAILING_FRAGMENT_RE = re.compile(r'(?i)(?:\.\.\.|[,;:]\s*$|\b(?:and|or|to|of|in|on|with|for|from|across|between|into|than|that|which|while|because|under|over|at|by)\.?$)')
+_TRAILING_AUX_FRAGMENT_RE = re.compile(r'(?i)\b(?:is|are|was|were|has|have|had|be|been|being)\.?$')
+_LEADING_AUXILIARY_FRAGMENT_RE = re.compile(r'(?i)^(?:is|are|was|were|does|do|did|can|could|should|would|will|may|might|must)\s+(?:the|a|an|this|these|those|our|their|its)\b')
+_LEADING_ZERO_FRAGMENT_RE = re.compile(r'^0{2,}\d*\b')
+_LEADING_EXAMPLE_FRAGMENT_RE = re.compile(r'(?i)^(?:such as|for example|for instance|e\.g\.)\b')
 _META_SNIPPET_RE = re.compile(r'(?i)\b(?:github\.io|project\s+page|code\s+is\s+available|open-?source|repository|website)\b')
+_SUMMARY_STYLE_RE = re.compile(r'(?i)^(?:after a detailed summary|our main contribution is|this paper bridges that gap|we conclude by identifying|we provide a review|we present an in-depth review|the paper concludes by)\b')
 _GENERIC_LIMIT_RE = re.compile(r'(?i)\b(?:open challenges?|future work|research directions?|provide a review|offer a quantitative comparison|summarize|review of|benchmark suite|comprehensive simulation benchmark)\b')
 _LIMIT_SIGNAL_RE = re.compile(
-    r'(?i)\b(?:limit\w*|challeng\w*|risk\w*|fail\w*|fragil\w*|bottleneck\w*|cost\w*|latency|'
+    r'(?i)\b(?:limit\w*|challenge(?:s)?|risk\w*|fail\w*|fragil\w*|bottleneck\w*|cost\w*|latency|'
     r'partial\s+observability|out-of-distribution|ood|generalization\s+(?:gap|limit|challenge)|'
     r'under-specif\w*|unclear|sensitive|constraint\w*|caveat\w*|unsafe|deployment\s+constraint)\b'
 )
@@ -72,6 +78,7 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 _BOOTSTRAP_TEMPLATES = _load_json(_BOOTSTRAP_TEMPLATES_PATH)
+_PARAGRAPH_JOB_TEMPLATES = _load_json(_PARAGRAPH_JOB_TEMPLATES_PATH)
 
 
 def _tmpl(group: str, key: str) -> str:
@@ -107,6 +114,40 @@ def _render_seeded(group: str, key: str, *, seed: str, **kwargs: str) -> str:
     if not template:
         raise KeyError(f'missing template {group}.{key}')
     return template.format(**kwargs)
+
+
+class _BlankFormatDict(dict):
+    def __missing__(self, key: str) -> str:
+        return ''
+
+
+def _job_template_options(*keys: str, fallback: list[str] | None = None, **kwargs: Any) -> list[str]:
+    node: Any = _PARAGRAPH_JOB_TEMPLATES
+    for key in keys:
+        if not isinstance(node, dict):
+            node = None
+            break
+        node = node.get(key)
+
+    raw_options: list[str] = []
+    if isinstance(node, list):
+        raw_options = [str(item or '').strip() for item in node if str(item or '').strip()]
+    elif isinstance(node, str):
+        raw_options = [str(node).strip()] if str(node).strip() else []
+    elif fallback:
+        raw_options = [str(item or '').strip() for item in fallback if str(item or '').strip()]
+
+    fmt = _BlankFormatDict({k: str(v or '') for k, v in kwargs.items()})
+    rendered: list[str] = []
+    for option in raw_options:
+        try:
+            text = option.format_map(fmt)
+        except Exception:
+            continue
+        text = re.sub(r'\s+', ' ', str(text or '').strip())
+        if text:
+            rendered.append(text)
+    return rendered
 
 
 def _ordered_options(seed: str, value: Any) -> list[str]:
@@ -175,13 +216,28 @@ def _normalize_axis(text: Any) -> str:
     return s[0].lower() + s[1:] if s and s[0].isupper() else s
 
 
+def _label_group_text(label: str, *, collective: bool = False) -> str:
+    clean = _normalize_label(label)
+    if not clean:
+        return 'this cluster' if collective else 'papers in this cluster'
+    if collective:
+        return f'the {clean} cluster'
+    return f'papers grouped under {clean}'
+
+
 def _is_fragmentary(text: str) -> bool:
     s = str(text or '').strip()
     if not s:
         return True
     if len(s) < 20:
         return True
+    if _LEADING_ZERO_FRAGMENT_RE.search(s):
+        return True
     if _META_SNIPPET_RE.search(s):
+        return True
+    if _LEADING_AUXILIARY_FRAGMENT_RE.search(s) and '?' not in s:
+        return True
+    if _LEADING_EXAMPLE_FRAGMENT_RE.search(s):
         return True
     if re.search(r'(?i)^\s*including\b', s):
         return True
@@ -192,6 +248,8 @@ def _is_fragmentary(text: str) -> bool:
     if s.count('(') != s.count(')'):
         return True
     if _TRAILING_FRAGMENT_RE.search(s):
+        return True
+    if _TRAILING_AUX_FRAGMENT_RE.search(s):
         return True
     return False
 
@@ -768,13 +826,21 @@ def _support_text(value: Any, *, kind: str) -> str:
     else:
         text = _normalize_evidence_text(value, limit=240) or _soft_evidence_clause(value, limit=240) or _clean(_deslash(value or ''), limit=240)
     text = re.sub(r'\s+', ' ', str(text or '').strip()).strip(' .;:')
+    if text and _SUMMARY_STYLE_RE.search(text):
+        return ''
     if not text:
         if kind in {'anchor', 'claim'}:
             text = raw_clean.strip(' .;:')
         else:
             return ''
     if _is_fragmentary(text):
-        if kind in {'anchor', 'claim'} and raw_clean and not _BAD_FALLBACK_PREFIX_RE.search(raw_clean):
+        if (
+            kind in {'anchor', 'claim'}
+            and raw_clean
+            and not _BAD_FALLBACK_PREFIX_RE.search(raw_clean)
+            and not _SUMMARY_STYLE_RE.search(raw_clean)
+            and not _is_fragmentary(raw_clean)
+        ):
             text = raw_clean.strip(' .;:')
         else:
             return ''
@@ -1033,36 +1099,29 @@ def _compose_setup_paragraph(
     axis_text = _series(axes[:3]) or _tmpl('fallbacks', 'lens')
     title_lower = title.lower()
     mode = str(opener_mode or '').strip().lower()
-    if mode == 'decision-first':
-        opener_options = [
-            f'The central decision in {title_lower} is not which route sounds stronger in the abstract, but which assumptions about {axis_text} remain stable once the setting changes',
-            f'In {title_lower}, the real decision is how much variation in {axis_text} the evidence can tolerate before the comparison stops being fair',
-        ]
-    elif mode == 'contrast-first':
-        opener_options = [
-            f'The sharpest split in {title_lower} is between {cluster_a} and {cluster_b}, because their results move under different assumptions about {axis_text}',
-            f'What most separates {title_lower} is the contrast between {cluster_a} and {cluster_b}, especially once {axis_text} changes',
-        ]
-    elif mode == 'protocol-first':
-        opener_options = [
-            f'In {title_lower}, benchmark claims only stay readable when {axis_text} are treated as part of the result rather than as background protocol detail',
-            f'{title} becomes much easier to interpret once {axis_text} are kept explicit in the comparison contract',
-        ]
-    elif mode == 'failure-first':
-        opener_options = [
-            f'The recurring failures in {title_lower} are not random edge cases; they usually appear when {axis_text} are left implicit',
-            f'What makes {title_lower} hard to synthesize is that failures often surface exactly where {axis_text} stop matching across papers',
-        ]
-    elif mode == 'lens-first':
-        opener_options = [
-            f'{title} is easiest to read through {axis_text} rather than through one method label at a time',
-            f'The useful lens in {title_lower} is not a single architecture name, but the coupled choices around {axis_text}',
-        ]
-    else:
-        opener_options = [
-            f'The literature on {title_lower} becomes hard to compare when papers keep {axis_text} under the same label but change their actual assumptions',
-            f'In {title_lower}, neighboring papers often look closer than they really are because they change {axis_text} while preserving the same headline vocabulary',
-        ]
+    opener_options = _job_template_options(
+        'setup',
+        'opener_by_mode',
+        mode if mode in {'decision-first', 'contrast-first', 'protocol-first', 'failure-first', 'lens-first'} else 'default',
+        fallback=[
+            'The literature on {title_lower} becomes hard to compare when papers keep {axis_text} under the same label but change their actual assumptions',
+            'In {title_lower}, neighboring papers often look closer than they really are because they change {axis_text} while preserving the same headline vocabulary',
+        ],
+        title=title,
+        title_lower=title_lower,
+        cluster_a=cluster_a,
+        cluster_b=cluster_b,
+        axis_text=axis_text,
+    ) or _job_template_options(
+        'setup',
+        'opener_by_mode',
+        'default',
+        title=title,
+        title_lower=title_lower,
+        cluster_a=cluster_a,
+        cluster_b=cluster_b,
+        axis_text=axis_text,
+    )
     sentences = [
         _sentence_with_cites(
             _pick_text_candidate(
@@ -1077,7 +1136,24 @@ def _compose_setup_paragraph(
         _sentence_with_cites(thesis, citations, max_keys=4),
     ]
     if tension:
-        sentences.append(_sentence_with_cites(f'The comparison becomes unstable because {tension}', citations, max_keys=4))
+        tension_options = _job_template_options(
+            'setup',
+            'tension_followup',
+            fallback=['The comparison becomes unstable because {tension}'],
+            tension=tension,
+        )
+        sentences.append(
+            _sentence_with_cites(
+                _pick_text_candidate(
+                    seed=f'setup:tension:{title}:{mode}:{axis_text}',
+                    title=title,
+                    options=tension_options,
+                    stem_counts=stem_counts,
+                ),
+                citations,
+                max_keys=4,
+            )
+        )
     if seed_record.get('text'):
         sentences.append(_sentence_with_cites(seed_record['text'], seed_record.get('citations') or [], max_keys=3))
     return ' '.join(s for s in sentences if s).strip()
@@ -1100,53 +1176,99 @@ def _compose_cluster_paragraph(
     evidence_stem_counts: dict[str, int] | None = None,
 ) -> str:
     label = str(profile.get('label') or '').strip() or 'one route'
+    label_group = _label_group_text(label)
+    label_cluster = _label_group_text(label, collective=True)
     axes = _role_axes(plan_item, profile.get('axes') or [])
     axis_text = _series(axes[:2]) or _series((profile.get('axes') or [])[:2]) or _tmpl('fallbacks', 'lens')
     title_lower = title.lower()
     role = str(plan_item.get('argument_role') or '')
+    format_kwargs = {
+        'title': title,
+        'title_lower': title_lower,
+        'label': label,
+        'label_group': label_group,
+        'label_cluster': label_cluster,
+        'axis_text': axis_text,
+        'other_label': other_label,
+    }
     if kind == 'mechanism':
         if 'B' in role:
-            lead_options = [
-                f'By contrast, another route in {title_lower} places {label} at the center, so the comparison pivots toward {axis_text}',
-                f'The contrasting cluster reads {title_lower} through {label}, which changes how {axis_text} are interpreted relative to {other_label}',
-            ]
+            lead_options = _job_template_options(
+                'cluster',
+                'mechanism',
+                'lead_B',
+                fallback=[
+                    'By contrast, another route in {title_lower} organizes the comparison around {label}, so the main disagreement shifts toward {axis_text}',
+                    'The contrasting cluster in {title_lower} is defined by {label}, which changes how {axis_text} should be read relative to {other_label}',
+                ],
+                **format_kwargs,
+            )
         else:
-            lead_options = [
-                f'A first route in {title_lower} keeps {label} in the foreground, making {axis_text} part of the mechanism rather than background context',
-                f'One stable cluster is organized around {label}, so differences in {axis_text} immediately change what the system is actually optimizing',
-            ]
-        closing_options = [
-            f'That is why papers in this cluster treat {axis_text} as the main source of methodological variation',
-            f'Under this lens, the label {label} points to the assumptions that keep the surrounding evidence coherent once {axis_text} begin to shift',
-            f'What this cluster really fixes is not just a label for {title_lower}, but the subset of assumptions that make comparisons against {other_label} interpretable',
-            f'The value of {label} here is that it pins down which parts of {axis_text} remain stable enough to compare across neighboring systems',
-        ]
+            lead_options = _job_template_options(
+                'cluster',
+                'mechanism',
+                'lead_A',
+                fallback=[
+                    'A first route in {title_lower} organizes the evidence around {label}, making {axis_text} part of the mechanism rather than background context',
+                    'One stable cluster in {title_lower} is defined by {label}, so differences in {axis_text} immediately change what the system is actually optimizing',
+                ],
+                **format_kwargs,
+            )
+        closing_options = _job_template_options(
+            'cluster',
+            'mechanism',
+            'closing',
+            fallback=[
+                'That is why papers in this cluster treat {axis_text} as the main source of methodological variation',
+                'Under this lens, what matters in {label} is the subset of assumptions that keeps the surrounding evidence coherent once {axis_text} begin to shift',
+                'What {label} helps fix here is which parts of {axis_text} remain stable enough to compare across neighboring systems',
+            ],
+            **format_kwargs,
+        )
     elif kind == 'implementation':
-        lead_options = [
-            f'What looks like one method family in {title_lower} often separates only once the implementation stack reveals how {axis_text} are actually wired',
-            f'At the implementation level, {label} is less about the headline label than about how {axis_text} are operationalized in the system stack',
-            f'The implementation layer matters because it turns {label} from a broad category into a concrete choice about {axis_text}',
-            f'Implementation details are where neighboring papers in {title_lower} stop looking interchangeable and start diverging on {axis_text}',
-        ]
-        closing_options = [
-            f'The implementation story therefore turns on how {axis_text} are operationalized in training, control, or data construction',
-            f'At that point, the key question is which parts of {label} remain structural once the benchmark-specific choices are stripped away',
-            f'This implementation layer is where {label} stops looking generic and starts revealing which assumptions are actually load-bearing',
-            f'What survives comparison here is not the headline label but the concrete way {label} operationalizes {axis_text}',
-        ]
+        lead_key = 'lead_B' if 'B' in role else 'lead_A'
+        lead_options = _job_template_options(
+            'cluster',
+            'implementation',
+            lead_key,
+            fallback=[
+                'What looks like one method family in {title_lower} often separates only once the implementation stack reveals how {axis_text} are actually wired',
+                'The implementation split becomes visible once {axis_text} are traced through the actual training, control, or data stack',
+            ],
+            **format_kwargs,
+        )
+        closing_options = _job_template_options(
+            'cluster',
+            'implementation',
+            'closing',
+            fallback=[
+                'The implementation story therefore turns on how {axis_text} are operationalized in training, control, or data construction',
+                'What survives comparison here is the concrete way {label_group} operationalize {axis_text}, not the headline label itself',
+            ],
+            **format_kwargs,
+        )
     else:
-        lead_options = [
-            f'In {title_lower}, evidence for {label} is only persuasive when benchmark scope and metric choice stay aligned with {axis_text}',
-            f'The evaluation record for {label} in {title_lower} depends less on headline gains than on whether {axis_text} are measured under comparable constraints',
-            f'Once {title_lower} is read through {axis_text}, the strongest case for {label} comes from benchmarks that keep those assumptions explicit',
-            f'What makes the evidence for {label} usable in {title_lower} is not raw gain alone, but whether protocol choices preserve {axis_text}',
-            f'For {label}, the benchmark story in {title_lower} is only convincing when metric choice and deployment conditions still reflect {axis_text}',
-        ]
-        closing_options = [
-            f'For {label}, benchmark scope, metric choice, and deployment constraints remain part of the claim rather than detachable metadata',
-            f'That is also where the comparison with {other_label} becomes fragile if protocol detail is under-specified',
-            f'Under this evaluation contract, {axis_text} continue to shape how {label} should be interpreted rather than merely how it is reported',
-        ]
+        lead_key = 'lead_B' if 'B' in role else 'lead_A'
+        lead_options = _job_template_options(
+            'cluster',
+            'evaluation',
+            lead_key,
+            fallback=[
+                'In {title_lower}, evidence for {label} is only persuasive when benchmark scope and metric choice stay aligned with {axis_text}',
+                'The evaluation record for {label} in {title_lower} depends less on headline gains than on whether {axis_text} are measured under comparable constraints',
+            ],
+            **format_kwargs,
+        )
+        closing_options = _job_template_options(
+            'cluster',
+            'evaluation',
+            'closing',
+            fallback=[
+                'For {label}, benchmark scope, metric choice, and deployment constraints remain part of the claim rather than detachable metadata',
+                'That is also where the comparison with {other_label} becomes fragile if protocol detail is under-specified',
+            ],
+            **format_kwargs,
+        )
 
     sentences = [
         _sentence_with_cites(
@@ -1194,9 +1316,36 @@ def _compose_cluster_paragraph(
         if benchmark:
             sentences.append(_sentence_with_cites(benchmark.get('text') or '', benchmark.get('citations') or [], max_keys=4))
         if limits:
-            sentences.append(_sentence_with_cites(f'A recurring limitation is that {str(limits[0].get("text") or "").strip()}', limits[0].get('citations') or [], max_keys=4))
+            limit_text = str(limits[0].get('text') or '').strip()
+            if limit_text:
+                limit_options = _job_template_options(
+                    'cluster',
+                    'evaluation',
+                    'limit',
+                    fallback=['These gains look narrower because {limit_text}'],
+                    limit_text=limit_text,
+                )
+                limit_sentence = _pick_text_candidate(
+                    seed=f'evaluation:limit:{title}:{label}',
+                    title=title,
+                    options=limit_options,
+                    stem_counts=stem_counts,
+                )
+                sentences.append(_sentence_with_cites(limit_sentence, limits[0].get('citations') or [], max_keys=4))
         elif protocol_citations:
-            sentences.append(_sentence_with_cites('A recurring limitation is that reported gains remain provisional when task, metric, and deployment constraint are not stated together', protocol_citations, max_keys=4))
+            limit_options = _job_template_options(
+                'cluster',
+                'evaluation',
+                'limit_fallback',
+                fallback=['Those gains remain provisional whenever task, metric, and deployment constraints are not stated together'],
+            )
+            limit_sentence = _pick_text_candidate(
+                seed=f'evaluation:limit:fallback:{title}:{label}',
+                title=title,
+                options=limit_options,
+                stem_counts=stem_counts,
+            )
+            sentences.append(_sentence_with_cites(limit_sentence, protocol_citations, max_keys=4))
     sentences.append(
         _sentence_with_cites(
             _pick_text_candidate(
@@ -1222,14 +1371,24 @@ def _compose_synthesis_paragraph(
 ) -> str:
     axes = _role_axes(plan_item, _uniq((cluster_a.get('axes') or []) + (cluster_b.get('axes') or [])))
     axis_text = _series(axes[:3]) or _tmpl('fallbacks', 'lens')
+    lead_options = _job_template_options(
+        'synthesis',
+        'lead',
+        fallback=[
+            'Read together, the contrast between {cluster_a} and {cluster_b} is really about {axis_text}, not about a single headline score',
+            'Across {title_lower}, the decisive difference between {cluster_a} and {cluster_b} lies in {axis_text} rather than in one isolated benchmark win',
+        ],
+        title=title,
+        title_lower=title.lower(),
+        cluster_a=str(cluster_a.get('label') or '').strip(),
+        cluster_b=str(cluster_b.get('label') or '').strip(),
+        axis_text=axis_text,
+    )
     sentences = [
         _sentence_with_cites(
             _seeded_text(
             f'synthesis:{title}:{axis_text}',
-            [
-                f'Read together, the contrast between {cluster_a.get("label")} and {cluster_b.get("label")} is really about {axis_text}, not about a single headline score',
-                f'Across {title.lower()}, the decisive difference between {cluster_a.get("label")} and {cluster_b.get("label")} lies in {axis_text} rather than in one isolated benchmark win',
-            ],
+            lead_options,
             ),
             [],
             max_keys=0,
@@ -1259,9 +1418,21 @@ def _compose_synthesis_paragraph(
         b_fallback = _first_nonempty(cluster_b.get('facts') or [])
         if a_fallback.get('text') and b_fallback.get('text'):
             fallback_cites = _uniq((a_fallback.get('citations') or []) + (b_fallback.get('citations') or []))
+            fallback_options = _job_template_options(
+                'synthesis',
+                'fallback',
+                fallback=['At a higher level, {cluster_a} emphasize {a_text}, whereas {cluster_b} emphasize {b_text}'],
+                cluster_a=str(cluster_a.get('label') or '').strip(),
+                cluster_b=str(cluster_b.get('label') or '').strip(),
+                a_text=str(a_fallback.get('text') or '').strip(),
+                b_text=str(b_fallback.get('text') or '').strip(),
+            )
             sentences.append(
                 _sentence_with_cites(
-                    f'At a higher level, {cluster_a.get("label")} emphasize {a_fallback.get("text")}, whereas {cluster_b.get("label")} emphasize {b_fallback.get("text")}',
+                    _seeded_text(
+                        f'synthesis:fallback:{title}:{axis_text}',
+                        fallback_options,
+                    ),
                     fallback_cites,
                     max_keys=5,
                 )
@@ -1282,16 +1453,23 @@ def _compose_decision_paragraph(
 ) -> str:
     a_axis = _series((cluster_a.get('axes') or [])[:2]) or _tmpl('fallbacks', 'lens')
     b_axis = _series((cluster_b.get('axes') or [])[:2]) or _tmpl('fallbacks', 'lens')
+    lead_options = _job_template_options(
+        'decision',
+        'lead',
+        fallback=[
+            'In {title_lower}, the practical decision is less about choosing a winner than about deciding which constraint the target setting will not relax',
+            'For builders working on {title_lower}, the meaningful choice is which side of the trade-off must survive under the target protocol',
+        ],
+        title=title,
+        title_lower=title.lower(),
+        a_axis=a_axis,
+        b_axis=b_axis,
+    )
     sentences = [
         _sentence_with_cites(
             _seeded_text(
             f'decision:{title}:{a_axis}:{b_axis}',
-            [
-                f'In {title.lower()}, the practical decision is less about choosing a winner than about deciding which constraint the target setting will not relax',
-                f'The useful decision point in {title.lower()} is which assumption stays fixed once {a_axis} and {b_axis} stop lining up cleanly',
-                f'For builders working on {title.lower()}, the meaningful choice is which side of the trade-off must survive under the target protocol',
-                f'The comparison matters operationally only after the target setting decides whether it prioritizes {a_axis} or {b_axis}',
-            ],
+            lead_options,
             ),
             [],
             max_keys=0,
@@ -1310,16 +1488,17 @@ def _compose_decision_paragraph(
     if benchmark:
         sentences.append(_sentence_with_cites(benchmark.get('text') or '', benchmark.get('citations') or [], max_keys=4))
     if protocol_citations:
+        protocol_options = _job_template_options(
+            'decision',
+            'protocol',
+            fallback=['Whichever route is preferred, the comparison only holds when benchmark scope, metric choice, and deployment constraints are matched across papers'],
+        )
         sentences.append(
             _sentence_with_cites(
                 _pick_text_candidate(
                     seed=f'decision:protocol:{title}:{a_axis}:{b_axis}',
                     title=title,
-                    options=[
-                        'Benchmark scope, metric choice, and deployment constraints still decide whether either route can be compared beyond one local setting',
-                        'Whichever route is preferred, the comparison only holds when benchmark scope, metric choice, and deployment constraints are matched across papers',
-                        'The practical lesson is that protocol alignment, not label preference alone, determines whether either route travels beyond one benchmark family',
-                    ],
+                    options=protocol_options,
                     stem_counts=stem_counts,
                 ),
                 protocol_citations,
@@ -1340,14 +1519,21 @@ def _compose_limitation_paragraph(
     stem_counts: dict[str, int] | None = None,
 ) -> str:
     title_lower = title.lower()
+    lead_options = _job_template_options(
+        'limitation',
+        'lead',
+        fallback=[
+            'Several issues still block a clean ranking across {title_lower}',
+            'The main unresolved issue in {title_lower} is not just which route performs better, but which parts of the evidence can actually be compared without distortion',
+        ],
+        title=title,
+        title_lower=title_lower,
+    )
     sentences = [
         _sentence_with_cites(
             _seeded_text(
             f'limits:{title}:{rq}',
-            [
-                f'Several issues still block a clean ranking across {title_lower}',
-                f'The main unresolved issue in {title_lower} is not just which route performs better, but which parts of the evidence can actually be compared without distortion',
-            ],
+            lead_options,
             ),
             [],
             max_keys=0,
@@ -1357,16 +1543,22 @@ def _compose_limitation_paragraph(
         if record.get('text'):
             sentences.append(_sentence_with_cites(record['text'], record.get('citations') or [], max_keys=4))
     if protocol_citations:
+        protocol_options = _job_template_options(
+            'limitation',
+            'protocol',
+            fallback=[
+                'A more decisive answer will require tighter reporting on task, metric, and constraint choices so that {cluster_a} and {cluster_b} can be compared under the same evidential frame',
+                'The remaining uncertainty will not shrink unless later work reports task, metric, and constraint choices tightly enough to compare {cluster_a} against {cluster_b} on common ground',
+            ],
+            cluster_a=str(cluster_a.get('label') or '').strip(),
+            cluster_b=str(cluster_b.get('label') or '').strip(),
+        )
         sentences.append(
             _sentence_with_cites(
                 _pick_text_candidate(
                     seed=f'limits:protocol:{title}:{cluster_a.get("label")}:{cluster_b.get("label")}',
                     title=title,
-                    options=[
-                        f'A more decisive answer will require tighter reporting on task, metric, and constraint choices so that {cluster_a.get("label")} and {cluster_b.get("label")} can be compared under the same evidential frame',
-                        f'The remaining uncertainty will not shrink unless later work reports task, metric, and constraint choices tightly enough to compare {cluster_a.get("label")} against {cluster_b.get("label")} on common ground',
-                        f'What is missing most is a reporting discipline that keeps task, metric, and deployment constraints explicit enough for {cluster_a.get("label")} and {cluster_b.get("label")} to be judged against the same evidence contract',
-                    ],
+                    options=protocol_options,
                     stem_counts=stem_counts,
                 ),
                 protocol_citations,
@@ -1374,7 +1566,13 @@ def _compose_limitation_paragraph(
             )
         )
     elif rq:
-        sentences.append(f'A useful open question is therefore how future work can answer the subsection question, `{rq}`, under protocols that remain aligned across neighboring settings.')
+        rq_options = _job_template_options(
+            'limitation',
+            'rq_fallback',
+            fallback=['A useful open question is therefore how future work can answer the subsection question, `{rq}`, under protocols that remain aligned across neighboring settings.'],
+            rq=rq,
+        )
+        sentences.append(_seeded_text(f'limits:rq:{title}:{rq}', rq_options))
     return ' '.join(s for s in sentences if s).strip()
 
 
@@ -1631,6 +1829,8 @@ def _make_paragraphs(
         citation_keys.update(new_keys)
 
     if len(citation_keys) < 12:
+        needed_keys = max(0, 12 - len(citation_keys))
+        fallback_limit = max(3, min(6, needed_keys))
         fallback_keys = [
             str(key).strip()
             for key in _uniq(
@@ -1638,7 +1838,7 @@ def _make_paragraphs(
                 + [str(x).strip() for x in (pack.get('allowed_bibkeys_mapped') or []) if str(x).strip()]
             )
             if str(key).strip() and str(key).strip() not in citation_keys
-        ][:3]
+        ][:fallback_limit]
         if fallback_keys:
             fallback_axes = _series(_uniq((profiles['A'].get('axes') or []) + (profiles['B'].get('axes') or []))[:3]) or _tmpl('fallbacks', 'lens')
             fallback_paragraph = ' '.join(
@@ -1651,7 +1851,7 @@ def _make_paragraphs(
                     _sentence_with_cites(
                         f'Across those adjacent studies, {fallback_axes} continue to move together rather than behaving like separable knobs',
                         fallback_keys,
-                        max_keys=3,
+                        max_keys=fallback_limit,
                     ),
                 ]
             ).strip()

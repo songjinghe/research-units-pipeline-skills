@@ -10,6 +10,8 @@
       "motivation": {
         "part_order": ["opener", "pressure", "stakes"],
         "opener": [
+          "The literature on {goal} is no longer hard to read because it is small; it is hard because neighboring papers often compare materially different settings under shared labels.",
+          "The problem in reading {goal} is no longer a shortage of results but a surplus of superficially similar claims drawn from mismatched settings.",
           "{goal} now spans a wider range of tasks, embodiments, and evaluation settings than early summaries suggested.",
           "Recent work on {goal} asks systems to operate across heterogeneous tasks, embodiments, and deployment conditions that do not line up as neatly as the shared labels imply."
         ],
@@ -49,7 +51,8 @@
         ],
         "stakes": [
           "The point is not to flatten the field into one taxonomy, but to keep {comparison_summary} visible at the same time {cite}.",
-          "Taken together, those questions keep {comparison_summary} interpretable within one argument rather than scattering them into disconnected local summaries {cite}."
+          "Keeping those questions in one frame lets {comparison_summary} remain interpretable within a single argument instead of scattering into disconnected local summaries {cite}.",
+          "Holding those questions together keeps later chapters from dissolving into separate local stories before the evidence can actually be compared {cite}."
         ]
       },
       "boundary": {
@@ -148,15 +151,21 @@
         "part_order": ["opener", "pressure", "stakes"],
         "opener": [
           "Prior work on {chapter_theme} is most useful as a local comparison frame.",
-          "Reviews centered on {chapter_theme} are most valuable when they clarify the local comparison vocabulary."
+          "Reviews centered on {chapter_theme} are most valuable when they clarify the local comparison vocabulary.",
+          "One important strand of prior work around {chapter_theme} earns its value by stabilizing what counts as a like-for-like comparison inside that slice.",
+          "Survey work on {chapter_theme} matters less as a ready-made outline than as a record of which assumptions that slice already treats as fixed."
         ],
         "pressure": [
           "Those papers clarify representative tasks, systems, and local terminology, yet they often stop short of keeping {chapter_key_contrast} on a common comparison scale with adjacent parts of the field.",
-          "That literature is useful for orientation, yet it usually inherits the assumptions of its local slice rather than re-reading {chapter_key_contrast} against neighboring evidence."
+          "That literature is useful for orientation, yet it usually inherits the assumptions of its local slice rather than re-reading {chapter_key_contrast} against neighboring evidence.",
+          "Those reviews sharpen local baselines and task definitions, but they rarely keep {chapter_key_contrast} aligned once the evidence starts travelling across adjacent chapters.",
+          "They help readers enter the slice quickly, yet they often leave {chapter_key_contrast} entangled with local assumptions that do not survive cross-chapter comparison."
         ],
         "stakes": [
           "The result is useful local coverage without, by itself, providing a stable basis for synthesis across neighboring parts of the field {cite}.",
-          "Those reviews provide indispensable local structure, but they do not by themselves settle how the evidence should transfer beyond that chapter-sized lens {cite}."
+          "Those reviews provide indispensable local structure, but they do not by themselves settle how the evidence should transfer beyond that chapter-sized lens {cite}.",
+          "Their value is therefore diagnostic: they show where the local vocabulary is stable and where the synthesis still has to rebind the evidence itself {cite}.",
+          "That makes them essential orientation, but not a substitute for the cross-chapter evidential frame the body still has to build {cite}."
         ]
       },
       "evaluation_calibration": {

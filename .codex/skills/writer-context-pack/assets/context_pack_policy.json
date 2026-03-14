@@ -1,0 +1,21 @@
+{
+  "profile_limits": {
+    "survey": {
+      "comparison_keep_limit": 7,
+      "comparison_pair_limit": 7,
+      "claim_keep_limit": 6
+    },
+    "deep": {
+      "comparison_keep_limit": 9,
+      "comparison_pair_limit": 9,
+      "claim_keep_limit": 6
+    }
+  },
+  "relevance": {
+    "extra_fields": [
+      "bridge_terms",
+      "contrast_hook",
+      "required_evidence_fields"
+    ]
+  }
+}

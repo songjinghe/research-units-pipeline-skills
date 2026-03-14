@@ -27,6 +27,16 @@ Purpose: reduce C5 “hollow writing” by giving the writer a **single, per-sub
 - `outline/evidence_bindings.jsonl`
 - `citations/ref.bib`
 
+## Read as needed
+
+- `references/source_text_hygiene.md` when bad source sentences or paper self-narration leak into writer packs
+
+## Machine-readable assets
+
+- `assets/paper_voice_palette.json`
+- `assets/source_text_hygiene.json`
+- `assets/context_pack_policy.json`
+
 ## Outputs
 
 - `outline/writer_context_packs.jsonl`

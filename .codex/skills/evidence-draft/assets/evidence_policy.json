@@ -2,12 +2,12 @@
   "profile_thresholds": {
     "default": {
       "min_snippets": 12,
-      "min_comparisons": 5,
+      "min_comparisons": 7,
       "min_limitations": 5
     },
     "deep": {
       "min_snippets": 14,
-      "min_comparisons": 6,
+      "min_comparisons": 9,
       "min_limitations": 6
     }
   },

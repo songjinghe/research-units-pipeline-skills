@@ -8,6 +8,7 @@ Requirements:
 - names a real trade-off, not a topic label
 - avoids abstract meta-language like “highlights a tension around …” when a sharper contrast exists
 - falls back to axis-based wording when no domain rule matches cleanly
+- resolve against the subsection title/axes first; only use global goal cues as a fallback so neighboring H3s do not bleed into the same tension family
 
 The machine-readable source of truth is:
 

@@ -67,6 +67,7 @@ Do not treat `run.py` as the place for:
 Keep these stable:
 - preserve the existing top-level pack fields already used by downstream survey pipelines
 - `claim_candidates` must remain snippet-derived
+- `concrete_comparisons` must remain genuinely two-sided; if one cluster has no usable highlight, drop the card and surface thin evidence upstream instead of fabricating an A-vs-B contrast
 - sparse evidence should surface as explicit blockers / downgrade signals / verify fields, not filler bullets
 - citation keys must remain constrained to `citations/ref.bib`
 

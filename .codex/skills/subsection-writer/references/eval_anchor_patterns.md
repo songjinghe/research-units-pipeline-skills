@@ -30,5 +30,6 @@ If the pack does not support a full anchor:
 
 Avoid:
 - raw benchmark-name drops without saying why they matter
+- protocol metadata such as `Evaluation mentions include ...` copied directly into prose
 - free-floating numbers with no metric or constraint
 - claiming broad superiority when the protocol context is missing

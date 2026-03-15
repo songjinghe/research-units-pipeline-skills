@@ -6,11 +6,15 @@
     "(?i)^our extensive evaluation\\b",
     "(?i)^evaluations? across\\b",
     "(?i)^through simulated and real-world experiments\\b",
+    "(?i)^through extensive benchmarking\\b",
     "(?i)^building on this foundation, we present\\b",
     "(?i)^specifically, we introduce\\b",
     "(?i)^we propose\\s+1\\)",
     "(?i)^our main contribution is\\b",
-    "(?i)^from a detailed search of \\d+ articles\\b"
+    "(?i)^from a detailed search of \\d+ articles\\b",
+    "(?i)^evaluation mentions include\\b",
+    "(?i)^when comparing results, anchor the paragraph with\\b",
+    "(?i)^three key findings mapped to these axes\\b"
   ],
   "drop_if_starts_with": [
     "we ",

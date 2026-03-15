@@ -167,18 +167,26 @@ def _apply_pack_axis_rules(*, pack: dict[str, Any], title_low: str, goal_low: st
 def _first_formatted_template(*, title: str, joined: str, rules: Any, **kwargs: str) -> str:
     if not isinstance(rules, list):
         return ""
+    best_template = ""
+    best_score: tuple[int, int] | None = None
     for rule in rules:
         if not isinstance(rule, dict):
             continue
         match_any = _list_strings(rule.get("match_any"))
-        if match_any and not _contains_any(joined, match_any):
+        matched = [term for term in match_any if term.lower() in joined.lower()]
+        if match_any and not matched:
             continue
         template = str(rule.get("template") or "").strip()
         if template:
-            context = {"title": title}
-            context.update({k: v for k, v in kwargs.items() if isinstance(v, str)})
-            return template.format(**context)
-    return ""
+            score = (len(matched), sum(len(term) for term in matched))
+            if best_score is None or score > best_score:
+                best_template = template
+                best_score = score
+    if not best_template:
+        return ""
+    context = {"title": title}
+    context.update({k: v for k, v in kwargs.items() if isinstance(v, str)})
+    return best_template.format(**context)
 
 
 def _collect_pack_items(*, joined: str, rules: Any) -> list[str]:
@@ -559,7 +567,13 @@ def _thesis_statement(
 
     has_fulltext = int(evidence_summary.get("fulltext", 0) or 0) > 0
     seed = f"thesis:{title}:{axes_phrase}:{'fulltext' if has_fulltext else 'abstract'}"
-    joined = "\n".join(
+    title_axes_joined = "\n".join(
+        [
+            title.lower(),
+            " ".join([str(a or "").lower() for a in axes[:5]]),
+        ]
+    )
+    goal_joined = "\n".join(
         [
             title.lower(),
             (goal or "").lower(),
@@ -568,18 +582,19 @@ def _thesis_statement(
     )
 
     for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
-        match = _first_formatted_template(
-            title=title,
-            joined=joined,
-            rules=pack.get("thesis_rules"),
-            axes_phrase=axes_phrase,
-            primary_axis=a1,
-            secondary_axis=a2,
-            cluster_a=cluster_a,
-            cluster_b=cluster_b,
-        )
-        if match:
-            return match
+        for joined in (title_axes_joined, goal_joined):
+            match = _first_formatted_template(
+                title=title,
+                joined=joined,
+                rules=pack.get("thesis_rules"),
+                axes_phrase=axes_phrase,
+                primary_axis=a1,
+                secondary_axis=a2,
+                cluster_a=cluster_a,
+                cluster_b=cluster_b,
+            )
+            if match:
+                return match
 
     pack = (_runtime_assets().get("phrase_packs") or {}).get("thesis_patterns") or {}
     key = "fulltext" if has_fulltext else "abstract"
@@ -611,15 +626,17 @@ def _tension_statement(*, sub_title: str, axes: list[str], goal: str) -> str:
 
     title = re.sub(r"\s+", " ", (sub_title or "").strip())
     axes_joined = " ".join([str(a or "").lower() for a in (axes or [])[:5]])
-    joined = " ".join([title.lower(), (goal or "").lower(), axes_joined])
+    title_axes_joined = " ".join([title.lower(), axes_joined]).strip()
+    goal_joined = " ".join([title.lower(), (goal or "").lower(), axes_joined]).strip()
 
     for pack in _selected_domain_packs(sub_title=sub_title, goal=goal):
-        match = _first_formatted_template(title=title, joined=joined, rules=pack.get("tension_rules"))
-        if match:
-            return match
+        for joined in (title_axes_joined, goal_joined):
+            match = _first_formatted_template(title=title, joined=joined, rules=pack.get("tension_rules"))
+            if match:
+                return match
 
     generic_pack = (_runtime_assets().get("domain_packs") or {}).get("generic") or {}
-    generic_joined = " ".join([title.lower(), axes_joined])
+    generic_joined = title_axes_joined
     match = _first_formatted_template(title=title, joined=generic_joined, rules=generic_pack.get("tension_rules"))
     if match:
         return match

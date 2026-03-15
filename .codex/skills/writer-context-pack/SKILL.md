@@ -48,6 +48,7 @@ JSONL, one object per H3 subsection.
 Required keys:
 - `sub_id`, `title`, `section_id`, `section_title`
 - `rq`, `thesis`, `axes`, `paragraph_plan`
+- `clusters` (copied from subsection briefs so writer-side evidence can still be assigned per route when comparison cards are sparse)
 - `tension_statement`, `evaluation_anchor_minimal` (copied from subsection briefs; concrete tension + minimal eval context slots)
 - `opener_mode`, `opener_hint` (paper-voice hint to vary subsection openers without template labels)
 - `bridge_terms`, `contrast_hook`, `required_evidence_fields` (copied from subsection briefs; transition/evidence handles; NO NEW FACTS)
@@ -82,6 +83,7 @@ A150++ minima (defaults; used by gates and self-loops):
 - **Connector intent**: treat `paragraph_plan[].connector_phrase` as semantic guidance, not copy-paste; paraphrase and vary; avoid `Next, we ...` narration.
 - **Anchors are must-use**: include at least one `anchor_facts` item that matches your paragraph’s claim type (eval / numeric / limitation), when present.
 - **Comparisons are must-use**: reuse `comparison_cards` to write explicit A-vs-B contrast sentences (avoid “A then B” separate summaries).
+- comparison cards are only valid when both sides carry usable highlights; if a card becomes one-sided after hygiene, drop it and route the gap upstream instead of asking the writer to improvise the missing side
 - **Thesis is must-use**: the first paragraph should end with the `thesis` statement (or a faithful paraphrase with the same commitment level).
   - Prefer a content claim; avoid generator-like meta openers (`This subsection ...`) and avoid repeating literal opener labels (e.g., `Key takeaway:`) across many H3s.
 - **Opener mode (anti-template)**: use `opener_mode` / `opener_hint` to vary how paragraph 1 frames the subsection (tension-first vs decision-first vs lens-first).
@@ -112,6 +114,7 @@ Treat the pack as a set of *writing constraints + affordances*.
 - Missing evaluation context (claims float without protocol/metric)
   - Use: `evaluation_anchor_minimal`, `evaluation_protocol`
   - Move: state the minimum trio in the paragraph where you compare results: task type + metric + constraint (budget/tool access/cost).
+  - Treat benchmark inventories inside `evaluation_protocol` as metadata only; do not replay raw benchmark-name lists as body prose.
 
 - Limitation missing (reads overconfident)
   - Use: `limitation_hooks`, `required_evidence_fields`

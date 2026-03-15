@@ -1,0 +1,62 @@
+{
+  "task_keywords": [
+    "task",
+    "tasks",
+    "benchmark",
+    "benchmarks",
+    "dataset",
+    "datasets",
+    "real-world",
+    "simulation",
+    "sim-to-real",
+    "transfer",
+    "generalization",
+    "manipulation",
+    "navigation",
+    "robot",
+    "robotic",
+    "embodiment"
+  ],
+  "metric_keywords": [
+    "success",
+    "success rate",
+    "accuracy",
+    "error",
+    "reward",
+    "score",
+    "metric",
+    "metrics",
+    "pass rate",
+    "win rate",
+    "precision",
+    "recall",
+    "f1"
+  ],
+  "constraint_keywords": [
+    "latency",
+    "cost",
+    "budget",
+    "tool access",
+    "horizon",
+    "embodiment",
+    "sensing",
+    "constraint",
+    "constraints",
+    "deployment",
+    "real-world",
+    "simulation",
+    "retry",
+    "seed"
+  ],
+  "numeric_sentence_patterns": [
+    "\\b\\d+(?:\\.\\d+)?%?\\b",
+    "\\b\\d+x\\b",
+    "\\b\\d+\\s+tasks?\\b"
+  ],
+  "weaken_templates": {
+    "default": "Reported gains in {task} remain specific to the reported {metric} and {constraint} conditions",
+    "performance": "Reported performance gains in {task} remain tied to the reported {metric} and {constraint} conditions",
+    "tradeoff": "The reported trade-off remains specific to the stated {constraint} conditions in {task}",
+    "comparison": "The reported comparison favors one system under the stated {task} setting, but the numeric margin is not portable without fuller {metric} and {constraint} detail"
+  }
+}

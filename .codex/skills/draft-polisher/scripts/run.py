@@ -278,6 +278,17 @@ def _fuse_short_h3_block(block_text: str) -> str:
     return "\n\n".join([c for c in chunks if c]).rstrip()
 
 
+def _normalize_heading_lines(text: str) -> str:
+    lines: list[str] = []
+    for raw in (text or "").splitlines():
+        if raw.startswith("## ") or raw.startswith("### "):
+            head = re.sub(r"\.+\s*$", "", raw.rstrip())
+            lines.append(head)
+            continue
+        lines.append(raw)
+    return "\n".join(lines)
+
+
 def _polish_draft_text(text: str) -> str:
     blocks = re.split(r"(\n\s*\n)", text or "")
     out: list[str] = []
@@ -315,6 +326,7 @@ def _polish_draft_text(text: str) -> str:
             continue
         fused.append(stripped)
     merged = "\n\n".join(fused)
+    merged = _normalize_heading_lines(merged)
     merged = re.sub(r"\n{3,}", "\n\n", merged).rstrip() + "\n"
     return merged
 

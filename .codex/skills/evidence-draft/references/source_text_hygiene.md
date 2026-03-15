@@ -15,6 +15,7 @@ If raw source wrappers stay in `evidence_snippets`, later packs and writing stag
 - survey-meta sentences that summarize a field instead of stating subsection-relevant evidence
 - positive gap-closing sentences that only mention improvement (`... improves policy learning while narrowing the gap ...`) when the pack slot expects a limitation or failure mode
 - benchmark-positioning / field-orientation sentences that are useful context in an abstract but weak as H3 evidence (`Traditional imitation learning benchmarks are unsuitable ...`, `While deep learning on large and diverse datasets has shown promise ...`, `Recent work on high-capacity models ...`)
+- field-wide challenge lines that are too broad to anchor one H3 by themselves (`Training vision-based manipulation policies ... remains an unresolved challenge`, `Learning to control robots directly based on images is a primary challenge in robotics`, `Vision-language-action (VLA) models have advanced generalist robotic learning ...`)
 
 ## Keep when possible
 

@@ -23,6 +23,7 @@ Drop or aggressively sanitize:
 - artifact-introduction sentences that are useful as metadata but not as reader-facing evidence
 - vague sentence fragments that only describe evaluation setup without a usable result or limitation
 - note-level benchmark-positioning or field-motivation sentences that belong in paper reading notes, not in writer packs (`Traditional imitation learning benchmarks are unsuitable ...`, `While deep learning on large and diverse datasets has shown promise ...`, `Recent work on high-capacity models ...`)
+- field-wide challenge slogans that are too broad to carry one subsection on their own (`Training vision-based manipulation policies ... remains an unresolved challenge`, `Learning to control robots directly based on images is a primary challenge in robotics`, `Vision-language-action (VLA) models have advanced generalist robotic learning ...`)
 
 ## What should survive
 
@@ -32,6 +33,11 @@ Keep sentences that still carry at least one of these:
 - a protocol constraint
 - a deployment limitation
 - a subsection-relevant comparison handle
+
+For comparison cards specifically:
+- a usable card needs concrete highlights on both sides
+- if one side sanitizes away, drop the card and let upstream evidence repair the asymmetry
+- benchmark inventories belong in protocol metadata, not in a comparison highlight
 
 ## Ranking rule
 

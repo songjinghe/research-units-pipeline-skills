@@ -9,6 +9,7 @@ Requirements:
 - ties the subsection to 1-2 leading axes
 - avoids narration stems like “This subsection …”
 - stays conservative when evidence is abstract-only
+- subsection-local title/axes cues outrank global goal cues; a survey-wide goal must not cause adjacent H3s to inherit the wrong thesis family
 
 The machine-readable source of truth is `assets/phrase_packs/thesis_patterns.json`.
 

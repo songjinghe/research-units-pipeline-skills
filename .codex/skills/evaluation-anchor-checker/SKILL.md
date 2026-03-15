@@ -34,6 +34,17 @@ Optional context (read-only; helps you avoid guessing):
 - Updated `sections/*.md` (or `output/DRAFT.md` if you are post-merge), with safer evaluation anchoring
 - Optional completion marker: `output/eval_anchors_checked.refined.ok`
 
+## Read Order
+
+Always read:
+- `references/numeric_hygiene.md`
+
+Machine-readable asset:
+- `assets/numeric_hygiene.json`
+
+The asset defines the keyword families and qualitative fallback templates.
+Keep the script deterministic and let the policy live in the asset/reference pair.
+
 ## Role prompt: Reviewer-minded Editor (evaluation hygiene)
 
 ```text
@@ -91,3 +102,9 @@ Better (downgrade when context is missing):
 - [ ] No ambiguous model naming remains unless explicitly supported by citations.
 - [ ] Citation keys are unchanged.
 - [ ] If you removed/downgraded numbers, the paragraph still makes a defensible, evidence-bounded point.
+
+## Script
+
+### Quick Start
+
+- `python .codex/skills/evaluation-anchor-checker/scripts/run.py --workspace workspaces/<ws>`

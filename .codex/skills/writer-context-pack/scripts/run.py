@@ -701,10 +701,13 @@ def main() -> int:
         pack = packs_by_sub.get(sid) or {}
         binding = bindings_by_sub.get(sid) or {}
         chapter = chapters_by_sec.get(sec_id) or {}
+        upstream_blocking = [str(x).strip() for x in (pack.get("blocking_missing") or []) if str(x).strip()]
+        upstream_downgrade = [str(x).strip() for x in (pack.get("downgrade_signals") or []) if str(x).strip()]
 
         rq = str(brief.get("rq") or "").strip()
         thesis = str(brief.get("thesis") or "").strip()
         axes = [str(a).strip() for a in (brief.get("axes") or []) if str(a).strip()]
+        clusters = [x for x in (brief.get("clusters") or []) if isinstance(x, dict)]
         paragraph_plan = brief.get("paragraph_plan") or []
 
         tension_statement = str(brief.get("tension_statement") or "").strip()
@@ -765,6 +768,7 @@ def main() -> int:
         raw_claims = pack.get("claim_candidates") or []
         comparisons_considered = 0
         comparisons_dropped_no_highlights = 0
+        comparisons_dropped_one_sided = 0
         hl_dropped_no_cites = 0
         hl_dropped_sanitized = 0
 
@@ -815,8 +819,11 @@ def main() -> int:
                 "B_highlights": _hl("B_highlights"),
                 "write_prompt": _trim(comp.get("write_prompt") or "", max_len=TRIM["comparison_write_prompt"]),
             }
+            if not card["A_highlights"] or not card["B_highlights"]:
+                comparisons_dropped_one_sided += 1
+                continue
             pair_key = tuple(sorted([card["A_label"], card["B_label"]]))
-            if card["axis"] and (card["A_highlights"] or card["B_highlights"] or card["citations"]):
+            if card["axis"] and (card["A_highlights"] and card["B_highlights"] and card["citations"]):
                 if pair_seen_counts.get(pair_key, 0) >= pair_keep_limit:
                     comparisons_dropped_no_highlights += 1
                     continue
@@ -867,6 +874,7 @@ def main() -> int:
         eval_dropped_no_cites = 0
 
         eval_token_list_style = False
+        eval_inventory_count = 0
 
         eval_proto: list[dict[str, Any]] = []
         for it in (raw_eval or [])[:10]:
@@ -878,13 +886,20 @@ def main() -> int:
                 eval_dropped_no_cites += 1
                 continue
             bullet = _trim(it.get("bullet") or "", max_len=TRIM["eval_bullet"])
+            kind = re.sub(r"\s+", " ", str(it.get("kind") or "").strip()) or "protocol_guardrail"
             if re.match(r"(?i)^evaluation tokens mentioned in mapped evidence:\s*", bullet):
                 eval_token_list_style = True
                 bullet = re.sub(r"(?i)^evaluation tokens mentioned in mapped evidence:\s*", "Evaluation mentions include: ", bullet)
                 bullet = bullet.replace(";", ",")
                 bullet = re.sub(r"\s+,", ",", bullet)
                 bullet = re.sub(r"\s{2,}", " ", bullet).strip()
-            eval_proto.append({"bullet": bullet, "citations": cites})
+                kind = "benchmark_inventory"
+            if re.match(r"(?i)^evaluation mentions include:\s*", bullet):
+                eval_token_list_style = True
+                kind = "benchmark_inventory"
+            if kind == "benchmark_inventory":
+                eval_inventory_count += 1
+            eval_proto.append({"kind": kind, "bullet": bullet, "citations": cites})
             if len(eval_proto) >= 8:
                 break
 
@@ -952,7 +967,10 @@ def main() -> int:
             "min_anchor_facts": must_anchor,
             "min_comparison_cards": must_comp,
             "min_limitation_hooks": must_lim,
-            "require_cited_numeric_if_available": True,
+            "require_cited_numeric_if_available": not any(
+                "quantitative evidence lacks enough protocol context" in low.lower() or "abstract-level" in low.lower()
+                for low in upstream_downgrade
+            ),
             "require_multi_cite_synthesis_paragraph": True,
             "thesis_required": True,
         }
@@ -974,6 +992,10 @@ def main() -> int:
             pack_warnings.append(
                 "Too few comparison cards after trimming; strengthen `evidence-draft` (excerpt-level A-vs-B contrasts) to avoid per-paper summaries."
             )
+        if comparisons_dropped_one_sided:
+            pack_warnings.append(
+                "Some comparison cards were dropped because only one side had usable highlights; fix `evidence-draft` instead of letting the writer improvise an A-vs-B contrast."
+            )
         if len(claim_candidates) < 2:
             pack_warnings.append(
                 "Too few usable claim candidates after trimming; strengthen `evidence-draft` so the writer can state concrete subsection-level takeaways instead of replaying comparison templates."
@@ -986,6 +1008,16 @@ def main() -> int:
             pack_warnings.append(
                 "Too few limitation hooks; strengthen `evidence-draft` so limitations are concrete (not generic future work)."
             )
+        if eval_inventory_count and eval_inventory_count == len(eval_proto):
+            pack_warnings.append(
+                "Evaluation protocol is mostly benchmark inventory metadata; downstream writers should anchor numbers with subsection-specific evidence rather than replaying benchmark-name lists."
+            )
+        for msg in upstream_blocking:
+            if msg not in pack_warnings:
+                pack_warnings.append(f"Upstream blocker: {msg}")
+        for msg in upstream_downgrade:
+            if msg not in pack_warnings:
+                pack_warnings.append(f"Upstream caution: {msg}")
 
         if anchors_considered and anchors_dropped_no_cites / max(1, anchors_considered) >= 0.5:
             pack_warnings.append(
@@ -1005,6 +1037,7 @@ def main() -> int:
                 "considered": comparisons_considered,
                 "kept": len(comparison_cards),
                 "dropped_no_highlights": comparisons_dropped_no_highlights,
+                "dropped_one_sided": comparisons_dropped_one_sided,
                 "highlights_dropped_no_cites": hl_dropped_no_cites,
                 "highlights_dropped_sanitized": hl_dropped_sanitized,
             },
@@ -1060,6 +1093,7 @@ def main() -> int:
             "contrast_hook": str(brief.get("contrast_hook") or "").strip(),
             "required_evidence_fields": [str(x).strip() for x in (brief.get("required_evidence_fields") or []) if str(x).strip()],
             "paragraph_plan": paragraph_plan,
+            "clusters": clusters,
             "chapter_throughline": chapter.get("throughline") or [],
             "chapter_key_contrasts": chapter.get("key_contrasts") or [],
             "chapter_synthesis_mode": str(chapter.get("synthesis_mode") or "").strip(),
@@ -1073,6 +1107,8 @@ def main() -> int:
             "claim_candidates": claim_candidates,
             "evaluation_protocol": eval_proto,
             "limitation_hooks": lim_hooks,
+            "blocking_missing": upstream_blocking,
+            "downgrade_signals": upstream_downgrade,
             "must_use": must_use,
             "do_not_repeat_phrases": DO_NOT_REPEAT,
             "pack_warnings": pack_warnings,

@@ -815,7 +815,7 @@ def _role_axes(plan_item: dict[str, Any], available_axes: list[str]) -> list[str
         hits = sum(1 for tok in tokens[:4] if tok in focus_low)
         if hits >= 2 or (hits >= 1 and len(tokens) <= 2):
             picked.append(axis)
-    return _uniq(picked)[:3] or available_axes[:3]
+    return _uniq(picked)[:2] or available_axes[:2]
 
 
 def _support_text(value: Any, *, kind: str) -> str:
@@ -997,12 +997,22 @@ def _build_cluster_profiles(
     limits: list[dict[str, Any]],
     cluster_a: str,
     cluster_b: str,
+    cluster_specs: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, Any]]]]:
     profiles: dict[str, dict[str, Any]] = {
         'A': {'label': cluster_a, 'axes': [], 'facts': [], 'anchors': [], 'claims': [], 'limits': [], 'citation_pool': []},
         'B': {'label': cluster_b, 'axes': [], 'facts': [], 'anchors': [], 'claims': [], 'limits': [], 'citation_pool': []},
     }
     global_support: dict[str, list[dict[str, Any]]] = {'anchors': [], 'claims': [], 'limits': []}
+    cluster_citation_pool = {'A': set(), 'B': set()}
+    for spec in cluster_specs or []:
+        if not isinstance(spec, dict):
+            continue
+        label = _normalize_label(spec.get('label') or '')
+        if label == _normalize_label(cluster_a):
+            cluster_citation_pool['A'].update(str(x).strip() for x in (spec.get('bibkeys') or []) if str(x).strip())
+        if label == _normalize_label(cluster_b):
+            cluster_citation_pool['B'].update(str(x).strip() for x in (spec.get('bibkeys') or []) if str(x).strip())
 
     for card in cards:
         axis = _normalize_axis(card.get('axis') or '')
@@ -1040,6 +1050,15 @@ def _build_cluster_profiles(
                     best_overlap = overlap
             if best_side:
                 profiles[best_side][f'{kind}s'].append(record)
+            elif cluster_citation_pool['A'] or cluster_citation_pool['B']:
+                overlap_a = len(set(cites) & set(cluster_citation_pool['A']))
+                overlap_b = len(set(cites) & set(cluster_citation_pool['B']))
+                if overlap_a > overlap_b and overlap_a > 0:
+                    profiles['A'][f'{kind}s'].append(record)
+                elif overlap_b > overlap_a and overlap_b > 0:
+                    profiles['B'][f'{kind}s'].append(record)
+                else:
+                    global_support[f'{kind}s'].append(record)
             else:
                 global_support[f'{kind}s'].append(record)
 
@@ -1067,17 +1086,10 @@ def _evaluation_support(items: list[dict[str, Any]]) -> tuple[list[dict[str, Any
         citations = _uniq([str(x).strip() for x in (item.get('citations') or []) if str(x).strip()])
         if not bullet or not citations:
             continue
+        kind = re.sub(r'\s+', ' ', str(item.get('kind') or '').strip()).lower()
         low = bullet.lower()
-        if low.startswith('evaluation mentions include'):
-            rest = bullet.split(':', 1)[1].strip(' .') if ':' in bullet else bullet
-            if rest:
-                benchmark_records.append(
-                    {
-                        'text': f'Comparisons in this slice are usually anchored in benchmarks and settings such as {rest}',
-                        'citations': citations,
-                        'axis': '',
-                    }
-                )
+        if kind == 'benchmark_inventory' or low.startswith('evaluation mentions include'):
+            continue
         else:
             protocol_citations.extend(citations)
     return benchmark_records, _uniq(protocol_citations)
@@ -1308,6 +1320,11 @@ def _compose_cluster_paragraph(
             selected_records.append(chosen)
             if stem:
                 evidence_stem_counts[stem] = reuse_count + 1
+    has_support = bool(selected_records)
+    if kind == 'evaluation' and (benchmarks or limits or protocol_citations):
+        has_support = True
+    if not has_support:
+        return ''
     for record in selected_records:
         if record.get('text'):
             sentences.append(_sentence_with_cites(record['text'], record.get('citations') or [], max_keys=4))
@@ -1346,18 +1363,22 @@ def _compose_cluster_paragraph(
                 stem_counts=stem_counts,
             )
             sentences.append(_sentence_with_cites(limit_sentence, protocol_citations, max_keys=4))
-    sentences.append(
-        _sentence_with_cites(
-            _pick_text_candidate(
-                seed=f'{kind}:closing:{title}:{label}',
-                title=title,
-                options=closing_options,
-                stem_counts=stem_counts,
-            ),
-            [],
-            max_keys=0,
+    include_closing = len(selected_records) == 0
+    if kind == 'evaluation' and (limits or protocol_citations):
+        include_closing = False
+    if include_closing:
+        sentences.append(
+            _sentence_with_cites(
+                _pick_text_candidate(
+                    seed=f'{kind}:closing:{title}:{label}',
+                    title=title,
+                    options=closing_options,
+                    stem_counts=stem_counts,
+                ),
+                [],
+                max_keys=0,
+            )
         )
-    )
     return ' '.join(s for s in sentences if s).strip()
 
 
@@ -1384,16 +1405,15 @@ def _compose_synthesis_paragraph(
         cluster_b=str(cluster_b.get('label') or '').strip(),
         axis_text=axis_text,
     )
-    sentences = [
-        _sentence_with_cites(
-            _seeded_text(
-            f'synthesis:{title}:{axis_text}',
-            lead_options,
-            ),
-            [],
-            max_keys=0,
-        )
-    ]
+    lead_sentence = _sentence_with_cites(
+        _seeded_text(
+        f'synthesis:{title}:{axis_text}',
+        lead_options,
+        ),
+        [],
+        max_keys=0,
+    )
+    sentences: list[str] = []
     for card in cards[:2]:
         axis = _normalize_axis(card.get('axis') or '') or axis_text
         a_text = _best_highlight_text([x for x in (card.get('A_highlights') or []) if isinstance(x, dict)])
@@ -1413,7 +1433,7 @@ def _compose_synthesis_paragraph(
                     max_keys=5,
                 )
             )
-    if len(sentences) == 1:
+    if not sentences:
         a_fallback = _first_nonempty(cluster_a.get('facts') or [])
         b_fallback = _first_nonempty(cluster_b.get('facts') or [])
         if a_fallback.get('text') and b_fallback.get('text'):
@@ -1437,6 +1457,9 @@ def _compose_synthesis_paragraph(
                     max_keys=5,
                 )
             )
+    if not sentences:
+        return ''
+    sentences.insert(0, lead_sentence)
     return ' '.join(s for s in sentences if s).strip()
 
 
@@ -1475,7 +1498,9 @@ def _compose_decision_paragraph(
             max_keys=0,
         )
     ]
+    evidence_found = False
     if a_record.get('text') and b_record.get('text'):
+        evidence_found = True
         both_cites = _uniq((a_record.get('citations') or []) + (b_record.get('citations') or []))
         sentences.append(
             _sentence_with_cites(
@@ -1486,8 +1511,10 @@ def _compose_decision_paragraph(
         )
     benchmark = _first_nonempty(benchmark_records)
     if benchmark:
+        evidence_found = True
         sentences.append(_sentence_with_cites(benchmark.get('text') or '', benchmark.get('citations') or [], max_keys=4))
     if protocol_citations:
+        evidence_found = True
         protocol_options = _job_template_options(
             'decision',
             'protocol',
@@ -1505,6 +1532,8 @@ def _compose_decision_paragraph(
                 max_keys=4,
             )
         )
+    if not evidence_found:
+        return ''
     return ' '.join(s for s in sentences if s).strip()
 
 
@@ -1622,6 +1651,8 @@ def _make_paragraphs(
     thesis = _normalize_thesis(pack.get('thesis') or '', title) or _render('fallbacks', 'thesis', title=title)
     tension = _normalize_tension(pack.get('tension_statement') or '', title) or _tmpl('fallbacks', 'tension_statement')
     rq = _clean(_deslash(pack.get('rq') or ''), limit=220) or _tmpl('fallbacks', 'rq')
+    pack_axes = [str(a).strip() for a in (pack.get('axes') or []) if str(a).strip()]
+    contrast_hook = re.sub(r'\s+', ' ', str(pack.get('contrast_hook') or '').strip())
     plan = [item for item in (pack.get('paragraph_plan') or []) if isinstance(item, dict)]
     raw_cards = [x for x in (pack.get('comparison_cards') or []) if isinstance(x, dict)]
     cards: list[dict[str, Any]] = []
@@ -1651,7 +1682,16 @@ def _make_paragraphs(
         limits=limits,
         cluster_a=cluster_a,
         cluster_b=cluster_b,
+        cluster_specs=[x for x in (pack.get('clusters') or []) if isinstance(x, dict)],
     )
+    preferred_axes = ([contrast_hook] if contrast_hook else []) + pack_axes[:3]
+    if contrast_hook:
+        profiles['A']['axes'] = _uniq(([contrast_hook] + list(profiles['A'].get('axes') or []) + pack_axes))[:3]
+        profiles['B']['axes'] = _uniq(([contrast_hook] + list(profiles['B'].get('axes') or []) + pack_axes))[:3]
+    if not profiles['A'].get('axes'):
+        profiles['A']['axes'] = preferred_axes[:3]
+    if not profiles['B'].get('axes'):
+        profiles['B']['axes'] = preferred_axes[:3]
     benchmark_records, protocol_citations = _evaluation_support(evals)
 
     seed_cites = _uniq(
@@ -1668,6 +1708,10 @@ def _make_paragraphs(
     }
 
     setup_seed = _first_nonempty(global_support['claims']) or _first_nonempty(global_support['anchors']) or _first_nonempty(profiles['A']['facts']) or _first_nonempty(profiles['B']['facts'])
+    thin_pack = any(
+        re.search(r'(?i)(?:too few comparison cards|too few usable claim candidates|upstream blocker)', str(msg or ''))
+        for msg in (pack.get('pack_warnings') or [])
+    )
     if plan:
         setup_paragraph = _compose_setup_paragraph(
             title=title,
@@ -1676,7 +1720,7 @@ def _make_paragraphs(
             opener_mode=str(pack.get('opener_mode') or ''),
             cluster_a=cluster_a,
             cluster_b=cluster_b,
-            axes=_uniq((profiles['A'].get('axes') or []) + (profiles['B'].get('axes') or [])),
+            axes=_uniq((profiles['A'].get('axes') or []) + (profiles['B'].get('axes') or []) + preferred_axes),
             citations=seed_cites,
             seed_record=setup_seed,
             stem_counts=opener_stem_counts,
@@ -1814,7 +1858,7 @@ def _make_paragraphs(
             if isinstance(item, dict)
         ]
     )
-    while len(citation_keys) < 12:
+    while len(citation_keys) < 12 and not thin_pack:
         extra_paragraph, new_keys = _compose_evidence_breadth_paragraph(
             title=title,
             current_citations=citation_keys,

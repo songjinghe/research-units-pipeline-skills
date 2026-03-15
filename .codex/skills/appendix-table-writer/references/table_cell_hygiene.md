@@ -10,8 +10,10 @@ They should not expose raw evidence snippets that still sound like paper self-na
 - `we propose ...`
 - `our extensive evaluation ...`
 - `evaluations across ... validate ...`
+- `through extensive benchmarking ...`
 - `specifically, we introduce ...`
 - `building on this foundation, we present ...`
+- writer-instruction cells such as `Evaluation mentions include ...` or `When comparing results, anchor ...`
 - survey-meta or scope-setting lines that belong in prose, not in a table cell
 
 ## Keep

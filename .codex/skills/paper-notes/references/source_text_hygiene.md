@@ -25,6 +25,9 @@ Especially for `key_results` and `limitations`, drop or rewrite:
   - `While deep learning on large and diverse datasets has shown promise ...`
   - `Traditional imitation learning benchmarks are unsuitable ...`
   - `Critical to this is ...`
+  - `Training vision-based manipulation policies ... remains an important and unresolved challenge ...`
+  - `Learning to control robots directly based on images is a primary challenge in robotics.`
+  - `Vision-language-action (VLA) models have advanced generalist robotic learning ...`
 
 ## What should remain
 

@@ -2,7 +2,7 @@
   "name": "embodied_ai",
   "priority": 25,
   "planner_policy": {
-    "axis_target": 7,
+    "axis_target": 5,
     "bridge_target": 6,
     "cluster_min_size": 2,
     "allow_overlap_below_papers": 4,

@@ -1143,6 +1143,8 @@ def _comparisons(
 
         out: list[dict[str, Any]] = []
         for score, _, _, snip in scored:
+            if score <= 0:
+                continue
             pid = str(snip.get("paper_id") or "").strip()
             eid = str(snip.get("evidence_id") or "").strip()
             cites = [str(c).strip() for c in (snip.get("citations") or []) if str(c).strip()]
@@ -1197,6 +1199,8 @@ def _comparisons(
 
             a_hl = pick_highlights(a_pids, ax)
             b_hl = pick_highlights(b_pids, ax)
+            if not a_hl or not b_hl:
+                continue
 
             cits: list[str] = []
             for h in a_hl + b_hl:
@@ -1285,12 +1289,18 @@ def _evaluation_protocol(*, tokens: list[str], cite_keys: list[str], policy: dic
     if not tok_list or not (cites_strong or cites_light):
         return []
 
-    out.append({"bullet": "Evaluation mentions include: " + tok_list + ".", "citations": cites_strong or cites_light})
+    out.append(
+        {
+            "kind": "benchmark_inventory",
+            "bullet": "Evaluation mentions include: " + tok_list + ".",
+            "citations": cites_strong or cites_light,
+        }
+    )
 
     for bullet in (policy.get("evaluation_protocol_defaults") or []):
         bullet = str(bullet or "").strip()
         if bullet:
-            out.append({"bullet": bullet, "citations": cites_light})
+            out.append({"kind": "protocol_guardrail", "bullet": bullet, "citations": cites_light})
 
     return out[:8]
 

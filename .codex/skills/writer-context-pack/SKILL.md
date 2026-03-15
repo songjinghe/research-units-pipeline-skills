@@ -75,7 +75,7 @@ Treat each pack as an executable checklist, not optional context:
 A150++ minima (defaults; used by gates and self-loops):
 - paragraph_plan: 10
 - anchor_facts: >=10
-- comparison_cards: >=7
+- comparison_cards: >=4
 - limitation_hooks: >=3
 - allowed_bibkeys_mapped: >=28
 

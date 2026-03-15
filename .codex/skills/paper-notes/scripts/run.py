@@ -445,7 +445,9 @@ def _infer_key_results(*, abstract: str, max_items: int = 1) -> list[str]:
         if cleaned:
             return [cleaned]
 
-    return [abstract[:240].strip()]
+    return [
+        "Key quantitative or comparative results are not clearly stated in the available metadata; verify the full paper before using this as key evidence."
+    ]
 
 
 def _infer_limitations(*, evidence_level: str, mapped_sections: list[str], abstract: str) -> list[str]:

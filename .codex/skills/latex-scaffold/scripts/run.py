@@ -59,6 +59,8 @@ def main() -> int:
             r"\newcolumntype{Y}{>{\raggedright\arraybackslash}X}",
             r"\usepackage[numbers]{natbib}",
             r"\usepackage{url}",
+            r"\emergencystretch=2em",
+            r"\sloppy",
             "",
             rf"\title{{{_escape_latex(title)}}}",
             r"\author{}",

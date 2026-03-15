@@ -1,6 +1,6 @@
 ---
 name: arxiv-survey-latex
-version: 3.7
+version: 3.8
 variant_of: arxiv-survey
 variant_overrides:
   routing_hints: [latex, pdf, tex, 可编译, 编译]

@@ -23,6 +23,15 @@ _LEADING_ZERO_FRAGMENT_RE = re.compile(r'^0{2,}\d*\b')
 _LEADING_EXAMPLE_FRAGMENT_RE = re.compile(r'(?i)^(?:such as|for example|for instance|e\.g\.)\b')
 _META_SNIPPET_RE = re.compile(r'(?i)\b(?:github\.io|project\s+page|code\s+is\s+available|open-?source|repository|website)\b')
 _SUMMARY_STYLE_RE = re.compile(r'(?i)^(?:after a detailed summary|our main contribution is|this paper bridges that gap|we conclude by identifying|we provide a review|we present an in-depth review|the paper concludes by)\b')
+_SURVEY_META_RE = re.compile(
+    r'(?i)^(?:this|our)\s+(?:survey|review|paper|study)\b|'
+    r'^in\s+this\s+(?:survey|review)\b|'
+    r'^(?:we\s+comprehensively\s+analy(?:s|z)e|through\s+a\s+critical\s+review|after\s+a\s+detailed\s+summary)\b'
+)
+_GENERIC_EVAL_SHOW_RE = re.compile(
+    r'(?i)^(?:our\s+|comprehensive\s+)?(?:extensive|comprehensive)\s+evaluation(?:s)?'
+    r'(?:\s*\([^)]*\))?(?:\s+(?:in|across|on)\s+[^,]{0,160})?\s+shows?\b'
+)
 _GENERIC_LIMIT_RE = re.compile(r'(?i)\b(?:open challenges?|future work|research directions?|provide a review|offer a quantitative comparison|summarize|review of|benchmark suite|comprehensive simulation benchmark)\b')
 _LIMIT_SIGNAL_RE = re.compile(
     r'(?i)\b(?:limit\w*|challenge(?:s)?|risk\w*|fail\w*|fragil\w*|bottleneck\w*|cost\w*|latency|'
@@ -258,6 +267,8 @@ def _normalize_evidence_text(text: Any, *, limit: int = 240) -> str:
     s = _clean(_deslash(text or ''), limit=limit)
     if not s:
         return ''
+    if _SURVEY_META_RE.search(s) or _GENERIC_EVAL_SHOW_RE.search(s):
+        return ''
     s = _LEADING_ENUM_RE.sub('', s)
     s = _LEADING_CUE_RE.sub('', s)
     s = _LEADING_AUTHOR_RESULT_RE.sub('', s)
@@ -275,6 +286,8 @@ def _normalize_evidence_text(text: Any, *, limit: int = 240) -> str:
     s = re.sub(r'(?i),\s*(?:supports?|enables?|provides?|including|and)\b[^.]{0,40}$', '', s)
     s = re.sub(r'\s+', ' ', s).strip(' ,;:')
     if not s:
+        return ''
+    if _SURVEY_META_RE.search(s) or _GENERIC_EVAL_SHOW_RE.search(s):
         return ''
     if re.search(r'(?i)\b(?:we|our)\b', s):
         return ''
@@ -295,6 +308,8 @@ def _soft_evidence_clause(text: Any, *, limit: int = 260) -> str:
     s = _clean(_deslash(text or ''), limit=limit)
     if not s:
         return ''
+    if _SURVEY_META_RE.search(s) or _GENERIC_EVAL_SHOW_RE.search(s):
+        return ''
     s = _LEADING_ENUM_RE.sub('', s)
     s = _LEADING_CUE_RE.sub('', s)
     s = _LEADING_AUTHOR_RESULT_RE.sub('', s)
@@ -308,6 +323,8 @@ def _soft_evidence_clause(text: Any, *, limit: int = 260) -> str:
     s = re.sub(r'(?i)\bthird:\s*', '', s)
     s = re.sub(r'\s+', ' ', s).strip(' ,;:')
     if not s:
+        return ''
+    if _SURVEY_META_RE.search(s) or _GENERIC_EVAL_SHOW_RE.search(s):
         return ''
     if s and s[0].islower():
         s = s[0].upper() + s[1:]
@@ -745,7 +762,7 @@ def _synthesis_items_from_cards(cards: list[dict[str, Any]], title: str) -> list
             b_clause = f"{b_label} remain less directly specified in the current evidence"
 
         sentence = (
-            f"Across {axis_text}, the contrast between {a_label} and {b_label} is not one of isolated benchmark wins: "
+            f"The most useful contrast here is between {a_label} and {b_label}: "
             f"{a_label} tend to look strongest when {a_clause}, whereas {b_label} are more convincing when {b_clause} "
             f"{_cites(citations, max_keys=5)}."
         )
@@ -785,6 +802,11 @@ def _series(items: list[str]) -> str:
     return f"{', '.join(values[:-1])}, and {values[-1]}"
 
 
+def _normalized_axis_series(items: list[str], *, limit: int = 3) -> str:
+    axes = [_normalize_axis(item) for item in items if _normalize_axis(item)]
+    return _series(axes[:limit])
+
+
 def _sentence_with_cites(text: str, citations: list[str], *, max_keys: int = 4) -> str:
     sentence = re.sub(r'\s+', ' ', str(text or '').strip()).strip(' .;:')
     if not sentence:
@@ -819,36 +841,26 @@ def _role_axes(plan_item: dict[str, Any], available_axes: list[str]) -> list[str
 
 
 def _support_text(value: Any, *, kind: str) -> str:
-    raw_limit = 360 if kind in {'anchor', 'claim'} else (260 if kind == 'limit' else 240)
-    raw_clean = _clean(_deslash(value or ''), limit=raw_limit)
     if kind == 'limit':
         text = _soft_evidence_clause(value, limit=260) or _normalize_evidence_text(value, limit=260) or _clean(_deslash(value or ''), limit=260)
     else:
-        text = _normalize_evidence_text(value, limit=240) or _soft_evidence_clause(value, limit=240) or _clean(_deslash(value or ''), limit=240)
+        text = _normalize_evidence_text(value, limit=240) or _soft_evidence_clause(value, limit=240)
     text = re.sub(r'\s+', ' ', str(text or '').strip()).strip(' .;:')
     if text and _SUMMARY_STYLE_RE.search(text):
         return ''
+    if text and (_SURVEY_META_RE.search(text) or _GENERIC_EVAL_SHOW_RE.search(text)):
+        return ''
     if not text:
-        if kind in {'anchor', 'claim'}:
-            text = raw_clean.strip(' .;:')
-        else:
-            return ''
+        return ''
     if _is_fragmentary(text):
-        if (
-            kind in {'anchor', 'claim'}
-            and raw_clean
-            and not _BAD_FALLBACK_PREFIX_RE.search(raw_clean)
-            and not _SUMMARY_STYLE_RE.search(raw_clean)
-            and not _is_fragmentary(raw_clean)
-        ):
-            text = raw_clean.strip(' .;:')
-        else:
-            return ''
+        return ''
     if text.startswith('(') and ')' in text[:8]:
         text = re.sub(r'^\(\d+\)\s*', '', text).strip()
     if re.search(r'(?i)^however\b', text):
         text = re.sub(r'(?i)^however[: ,\-]*', '', text).strip()
     if _BAD_FALLBACK_PREFIX_RE.search(text):
+        return ''
+    if _SURVEY_META_RE.search(text) or _GENERIC_EVAL_SHOW_RE.search(text):
         return ''
     if kind == 'limit' and not _LIMIT_SIGNAL_RE.search(text):
         return ''
@@ -1108,7 +1120,7 @@ def _compose_setup_paragraph(
     seed_record: dict[str, Any],
     stem_counts: dict[str, int] | None = None,
 ) -> str:
-    axis_text = _series(axes[:3]) or _tmpl('fallbacks', 'lens')
+    axis_text = _normalized_axis_series(axes, limit=3) or _tmpl('fallbacks', 'lens')
     title_lower = title.lower()
     mode = str(opener_mode or '').strip().lower()
     opener_options = _job_template_options(
@@ -1191,7 +1203,7 @@ def _compose_cluster_paragraph(
     label_group = _label_group_text(label)
     label_cluster = _label_group_text(label, collective=True)
     axes = _role_axes(plan_item, profile.get('axes') or [])
-    axis_text = _series(axes[:2]) or _series((profile.get('axes') or [])[:2]) or _tmpl('fallbacks', 'lens')
+    axis_text = _normalized_axis_series(axes, limit=2) or _normalized_axis_series(profile.get('axes') or [], limit=2) or _tmpl('fallbacks', 'lens')
     title_lower = title.lower()
     role = str(plan_item.get('argument_role') or '')
     format_kwargs = {
@@ -1284,11 +1296,19 @@ def _compose_cluster_paragraph(
 
     sentences = [
         _sentence_with_cites(
-            _pick_text_candidate(
-                seed=f'{kind}:{title}:{label}:{axis_text}',
-                title=title,
-                options=lead_options,
-                stem_counts=stem_counts,
+            (
+                lambda lead_text: (
+                    f"In contrast, {lead_text[0].lower() + lead_text[1:]}"
+                    if 'B' in role and lead_text and not re.search(r'(?i)\b(?:however|whereas|in contrast|by contrast|unlike)\b', lead_text)
+                    else lead_text
+                )
+            )(
+                _pick_text_candidate(
+                    seed=f'{kind}:{title}:{label}:{axis_text}',
+                    title=title,
+                    options=lead_options,
+                    stem_counts=stem_counts,
+                )
             ),
             [],
             max_keys=0,
@@ -1389,9 +1409,10 @@ def _compose_synthesis_paragraph(
     cluster_a: dict[str, Any],
     cluster_b: dict[str, Any],
     cards: list[dict[str, Any]],
+    stem_counts: dict[str, int] | None = None,
 ) -> str:
     axes = _role_axes(plan_item, _uniq((cluster_a.get('axes') or []) + (cluster_b.get('axes') or [])))
-    axis_text = _series(axes[:3]) or _tmpl('fallbacks', 'lens')
+    axis_text = _normalized_axis_series(axes, limit=3) or _tmpl('fallbacks', 'lens')
     lead_options = _job_template_options(
         'synthesis',
         'lead',
@@ -1406,9 +1427,11 @@ def _compose_synthesis_paragraph(
         axis_text=axis_text,
     )
     lead_sentence = _sentence_with_cites(
-        _seeded_text(
-        f'synthesis:{title}:{axis_text}',
-        lead_options,
+        _pick_text_candidate(
+            seed=f'synthesis:{title}:{axis_text}',
+            title=title,
+            options=lead_options,
+            stem_counts=stem_counts,
         ),
         [],
         max_keys=0,
@@ -1474,8 +1497,8 @@ def _compose_decision_paragraph(
     protocol_citations: list[str],
     stem_counts: dict[str, int] | None = None,
 ) -> str:
-    a_axis = _series((cluster_a.get('axes') or [])[:2]) or _tmpl('fallbacks', 'lens')
-    b_axis = _series((cluster_b.get('axes') or [])[:2]) or _tmpl('fallbacks', 'lens')
+    a_axis = _normalized_axis_series(cluster_a.get('axes') or [], limit=2) or _tmpl('fallbacks', 'lens')
+    b_axis = _normalized_axis_series(cluster_b.get('axes') or [], limit=2) or _tmpl('fallbacks', 'lens')
     lead_options = _job_template_options(
         'decision',
         'lead',
@@ -1490,9 +1513,11 @@ def _compose_decision_paragraph(
     )
     sentences = [
         _sentence_with_cites(
-            _seeded_text(
-            f'decision:{title}:{a_axis}:{b_axis}',
-            lead_options,
+            _pick_text_candidate(
+                seed=f'decision:{title}:{a_axis}:{b_axis}',
+                title=title,
+                options=lead_options,
+                stem_counts=stem_counts,
             ),
             [],
             max_keys=0,
@@ -1504,7 +1529,7 @@ def _compose_decision_paragraph(
         both_cites = _uniq((a_record.get('citations') or []) + (b_record.get('citations') or []))
         sentences.append(
             _sentence_with_cites(
-                f'When the comparison is driven by {a_axis}, {cluster_a.get("label")} are easier to justify because {a_record.get("text")}; when the priority shifts toward {b_axis}, {cluster_b.get("label")} become more persuasive because {b_record.get("text")}',
+                f'{cluster_a.get("label")} are easier to justify when {a_record.get("text")}, whereas {cluster_b.get("label")} become more persuasive when {b_record.get("text")}',
                 both_cites,
                 max_keys=5,
             )
@@ -1519,6 +1544,10 @@ def _compose_decision_paragraph(
             'decision',
             'protocol',
             fallback=['Whichever route is preferred, the comparison only holds when benchmark scope, metric choice, and deployment constraints are matched across papers'],
+            title=title,
+            title_lower=title.lower(),
+            a_axis=a_axis,
+            b_axis=b_axis,
         )
         sentences.append(
             _sentence_with_cites(
@@ -1612,6 +1641,8 @@ def _compose_evidence_breadth_paragraph(
     records_a: list[dict[str, Any]],
     records_b: list[dict[str, Any]],
     global_records: list[dict[str, Any]],
+    axes: list[str],
+    stem_counts: dict[str, int] | None = None,
 ) -> tuple[str, set[str]]:
     selected: list[dict[str, Any]] = []
     new_keys: set[str] = set()
@@ -1631,13 +1662,48 @@ def _compose_evidence_breadth_paragraph(
             break
     if not selected:
         return '', set()
+    axis_text = _normalized_axis_series(axes, limit=3) or _tmpl('fallbacks', 'lens')
+    lead_options = _job_template_options(
+        'breadth',
+        'lead',
+        fallback=[
+            'Other mapped papers in {title_lower} point in the same direction even when they emphasize different local mechanisms',
+            'The wider mapped literature on {title_lower} keeps the same pressure in view across neighboring systems',
+        ],
+        title=title,
+        title_lower=title.lower(),
+    )
+    body_options = _job_template_options(
+        'breadth',
+        'body',
+        fallback=[
+            'Across those neighboring studies, {axis_text} continue to move together rather than behaving like separable knobs',
+            'Read together, the adjacent studies keep linking {axis_text} instead of turning them into isolated design choices',
+        ],
+        axis_text=axis_text,
+    )
     lead = _sentence_with_cites(
-        f'Broader mapped work on {title.lower()} points to the same trade-off pressure',
+        _pick_text_candidate(
+            seed=f'breadth:lead:{title}:{axis_text}',
+            title=title,
+            options=lead_options,
+            stem_counts=stem_counts,
+        ),
+        [],
+        max_keys=0,
+    )
+    body_intro = _sentence_with_cites(
+        _pick_text_candidate(
+            seed=f'breadth:body:{title}:{axis_text}',
+            title=title,
+            options=body_options,
+            stem_counts=stem_counts,
+        ),
         [],
         max_keys=0,
     )
     body = [_sentence_with_cites(record.get('text') or '', record.get('citations') or [], max_keys=3) for record in selected]
-    paragraph = ' '.join([lead] + [line for line in body if line]).strip()
+    paragraph = ' '.join([lead, body_intro] + [line for line in body if line]).strip()
     return paragraph, new_keys
 
 
@@ -1652,7 +1718,7 @@ def _make_paragraphs(
     tension = _normalize_tension(pack.get('tension_statement') or '', title) or _tmpl('fallbacks', 'tension_statement')
     rq = _clean(_deslash(pack.get('rq') or ''), limit=220) or _tmpl('fallbacks', 'rq')
     pack_axes = [str(a).strip() for a in (pack.get('axes') or []) if str(a).strip()]
-    contrast_hook = re.sub(r'\s+', ' ', str(pack.get('contrast_hook') or '').strip())
+    contrast_hook = _normalize_axis(pack.get('contrast_hook') or '')
     plan = [item for item in (pack.get('paragraph_plan') or []) if isinstance(item, dict)]
     raw_cards = [x for x in (pack.get('comparison_cards') or []) if isinstance(x, dict)]
     cards: list[dict[str, Any]] = []
@@ -1684,10 +1750,7 @@ def _make_paragraphs(
         cluster_b=cluster_b,
         cluster_specs=[x for x in (pack.get('clusters') or []) if isinstance(x, dict)],
     )
-    preferred_axes = ([contrast_hook] if contrast_hook else []) + pack_axes[:3]
-    if contrast_hook:
-        profiles['A']['axes'] = _uniq(([contrast_hook] + list(profiles['A'].get('axes') or []) + pack_axes))[:3]
-        profiles['B']['axes'] = _uniq(([contrast_hook] + list(profiles['B'].get('axes') or []) + pack_axes))[:3]
+    preferred_axes = pack_axes[:3] or ([contrast_hook] if contrast_hook else [])
     if not profiles['A'].get('axes'):
         profiles['A']['axes'] = preferred_axes[:3]
     if not profiles['B'].get('axes'):
@@ -1780,6 +1843,7 @@ def _make_paragraphs(
                 cluster_a=profiles['A'],
                 cluster_b=profiles['B'],
                 cards=cards,
+                stem_counts=opener_stem_counts,
             )
         elif role == 'decision_guidance':
             a_decision = _first_nonempty(_take_with_fallback(profiles['A']['claims'], states['A'], 'claims', profiles['A']['anchors'], states['A'], 'anchors', 1)) or _first_nonempty(profiles['A']['facts'])
@@ -1865,6 +1929,8 @@ def _make_paragraphs(
             records_a=remaining_a,
             records_b=remaining_b,
             global_records=remaining_global,
+            axes=_uniq((profiles['A'].get('axes') or []) + (profiles['B'].get('axes') or [])),
+            stem_counts=opener_stem_counts,
         )
         if not extra_paragraph or not new_keys:
             break
@@ -1884,16 +1950,43 @@ def _make_paragraphs(
             if str(key).strip() and str(key).strip() not in citation_keys
         ][:fallback_limit]
         if fallback_keys:
-            fallback_axes = _series(_uniq((profiles['A'].get('axes') or []) + (profiles['B'].get('axes') or []))[:3]) or _tmpl('fallbacks', 'lens')
+            fallback_axes = _normalized_axis_series(_uniq((profiles['A'].get('axes') or []) + (profiles['B'].get('axes') or [])), limit=3) or _tmpl('fallbacks', 'lens')
             fallback_paragraph = ' '.join(
                 [
                     _sentence_with_cites(
-                        f'The broader mapped literature around {title.lower()} reinforces the same comparison pressure even when individual systems emphasize different local mechanisms',
+                        _pick_text_candidate(
+                            seed=f'fallback:breadth:lead:{title}:{fallback_axes}',
+                            title=title,
+                            options=_job_template_options(
+                                'breadth',
+                                'lead',
+                                fallback=[
+                                    'Other mapped papers in {title_lower} point in the same direction even when they emphasize different local mechanisms',
+                                    'The wider mapped literature on {title_lower} keeps the same pressure in view across neighboring systems',
+                                ],
+                                title=title,
+                                title_lower=title.lower(),
+                            ),
+                            stem_counts=opener_stem_counts,
+                        ),
                         [],
                         max_keys=0,
                     ),
                     _sentence_with_cites(
-                        f'Across those adjacent studies, {fallback_axes} continue to move together rather than behaving like separable knobs',
+                        _pick_text_candidate(
+                            seed=f'fallback:breadth:body:{title}:{fallback_axes}',
+                            title=title,
+                            options=_job_template_options(
+                                'breadth',
+                                'body',
+                                fallback=[
+                                    'Across those neighboring studies, {axis_text} continue to move together rather than behaving like separable knobs',
+                                    'Read together, the adjacent studies keep linking {axis_text} instead of turning them into isolated design choices',
+                                ],
+                                axis_text=fallback_axes,
+                            ),
+                            stem_counts=opener_stem_counts,
+                        ),
                         fallback_keys,
                         max_keys=fallback_limit,
                     ),

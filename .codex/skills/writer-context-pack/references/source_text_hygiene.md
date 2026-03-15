@@ -21,6 +21,7 @@ Drop or aggressively sanitize:
 - summary-style orientation lines (`benchmarks are crucial ...`, `recent work has advanced ...`)
 - self-promotional result leads (`we can effectively fine-tune ...`, `the experiments also provide ...`) when they do not add a subsection-specific comparison handle
 - artifact-introduction sentences that are useful as metadata but not as reader-facing evidence
+- survey-roadmap sentences (`This survey provides a comprehensive overview ...`, `In this survey, we present ...`, `Through a critical review ...`) that explain the paper structure rather than the evidence
 - vague sentence fragments that only describe evaluation setup without a usable result or limitation
 - note-level benchmark-positioning or field-motivation sentences that belong in paper reading notes, not in writer packs (`Traditional imitation learning benchmarks are unsuitable ...`, `While deep learning on large and diverse datasets has shown promise ...`, `Recent work on high-capacity models ...`)
 - field-wide challenge slogans that are too broad to carry one subsection on their own (`Training vision-based manipulation policies ... remains an unresolved challenge`, `Learning to control robots directly based on images is a primary challenge in robotics`, `Vision-language-action (VLA) models have advanced generalist robotic learning ...`)

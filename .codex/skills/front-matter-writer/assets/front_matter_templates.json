@@ -118,7 +118,7 @@
       "closing_bridge": {
         "part_order": ["opener", "pressure", "stakes"],
         "opener": [
-          "From that point onward, the body can compare {goal} without detaching design claims from the conditions that give them meaning.",
+          "With that frame in place, the body can compare {goal} without detaching design claims from the conditions that give them meaning.",
           "The body that follows can stay with linked technical pressures instead of slipping back into chapter-sized inventories."
         ],
         "pressure": [
@@ -136,7 +136,7 @@
         "part_order": ["opener", "pressure", "stakes"],
         "opener": [
           "Survey work on {goal} already provides useful maps of tasks, benchmarks, and application settings.",
-          "The field around {goal} is already well served by reviews that clarify local vocabularies, benchmark choices, and subarea boundaries."
+          "The field around {goal} already includes several useful reviews that clarify local vocabularies, benchmark choices, and subarea boundaries."
         ],
         "pressure": [
           "The difficulty is that many of those reviews mix taxonomies, benchmark catalogs, and application snapshots without holding the same comparison lens across them.",
@@ -151,9 +151,9 @@
         "part_order": ["opener", "pressure", "stakes"],
         "opener": [
           "Prior work on {chapter_theme} is most useful as a local comparison frame.",
-          "Reviews centered on {chapter_theme} are most valuable when they clarify the local comparison vocabulary.",
-          "One important strand of prior work around {chapter_theme} earns its value by stabilizing what counts as a like-for-like comparison inside that slice.",
-          "Survey work on {chapter_theme} matters less as a ready-made outline than as a record of which assumptions that slice already treats as fixed."
+          "One useful strand of prior work around {chapter_theme} earns its value by stabilizing what counts as a like-for-like comparison inside that slice.",
+          "Survey work on {chapter_theme} matters less as a ready-made outline than as evidence about which assumptions that slice already treats as fixed.",
+          "Prior surveys of {chapter_theme} are most useful when they pin down the local comparison vocabulary before the evidence starts travelling outward."
         ],
         "pressure": [
           "Those papers clarify representative tasks, systems, and local terminology, yet they often stop short of keeping {chapter_key_contrast} on a common comparison scale with adjacent parts of the field.",
@@ -251,7 +251,7 @@
         ],
         "pressure": [
           "The reader enters the body with a map of where prior work already stabilizes interpretation and where the synthesis still has to do comparative work itself.",
-          "From that point on, the paper can shift from positioning to evidence-bearing comparison without repeating another taxonomy hand-off."
+          "The paper can then shift from positioning to evidence-bearing comparison without repeating another taxonomy hand-off."
         ],
         "stakes": [
           "Related work succeeds here only if it sharpens the later comparative discipline instead of duplicating the body chapters {cite}.",

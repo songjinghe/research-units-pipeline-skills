@@ -14,6 +14,9 @@
 ❌ "Achieves state-of-the-art results." (which benchmark? what metric? compared to what?)
 ❌ "Outperforms baselines." (which baselines? by how much?)
 ❌ "Shows promising results on several tasks." (which tasks? what numbers?)
+❌ "This survey provides a comprehensive overview of ..." (review-roadmap sentence, not a result)
+❌ "In this survey, we present ..." (paper self-description, not evidence)
+❌ "Project page: https://..." (artifact availability, not a result)
 ```
 
 ## Extraction Rules
@@ -23,3 +26,4 @@
 3. **Prefer**: sentences from the abstract that contain numeric values
 4. **Fallback**: if no numbers in abstract, use the final "conclusion" sentence
 5. **Never**: invent numbers or benchmarks not mentioned in available evidence
+6. **Never**: treat survey organization, roadmap, or availability lines as `key_results`

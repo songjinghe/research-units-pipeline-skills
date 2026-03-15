@@ -54,9 +54,25 @@
     "\\b\\d+\\s+tasks?\\b"
   ],
   "weaken_templates": {
-    "default": "Reported gains in {task} remain specific to the reported {metric} and {constraint} conditions",
-    "performance": "Reported performance gains in {task} remain tied to the reported {metric} and {constraint} conditions",
-    "tradeoff": "The reported trade-off remains specific to the stated {constraint} conditions in {task}",
-    "comparison": "The reported comparison favors one system under the stated {task} setting, but the numeric margin is not portable without fuller {metric} and {constraint} detail"
+    "default": [
+      "In {title_lower}, reported gains on the stated benchmark and task setting remain specific to the reported {metric} and {constraint} conditions in {task}",
+      "For {title_lower}, the cited number should be read as local to the reported benchmark and task setup, including its {metric} and {constraint} conditions in {task}",
+      "Within {title_lower}, this numeric result is tied to the stated evaluation setup in {task}, especially the reported {metric} and {constraint} conditions"
+    ],
+    "performance": [
+      "In {title_lower}, reported performance gains on the stated benchmark and task setting remain tied to the reported {metric} and {constraint} conditions in {task}",
+      "For {title_lower}, the reported improvement stays local to the cited benchmark and task setup, including its {metric} and {constraint} conditions in {task}",
+      "Within {title_lower}, this performance gain should be read inside the stated evaluation setup for {task}, not outside its reported {metric} and {constraint} conditions"
+    ],
+    "tradeoff": [
+      "In {title_lower}, the reported trade-off remains specific to the stated benchmark and task setting plus the {constraint} conditions in {task}",
+      "For {title_lower}, that trade-off should be read as local to the reported evaluation setup in {task}, especially its {constraint} conditions",
+      "Within {title_lower}, the cited trade-off only holds under the stated benchmark and task setup for {task}, including the reported {constraint} conditions"
+    ],
+    "comparison": [
+      "In {title_lower}, the reported comparison favors one system under the stated benchmark and task setting, but the numeric margin is not portable without fuller {metric} and {constraint} detail",
+      "For {title_lower}, that numeric comparison is tied to the cited benchmark and task setup and does not travel cleanly without fuller {metric} and {constraint} detail",
+      "Within {title_lower}, the comparison should be treated as local to the reported evaluation setup because the numeric margin still lacks fuller {metric} and {constraint} detail"
+    ]
   }
 }

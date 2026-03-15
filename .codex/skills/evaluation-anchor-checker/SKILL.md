@@ -32,7 +32,19 @@ Optional context (read-only; helps you avoid guessing):
 ## Outputs
 
 - Updated `sections/*.md` (or `output/DRAFT.md` if you are post-merge), with safer evaluation anchoring
+- `output/EVAL_ANCHOR_REPORT.md` (always; short report with files checked / changed / weakened sentences)
 - Optional completion marker: `output/eval_anchors_checked.refined.ok`
+
+## Recommended slot in the survey pipeline
+
+Use this as the **last section-level numeric hygiene sweep before merge**:
+- after `paragraph-curator` + `style-harmonizer` + `opener-variator`
+- before `transition-weaver` / `section-merger`
+
+Reason:
+- earlier section-level rewrite passes can legitimately rephrase or fuse numeric sentences
+- if you only wait for `pipeline-auditor`, numeric-context issues are discovered too late in the merged draft
+- section-scoped fixes are cheaper and preserve citation anchoring better than post-merge patching
 
 ## Read Order
 
@@ -72,6 +84,7 @@ Avoid:
 - Use `outline/writer_context_packs.jsonl` to locate the subsection's allowed citations and any extracted `evaluation_protocol`/`anchor_facts`.
 - Cross-check `outline/evidence_drafts.jsonl` and `outline/anchor_sheet.jsonl` for task/metric/constraint context before touching numbers.
 - Validate every cited key against `citations/ref.bib` (do not introduce new keys).
+- Write `output/EVAL_ANCHOR_REPORT.md` so the pipeline has an auditable completion artifact for this sweep.
 
 ## What to enforce (the “minimum protocol trio”)
 
@@ -98,6 +111,7 @@ Better (downgrade when context is missing):
 
 ## Done checklist
 
+- [ ] `output/EVAL_ANCHOR_REPORT.md` exists and reports a non-zero file count.
 - [ ] No numeric claim remains without minimal protocol context.
 - [ ] No ambiguous model naming remains unless explicitly supported by citations.
 - [ ] Citation keys are unchanged.

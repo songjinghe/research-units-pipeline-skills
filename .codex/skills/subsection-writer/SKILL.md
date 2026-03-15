@@ -72,6 +72,7 @@ A subsection should cover the necessary argument moves the pack supports; do not
 Opener / ending policy:
 - generate 2-4 opener candidates from the pack's actual tension, contrast, protocol, or limitation signals; keep the most content-bearing option instead of reusing one stock stem everywhere
 - let subsection endings emerge from evidence-bearing comparison / limitation material; do not append a fixed “safest synthesis / decision rule” closer just to make the paragraph feel finished
+- normalize internal axis labels into natural reader prose; slash-style brief handles should remain planning metadata, not leak unchanged into the paper
 
 ## Script boundary
 

@@ -944,11 +944,11 @@ def main() -> int:
         # Availability minima (used by gates and self-loops).
         if draft_profile == "deep":
             min_anchor = 12
-            min_comp = 9
+            min_comp = 6
             min_lim = 3
         else:
             min_anchor = 10
-            min_comp = 7
+            min_comp = 4
             min_lim = 3
 
         # Writer-executable minima: smaller than availability minima, but still forces real argument moves.

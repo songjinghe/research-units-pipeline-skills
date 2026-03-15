@@ -68,6 +68,8 @@ User goal → choose:
   - `writer-context-pack` (C4→C5 bridge) makes packs debuggable
   - `subsection-writer` writes per-file units
   - `writer-selfloop` fixes only failing `sections/*.md`
+  - `paragraph-curator` / `style-harmonizer` / `opener-variator` converge structure and de-template the prose
+  - `evaluation-anchor-checker` is the late section-level numeric hygiene sweep before merge
   - `draft-polisher` removes generator voice without changing citation keys
 
 ## Strict-mode behavior (by design)

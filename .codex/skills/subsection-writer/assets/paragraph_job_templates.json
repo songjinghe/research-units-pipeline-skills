@@ -2,34 +2,34 @@
   "setup": {
     "opener_by_mode": {
       "decision-first": [
-        "The central decision in {title_lower} is not which route sounds stronger in the abstract, but which assumptions about {axis_text} remain stable once the setting changes",
-        "In {title_lower}, the real decision is how much variation in {axis_text} the evidence can tolerate before the comparison stops being fair",
-        "The useful decision point in {title_lower} is which commitments around {axis_text} survive a change in benchmark, embodiment, or reporting frame"
+        "The central decision in {title_lower} is not which route sounds stronger in the abstract, but which assumptions remain stable once the setting changes",
+        "In {title_lower}, the real decision is how much variation the evidence can tolerate before the comparison stops being fair",
+        "The useful decision point in {title_lower} is which commitments survive a change in benchmark, embodiment, or reporting frame"
       ],
       "contrast-first": [
-        "The sharpest split in {title_lower} is between {cluster_a} and {cluster_b}, because their results move under different assumptions about {axis_text}",
-        "What most separates {title_lower} is the contrast between {cluster_a} and {cluster_b}, especially once {axis_text} changes",
-        "The cleanest entry into {title_lower} is the divide between {cluster_a} and {cluster_b}, because it exposes how {axis_text} alter what each result actually means"
+        "The sharpest split in {title_lower} is between {cluster_a} and {cluster_b}, because their results move under different assumptions",
+        "What most separates {title_lower} is the contrast between {cluster_a} and {cluster_b}, especially once the underlying setup changes",
+        "The cleanest entry into {title_lower} is the divide between {cluster_a} and {cluster_b}, because it exposes how different assumptions alter what each result actually means"
       ],
       "protocol-first": [
-        "In {title_lower}, benchmark claims only stay readable when {axis_text} are treated as part of the result rather than as background protocol detail",
-        "{title} becomes much easier to interpret once {axis_text} are kept explicit in the comparison contract",
-        "The comparison in {title_lower} only holds when {axis_text} remain visible instead of being absorbed into a generic benchmark story"
+        "In {title_lower}, benchmark claims only stay readable when the underlying assumptions are treated as part of the result rather than as background protocol detail",
+        "{title} becomes much easier to interpret once those assumptions are kept explicit in the comparison contract",
+        "The comparison in {title_lower} only holds when those assumptions remain visible instead of being absorbed into a generic benchmark story"
       ],
       "failure-first": [
-        "The recurring failures in {title_lower} are not random edge cases; they usually appear when {axis_text} are left implicit",
-        "What makes {title_lower} hard to synthesize is that failures often surface exactly where {axis_text} stop matching across papers",
-        "The main failure pattern in {title_lower} is not a single bad result but a repeated slippage in {axis_text} across superficially similar papers"
+        "The recurring failures in {title_lower} are not random edge cases; they usually appear when key assumptions are left implicit",
+        "What makes {title_lower} hard to synthesize is that failures often surface exactly where neighboring papers stop matching in setup or reporting",
+        "The main failure pattern in {title_lower} is not a single bad result but a repeated slippage in assumptions across superficially similar papers"
       ],
       "lens-first": [
-        "{title} is easiest to read through {axis_text} rather than through one method label at a time",
-        "The useful lens in {title_lower} is not a single architecture name, but the coupled choices around {axis_text}",
-        "{title} starts to cohere once {axis_text} are treated as the comparison frame instead of as background qualifiers"
+        "{title} is easiest to read through its core design commitments rather than through one method label at a time",
+        "The useful lens in {title_lower} is not a single architecture name, but the coupled choices that give the comparison its meaning",
+        "{title} starts to cohere once those coupled choices are treated as the comparison frame instead of as background qualifiers"
       ],
       "default": [
-        "The literature on {title_lower} becomes hard to compare when papers keep {axis_text} under the same label but change their actual assumptions",
-        "In {title_lower}, neighboring papers often look closer than they really are because they change {axis_text} while preserving the same headline vocabulary",
-        "What makes {title_lower} difficult to read is not a lack of results but the fact that changes in {axis_text} keep hiding under shared labels"
+        "The literature on {title_lower} becomes hard to compare when papers keep the same label but change the conditions that give their gains meaning",
+        "In {title_lower}, neighboring papers often look closer than they really are because they preserve the same headline vocabulary while changing the setup underneath it",
+        "What makes {title_lower} difficult to read is not a lack of results but the fact that closely related papers keep shifting the assumptions behind the same labels"
       ]
     },
     "tension_followup": [
@@ -41,67 +41,65 @@
   "cluster": {
     "mechanism": {
       "lead_A": [
-        "A first route in {title_lower} organizes the evidence around {label}, making {axis_text} part of the mechanism rather than background context",
-        "One stable cluster in {title_lower} is defined by {label}, so differences in {axis_text} immediately change what the system is actually optimizing",
-        "One recurring line of work in {title_lower} is organized around {label}, which makes {axis_text} the main source of divergence rather than a side condition"
+        "Within {title_lower}, papers grouped under {label} treat the underlying assumptions as part of the method rather than as reporting detail",
+        "A recurring strand in {title_lower} keeps the comparison anchored in {label}, where those assumptions directly shape what the system is optimizing",
+        "Papers grouped under {label} sharpen the contrast in {title_lower} because changing those assumptions changes what the method is actually built to do"
       ],
       "lead_B": [
-        "By contrast, another route in {title_lower} organizes the comparison around {label}, so the main disagreement shifts toward {axis_text}",
-        "The contrasting cluster in {title_lower} is defined by {label}, which changes how {axis_text} should be read relative to {other_label}",
-        "A competing route in {title_lower} emphasizes {label}, and that shifts the comparison toward {axis_text} rather than keeping it with {other_label}"
+        "In contrast, a strand grouped here as {label} shifts which assumptions the comparison has to keep fixed",
+        "Reading the subsection through {label} moves the disagreement away from {other_label} and toward a different set of assumptions",
+        "Papers grouped under {label} change the comparison in {title_lower} because they force those assumptions to be read differently from {other_label}"
       ],
       "closing": [
-        "That is why papers in this cluster treat {axis_text} as the main source of methodological variation",
-        "Under this lens, what matters in {label} is the subset of assumptions that keeps the surrounding evidence coherent once {axis_text} begin to shift",
-        "What {label} helps fix here is which parts of {axis_text} remain stable enough to compare across neighboring systems",
-        "What this cluster really stabilizes is not a name but the assumptions around {axis_text} that keep comparison with {other_label} interpretable"
+        "That is why papers in this cluster treat those assumptions as the main source of methodological variation",
+        "Under this lens, what matters in {label} is the subset of assumptions that keeps the surrounding evidence coherent once neighboring setups begin to shift",
+        "What {label} helps fix here is which assumptions remain stable enough to compare across neighboring systems",
+        "What this cluster really stabilizes is not a name but the assumptions that keep comparison with {other_label} interpretable"
       ]
     },
     "implementation": {
       "lead_A": [
-        "What looks like one method family in {title_lower} often separates only once the implementation stack reveals how {axis_text} are actually wired",
-        "The implementation split becomes visible once {axis_text} are traced through the actual training, control, or data stack",
-        "What appears homogeneous at the label level separates quickly when {axis_text} are operationalized in the system stack"
+        "The implementation gap in {title_lower} becomes visible once those decisions are traced through training, control, or data choices",
+        "Methods that look similar in {title_lower} separate once the system stack shows how the underlying decisions are actually wired",
+        "The implementation split that matters in {title_lower} is where those decisions are enforced inside the stack"
       ],
       "lead_B": [
-        "By contrast, the implementation split in {title_lower} appears once {axis_text} are traced through the actual training, control, or data stack",
-        "In contrast, implementation details become decisive here because they show how {label_group} turn {axis_text} into concrete system choices",
-        "The alternative route only becomes legible at implementation level, where {label_group} operationalize {axis_text} differently from {other_label}"
+        "In contrast, the alternative strand only becomes clear once implementation choices reveal how {label_group} operationalize those decisions",
+        "Implementation details matter here because {label_group} turn those decisions into concrete system commitments",
+        "What separates {label_group} from {other_label} is the point in the stack where those decisions become operational"
       ],
       "closing": [
-        "The implementation story therefore turns on how {axis_text} are operationalized in training, control, or data construction",
+        "The implementation story therefore turns on how those decisions are operationalized in training, control, or data construction",
         "At that point, the key question is which parts of {label_cluster} remain structural once benchmark-specific choices are stripped away",
-        "What survives comparison here is the concrete way {label_group} operationalize {axis_text}, not the headline label itself",
-        "The durable split therefore lies in where {label_group} bind {axis_text} into data, control, or supervision decisions",
-        "Read at system level, the meaningful difference is how {label_group} make {axis_text} explicit, optional, or expensive",
-        "What remains comparable here is the implementation choice that keeps {axis_text} active once benchmark-local tuning is stripped away",
-        "The practical divide is not the label alone but the point in the stack where {axis_text} are enforced",
-        "Seen this way, the implementation gap sits in how {label_group} turn {axis_text} into concrete system commitments",
-        "Across these systems, the relevant contrast is where {axis_text} stop being abstract design goals and become operational constraints"
+        "What survives comparison here is the concrete way {label_group} operationalize those decisions, not the headline label itself",
+        "The durable split therefore lies in where {label_group} bind those decisions into data, control, or supervision choices",
+        "Read at system level, the meaningful difference is how {label_group} make those decisions explicit, optional, or expensive",
+        "What remains comparable here is the implementation choice that keeps those decisions active once benchmark-local tuning is stripped away",
+        "The practical divide is not the label alone but the point in the stack where those decisions are enforced",
+        "Seen this way, the implementation gap sits in how {label_group} turn those decisions into concrete system commitments",
+        "Across these systems, the relevant contrast is where those decisions stop being abstract design goals and become operational constraints"
       ]
     },
     "evaluation": {
       "lead_A": [
-        "In {title_lower}, evidence for {label} is only persuasive when benchmark scope and metric choice stay aligned with {axis_text}",
-        "The evaluation record for {label} in {title_lower} depends less on headline gains than on whether {axis_text} are measured under comparable constraints",
-        "What makes the evidence for {label} usable in {title_lower} is not raw gain alone, but whether protocol choices preserve {axis_text}",
-        "The benchmark story for {label} in {title_lower} is only convincing when metric choice and deployment conditions still reflect {axis_text}"
+        "For {label}, reported gains in {title_lower} are only informative when the evaluation setup keeps the relevant assumptions explicit",
+        "The evidence for {label} in {title_lower} depends less on the headline number than on whether those assumptions remain comparable across papers",
+        "What makes {label} readable in {title_lower} is whether protocol choices keep those assumptions attached to the result",
+        "Evidence for {label} only travels beyond one paper when those assumptions stay visible in the reporting contract"
       ],
       "lead_B": [
-        "By contrast, evidence for {label} in {title_lower} is only persuasive when benchmark scope and metric choice stay aligned with {axis_text}",
-        "In contrast, the evaluation record for {label} in {title_lower} depends less on headline gains than on whether {axis_text} are measured under comparable constraints",
-        "What makes the evidence for {label} usable in {title_lower} is not raw gain alone, but whether protocol choices preserve {axis_text}",
-        "The benchmark story for {label} in {title_lower} is only convincing when metric choice and deployment conditions still reflect {axis_text}"
+        "In contrast, the reported edge for {label} in {title_lower} only holds if the evaluation setup keeps those assumptions explicit",
+        "The comparison for {label} in {title_lower} turns on whether those assumptions are measured under comparable conditions",
+        "What keeps the evidence for {label} usable is whether protocol choices preserve those assumptions",
+        "The benchmark story for {label} becomes fragile once those assumptions stop travelling with the score"
       ],
       "limit": [
-        "A closer read reveals the boundary condition that matters most: {limit_text}",
-        "The gain has to be read against one constraint in particular: {limit_text}",
-        "The comparison becomes setting-bound rather than portable once this condition enters the picture: {limit_text}",
-        "One reason the headline overstates portability is simple: {limit_text}",
-        "The evidence stays strongest only under a narrower condition: {limit_text}",
-        "The result has to be interpreted with a stricter boundary in mind: {limit_text}",
-        "What limits transfer here is not the headline score alone but the following condition: {limit_text}",
-        "The claimed edge remains local to a narrower evidential frame: {limit_text}"
+        "Those gains remain tentative because {limit_text}",
+        "The comparison remains limited by one boundary condition: {limit_text}",
+        "The reported edge should be read cautiously because the evidence remains limited: {limit_text}",
+        "One reason the headline overstates portability is that the comparison remains limited by {limit_text}",
+        "The evidence remains provisional under a narrower condition: {limit_text}",
+        "The result should be treated as limited evidence rather than a portable ranking because {limit_text}"
       ],
       "limit_fallback": [
         "Those gains remain provisional whenever task, metric, and deployment constraints are not stated together",
@@ -111,20 +109,20 @@
       "closing": [
         "For {label}, benchmark scope, metric choice, and deployment constraints remain part of the claim rather than detachable metadata",
         "That is also where the comparison with {other_label} becomes fragile if protocol detail is under-specified",
-        "For {label}, the interpretation changes once {axis_text} stop being reported as part of the result",
-        "The evidence for {label} stays readable only while the reporting contract keeps {axis_text} attached to the score",
+        "For {label}, the interpretation changes once those assumptions stop being reported as part of the result",
+        "The evidence for {label} stays readable only while the reporting contract keeps those assumptions attached to the score",
         "Once protocol detail thins out, the claim about {label} becomes a local benchmark fact rather than a portable comparison",
-        "What remains portable about {label} is therefore limited by how explicitly {axis_text} are reported",
-        "This leaves {label} comparable across papers only when {axis_text} travel with the benchmark result",
+        "What remains portable about {label} is therefore limited by how explicitly those assumptions are reported",
+        "This leaves {label} comparable across papers only when those assumptions travel with the benchmark result",
         "The evaluation record matters because it determines whether {label} survives as a cross-paper comparison or collapses back into a local report"
       ]
     }
   },
   "synthesis": {
     "lead": [
-      "Read together, the contrast between {cluster_a} and {cluster_b} is really about {axis_text}, not about a single headline score",
-      "Across {title_lower}, the decisive difference between {cluster_a} and {cluster_b} lies in {axis_text} rather than in one isolated benchmark win",
-      "Taken at the subsection level, the main split between {cluster_a} and {cluster_b} is better understood through {axis_text} than through one nominal method label"
+      "Seen together, {cluster_a} and {cluster_b} diverge less on headline performance than on the assumptions that make their results travel",
+      "Across {title_lower}, the real split between {cluster_a} and {cluster_b} lies in which assumptions each route keeps fixed, not in one isolated result",
+      "At subsection level, the contrast between {cluster_a} and {cluster_b} is clearest once the comparison stays attached to its underlying assumptions"
     ],
     "fallback": [
       "At a higher level, {cluster_a} emphasize {a_text}, whereas {cluster_b} emphasize {b_text}",
@@ -134,15 +132,29 @@
   },
   "decision": {
     "lead": [
-      "In {title_lower}, the practical decision is less about choosing a winner than about deciding which constraint the target setting will not relax",
-      "The useful decision point in {title_lower} is which assumption stays fixed once {a_axis} and {b_axis} stop lining up cleanly",
-      "For builders working on {title_lower}, the meaningful choice is which side of the trade-off must survive under the target protocol",
-      "The comparison matters operationally only after the target setting decides whether it prioritizes {a_axis} or {b_axis}"
+      "For an actual design choice in {title_lower}, the question is which requirement cannot be relaxed",
+      "The practical choice in {title_lower} begins once the target setting decides which requirement must stay fixed",
+      "The practical issue in {title_lower} is not a generic winner but which side of the trade-off the target setting has to preserve",
+      "A decision in {title_lower} only becomes reliable once the target setting commits to one side of the trade-off"
     ],
     "protocol": [
       "Benchmark scope, metric choice, and deployment constraints still decide whether either route can be compared beyond one local setting",
-      "Whichever route is preferred, the comparison only holds when benchmark scope, metric choice, and deployment constraints are matched across papers",
-      "The practical lesson is that protocol alignment, not label preference alone, determines whether either route travels beyond one benchmark family"
+      "Whichever route is preferred, the comparison only holds when both sides are reported under matched benchmark scope, metric choice, and deployment constraints",
+      "The practical lesson is that protocol alignment, not label preference alone, determines whether either route travels beyond one benchmark family",
+      "Any preference between the two routes remains local until benchmark scope, metric choice, and deployment constraints are matched on both sides",
+      "The comparison only becomes portable when both routes are reported with the same benchmark scope, metric choice, and deployment constraints"
+    ]
+  },
+  "breadth": {
+    "lead": [
+      "Other mapped papers in {title_lower} point in the same direction even when they emphasize different local mechanisms",
+      "The wider mapped literature on {title_lower} keeps the same pressure in view across neighboring systems",
+      "Beyond the focal papers, adjacent work on {title_lower} still reinforces the same comparison pressure"
+    ],
+    "body": [
+      "Across those neighboring studies, the same assumptions continue to move together rather than behaving like separable knobs",
+      "Read together, the adjacent studies keep linking the same decisions instead of turning them into isolated design choices",
+      "The mapped papers keep tying the same assumptions together, which is why the comparison does not reduce to one local mechanism"
     ]
   },
   "limitation": {

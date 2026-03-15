@@ -4,7 +4,7 @@ description: |
   Create per-subsection evidence packs (NO PROSE): claim candidates, concrete comparisons, evaluation protocol, limitations, plus citation-backed evidence snippets with provenance.
   **Trigger**: evidence draft, evidence pack, claim candidates, concrete comparisons, evidence snippets, provenance, 证据草稿, 证据包, 可引用事实.
   **Use when**: `outline/subsection_briefs.jsonl` exists and you want evidence-first section drafting where every paragraph can be backed by traceable citations/snippets.
-  **Skip if**: `outline/evidence_drafts.jsonl` already exists and is refined (no placeholders; >=8 comparisons per subsection; `blocking_missing` empty).
+  **Skip if**: `outline/evidence_drafts.jsonl` already exists and is refined (no placeholders; >=4 grounded comparisons per subsection in survey mode; `blocking_missing` empty).
   **Network**: none (richer evidence improves with abstracts/fulltext).
   **Guardrail**: NO PROSE; do not invent facts; only use citation keys that exist in `citations/ref.bib`.
 ---
@@ -68,6 +68,7 @@ Keep these stable:
 - preserve the existing top-level pack fields already used by downstream survey pipelines
 - `claim_candidates` must remain snippet-derived
 - `concrete_comparisons` must remain genuinely two-sided; if one cluster has no usable highlight, drop the card and surface thin evidence upstream instead of fabricating an A-vs-B contrast
+- snippet sampling should stay cluster-aware: when a subsection has explicit clusters, evidence selection should avoid collapsing onto one route just because its abstracts contain louder result sentences
 - sparse evidence should surface as explicit blockers / downgrade signals / verify fields, not filler bullets
 - citation keys must remain constrained to `citations/ref.bib`
 

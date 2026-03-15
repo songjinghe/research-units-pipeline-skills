@@ -76,8 +76,13 @@
           "cite_width": 6
         },
         {
-          "job": "closing_bridge",
+          "job": "reader_contract",
           "cite_start": 30,
+          "cite_width": 6
+        },
+        {
+          "job": "closing_bridge",
+          "cite_start": 36,
           "cite_width": 6
         }
       ]

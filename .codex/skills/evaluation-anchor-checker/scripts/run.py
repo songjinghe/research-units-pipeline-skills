@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -29,6 +30,21 @@ CONSTRAINT_KEYWORDS = [str(x).strip().lower() for x in (NUMERIC_HYGIENE.get("con
 NUMERIC_PATTERNS = [re.compile(str(x)) for x in (NUMERIC_HYGIENE.get("numeric_sentence_patterns") or []) if str(x).strip()]
 WEAKEN_TEMPLATES = NUMERIC_HYGIENE.get("weaken_templates") or {}
 CITE_BLOCK_RE = re.compile(r"\s*\[@[^\]]+\]\s*")
+AUDIT_EVAL_CONTEXT_RE = re.compile(r"(?i)(?:benchmark|dataset|datasets|metric|metrics|protocol|evaluation|eval\.|latency|cost|budget|token|tokens|throughput|compute|score|accuracy|exact|success)")
+LEGACY_WEAKEN_RE = re.compile(
+    r"(?i)^(?:"
+    r"reported gains on the stated benchmark and task setting remain specific to the reported|"
+    r"reported performance gains on the stated benchmark and task setting remain tied to the reported|"
+    r"the cited number should be read as local to the reported benchmark and task setup|"
+    r"this numeric result is tied to the stated evaluation setup|"
+    r"this performance gain should be read within the stated evaluation setup|"
+    r"the reported trade-off remains specific to the stated benchmark and task setting|"
+    r"that trade-off should be read as local to the reported evaluation setup|"
+    r"the reported comparison favors one system under the stated benchmark and task setting|"
+    r"that numeric comparison is tied to the cited benchmark and task setup|"
+    r"the comparison should be treated as local to the reported evaluation setup"
+    r")"
+)
 
 
 def _has_numeric(text: str) -> bool:
@@ -37,6 +53,12 @@ def _has_numeric(text: str) -> bool:
 
 def _normalize_space(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "").strip())
+
+
+def _deslash(text: str) -> str:
+    s = re.sub(r"\s*/\s*", " and ", str(text or ""))
+    s = re.sub(r"\band\s+and\b", "and", s)
+    return _normalize_space(s)
 
 
 def _split_sentences(paragraph: str) -> list[str]:
@@ -77,6 +99,19 @@ def _category_count(text: str, pack: dict[str, Any]) -> int:
     return categories
 
 
+def _has_metric_context(text: str, pack: dict[str, Any]) -> bool:
+    low = _strip_cites(text).lower()
+    metric_terms = set(METRIC_KEYWORDS)
+    eval_anchor = pack.get("evaluation_anchor_minimal") or {}
+    if isinstance(eval_anchor, dict):
+        metric_terms.update(re.findall(r"[a-z][a-z0-9-]+", _deslash(str(eval_anchor.get("metric") or "")).lower()))
+    return any(term and term in low for term in metric_terms)
+
+
+def _has_eval_context_token(text: str) -> bool:
+    return bool(AUDIT_EVAL_CONTEXT_RE.search(_strip_cites(text)))
+
+
 def _rewrite_kind(text: str) -> str:
     low = _strip_cites(text).lower()
     if any(word in low for word in ["latency", "cost", "budget", "trade-off", "constraint"]):
@@ -88,21 +123,37 @@ def _rewrite_kind(text: str) -> str:
     return "default"
 
 
+def _pick_template(seed: str, value: Any) -> str:
+    if isinstance(value, list):
+        options = [str(item or "").strip() for item in value if str(item or "").strip()]
+        if not options:
+            return ""
+        digest = hashlib.sha1(str(seed or "").encode("utf-8", errors="ignore")).hexdigest()
+        idx = int(digest[:12], 16) % len(options)
+        return options[idx]
+    return str(value or "").strip()
+
+
 def _pack_hint(pack: dict[str, Any], field: str, fallback: str) -> str:
     eval_anchor = pack.get("evaluation_anchor_minimal") or {}
     if not isinstance(eval_anchor, dict):
         return fallback
-    value = _normalize_space(str(eval_anchor.get(field) or ""))
+    value = _deslash(str(eval_anchor.get(field) or ""))
     return value or fallback
 
 
 def _weaken_numeric_sentence(text: str, pack: dict[str, Any]) -> str:
     cites = _extract_cites(text)
     kind = _rewrite_kind(text)
-    template = str(WEAKEN_TEMPLATES.get(kind) or WEAKEN_TEMPLATES.get("default") or "").strip()
+    template = _pick_template(
+        f"{kind}:{pack.get('sub_id') or ''}:{pack.get('title') or ''}:{_strip_cites(text)}:{_pack_hint(pack, 'task', 'task')}:{_pack_hint(pack, 'metric', 'metric')}",
+        WEAKEN_TEMPLATES.get(kind) or WEAKEN_TEMPLATES.get("default") or "",
+    ).strip()
     if not template:
         template = "Reported gains remain specific to the reported setting"
     rewritten = template.format(
+        title=_normalize_space(str(pack.get("title") or "")) or "this subsection",
+        title_lower=(_normalize_space(str(pack.get("title") or "")).lower() or "this subsection"),
         task=_pack_hint(pack, "task", "task"),
         metric=_pack_hint(pack, "metric", "metric"),
         constraint=_pack_hint(pack, "constraint", "constraint"),
@@ -150,7 +201,15 @@ def _polish_paragraph(paragraph: str, pack: dict[str, Any]) -> tuple[str, int]:
     changed = 0
     out: list[str] = []
     for sentence in sentences:
-        if _has_numeric(sentence) and _category_count(sentence, pack) < 2:
+        if LEGACY_WEAKEN_RE.search(_strip_cites(sentence)):
+            out.append(_weaken_numeric_sentence(sentence, pack))
+            changed += 1
+            continue
+        if _has_numeric(sentence) and (
+            _category_count(sentence, pack) < 2
+            or not _has_metric_context(sentence, pack)
+            or not _has_eval_context_token(sentence)
+        ):
             out.append(_weaken_numeric_sentence(sentence, pack))
             changed += 1
             continue
@@ -225,8 +284,11 @@ def main() -> int:
     for path in sorted(sections_dir.glob("S*.md")):
         if path.name.endswith("_lead.md"):
             continue
+        sub_id = _sub_id_from_section_path(path)
+        if "." not in sub_id:
+            continue
         total_files += 1
-        pack = packs.get(_sub_id_from_section_path(path), {})
+        pack = packs.get(sub_id, {})
         changed = _process_section(path, pack)
         if changed:
             changed_files += 1

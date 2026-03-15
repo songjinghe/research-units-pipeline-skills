@@ -1,6 +1,6 @@
 ---
 name: arxiv-survey
-version: 3.7
+version: 3.8
 profile: arxiv-survey
 routing_hints: [survey, review, 综述, 调研, literature review]
 routing_default: true
@@ -59,6 +59,7 @@ target_artifacts:
   - output/SCHEMA_NORMALIZATION_REPORT.md
   - output/EVIDENCE_SELFLOOP_TODO.md
   - output/WRITER_SELFLOOP_TODO.md
+  - output/EVAL_ANCHOR_REPORT.md
   - output/ARGUMENT_SELFLOOP_TODO.md
   - output/SECTION_ARGUMENT_SUMMARIES.jsonl
   - output/ARGUMENT_SKELETON.md
@@ -190,9 +191,9 @@ stages:
   C5:
     title: Draft
     mode: prose_allowed
-    required_skills: [front-matter-writer, chapter-lead-writer, subsection-writer, writer-selfloop, section-logic-polisher, argument-selfloop, paragraph-curator, style-harmonizer, opener-variator, transition-weaver, section-merger, post-merge-voice-gate, citation-diversifier, citation-injector, draft-polisher, global-reviewer, pipeline-auditor, artifact-contract-auditor]
-    optional_skills: [prose-writer, subsection-polisher, redundancy-pruner, terminology-normalizer, limitation-weaver, evaluation-anchor-checker, latex-scaffold, latex-compile-qa]
-    produces: [outline/transitions.md, sections/sections_manifest.jsonl, sections/h3_bodies.refined.ok, sections/paragraphs_curated.refined.ok, sections/style_harmonized.refined.ok, sections/opener_varied.refined.ok, sections/abstract.md, sections/S1.md, sections/S2.md, sections/discussion.md, sections/conclusion.md, output/WRITER_SELFLOOP_TODO.md, output/ARGUMENT_SELFLOOP_TODO.md, output/SECTION_ARGUMENT_SUMMARIES.jsonl, output/ARGUMENT_SKELETON.md, output/PARAGRAPH_CURATION_REPORT.md, output/FRONT_MATTER_REPORT.md, output/CHAPTER_LEADS_REPORT.md, output/SECTION_LOGIC_REPORT.md, output/MERGE_REPORT.md, output/DRAFT.md, output/POST_MERGE_VOICE_REPORT.md, output/CITATION_BUDGET_REPORT.md, output/CITATION_INJECTION_REPORT.md, output/GLOBAL_REVIEW.md, output/AUDIT_REPORT.md, output/CONTRACT_REPORT.md]
+    required_skills: [front-matter-writer, chapter-lead-writer, subsection-writer, writer-selfloop, section-logic-polisher, argument-selfloop, paragraph-curator, style-harmonizer, opener-variator, evaluation-anchor-checker, transition-weaver, section-merger, post-merge-voice-gate, citation-diversifier, citation-injector, draft-polisher, global-reviewer, pipeline-auditor, artifact-contract-auditor]
+    optional_skills: [prose-writer, subsection-polisher, redundancy-pruner, terminology-normalizer, limitation-weaver, latex-scaffold, latex-compile-qa]
+    produces: [outline/transitions.md, sections/sections_manifest.jsonl, sections/h3_bodies.refined.ok, sections/paragraphs_curated.refined.ok, sections/style_harmonized.refined.ok, sections/opener_varied.refined.ok, sections/abstract.md, sections/S1.md, sections/S2.md, sections/discussion.md, sections/conclusion.md, output/WRITER_SELFLOOP_TODO.md, output/EVAL_ANCHOR_REPORT.md, output/ARGUMENT_SELFLOOP_TODO.md, output/SECTION_ARGUMENT_SUMMARIES.jsonl, output/ARGUMENT_SKELETON.md, output/PARAGRAPH_CURATION_REPORT.md, output/FRONT_MATTER_REPORT.md, output/CHAPTER_LEADS_REPORT.md, output/SECTION_LOGIC_REPORT.md, output/MERGE_REPORT.md, output/DRAFT.md, output/POST_MERGE_VOICE_REPORT.md, output/CITATION_BUDGET_REPORT.md, output/CITATION_INJECTION_REPORT.md, output/GLOBAL_REVIEW.md, output/AUDIT_REPORT.md, output/CONTRACT_REPORT.md]
 ---
 
 # Pipeline: arXiv survey / review (MD-first)
@@ -349,6 +350,7 @@ required_skills:
 - paragraph-curator
 - style-harmonizer
 - opener-variator
+- evaluation-anchor-checker
 - transition-weaver
 - section-merger
 - post-merge-voice-gate
@@ -373,6 +375,7 @@ produces:
 - sections/discussion.md
 - sections/conclusion.md
 - output/WRITER_SELFLOOP_TODO.md
+- output/EVAL_ANCHOR_REPORT.md
 - output/SECTION_LOGIC_REPORT.md
 - output/ARGUMENT_SELFLOOP_TODO.md
 - output/SECTION_ARGUMENT_SUMMARIES.jsonl
@@ -390,15 +393,17 @@ Notes:
 - C5 writing system (semantic + minimal artifacts; no extra machinery):
   - **Unit of work**: `sections/*.md` (front matter, H2 leads, H3 bodies). Avoid editing `output/DRAFT.md` directly until after merge.
   - **Single source of truth (口径锁定)**: `output/ARGUMENT_SKELETON.md` → `## Consistency Contract` (terminology, scope boundary, evaluation protocol fields, baseline naming).
-  - **Write → check → fix (four gates)**:
+  - **Write → check → fix (five gates)**:
     1) `writer-selfloop` → `output/WRITER_SELFLOOP_TODO.md`: file existence, depth, citation scope, paper voice.
     2) `section-logic-polisher` → `output/SECTION_LOGIC_REPORT.md`: paragraph linkage (no jump cuts / “paragraph islands”).
     3) `argument-selfloop` → `output/ARGUMENT_SELFLOOP_TODO.md` + `output/ARGUMENT_SKELETON.md` + `output/SECTION_ARGUMENT_SUMMARIES.jsonl`: section-level closure + premise/definition stability.
     4) `paragraph-curator` → `output/PARAGRAPH_CURATION_REPORT.md`: **select → evaluate → subset → fuse** so sections converge (reduce redundancy, strengthen synthesis) without changing citation keys.
+    5) `evaluation-anchor-checker` → `output/EVAL_ANCHOR_REPORT.md`: final section-level numeric hygiene sweep so surviving numeric claims keep same-sentence task/metric/constraint context before merge.
   - **Openers-last**: draft the middle first; rewrite paragraph 1 last so it reflects real content (front matter + H3).
 - Writing self-loop gate: `subsection-writer` ensures the full `sections/` file set exists (and emits `sections/sections_manifest.jsonl`); `writer-selfloop` blocks until depth/citation-scope/paper-voice checks pass, writing `output/WRITER_SELFLOOP_TODO.md` (PASS/FAIL).
 - Argument self-loop gate: `argument-selfloop` blocks “smooth but hollow” sections by making the argument chain explicit (per-section paragraph moves + a global dependency skeleton). Its ledgers are intermediate artifacts and must never be merged into the paper.
 - Style hygiene (C5 hard gate for `survey`/`deep`): treat `output/WRITER_SELFLOOP_TODO.md` Style Smells as mandatory fixes. Run `style-harmonizer` + `opener-variator` on flagged files, then rerun `writer-selfloop` before merge.
+- Numeric hygiene gate: run `evaluation-anchor-checker` after the last section-level rewrites (`paragraph-curator` + `style-harmonizer` + `opener-variator`) and before merge. If later section rewrites touch the same H3 files, rerun it; do not wait for `pipeline-auditor` to discover underspecified numbers in the merged draft.
 - Micro-fix routing (preferred over broad rewrites): if Style Smells are specific, use targeted micro-skills before a general harmonize pass:
   - opener cadence / “overview” narration → `opener-variator`
   - count-based limitation slots (“Two limitations…”) → `limitation-weaver`
@@ -431,7 +436,7 @@ Notes:
 - If you intentionally add/remove citations after an earlier polish run, reset the citation-anchoring baseline before rerunning `draft-polisher`:
   - delete `output/citation_anchors.prepolish.jsonl` (workspace-local), then rerun `draft-polisher`.
 - Recommended skills (toolkit, not a rigid one-shot chain):
-  - Modular drafting: `subsection-writer` → `writer-selfloop` → `section-logic-polisher` → `argument-selfloop` → `style-harmonizer` → `opener-variator` → `transition-weaver` → `section-merger` → `draft-polisher` → `global-reviewer` → `pipeline-auditor`.
+  - Modular drafting: `subsection-writer` → `writer-selfloop` → `section-logic-polisher` → `argument-selfloop` → `paragraph-curator` → `style-harmonizer` → `opener-variator` → `evaluation-anchor-checker` → `transition-weaver` → `section-merger` → `draft-polisher` → `global-reviewer` → `pipeline-auditor`.
   - Legacy one-shot drafting: `prose-writer` (kept for quick experiments; less debuggable).
   - If the draft reads like “paragraph islands”, run `section-logic-polisher` and patch only failing `sections/S*.md` until PASS, then merge.
 - Add `pipeline-auditor` after `global-reviewer` as a regression test (blocks on ellipsis, repeated boilerplate, and citation hygiene).

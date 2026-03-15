@@ -463,6 +463,34 @@ def main() -> int:
                 )
                 if len(evidence_snippets) >= 18:
                     break
+            represented = {str(item.get("paper_id") or "").strip() for item in evidence_snippets if isinstance(item, dict)}
+            supplemental = _evidence_snippets(
+                workspace=workspace,
+                pids=[pid for pid in support_pids if pid not in represented],
+                notes_by_pid=notes_by_pid,
+                bibkeys=bibkeys,
+                limit=max(0, 22 - len(evidence_snippets)),
+                clusters=clusters,
+            )
+            seen_keys = {
+                (
+                    str(item.get("paper_id") or "").strip(),
+                    re.sub(r"\s+", " ", str(item.get("text") or "").strip().lower()),
+                )
+                for item in evidence_snippets
+                if isinstance(item, dict)
+            }
+            for item in supplemental:
+                key = (
+                    str(item.get("paper_id") or "").strip(),
+                    re.sub(r"\s+", " ", str(item.get("text") or "").strip().lower()),
+                )
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                evidence_snippets.append(item)
+                if len(evidence_snippets) >= 22:
+                    break
         else:
             evidence_snippets = _evidence_snippets(
                 workspace=workspace,
@@ -470,6 +498,7 @@ def main() -> int:
                 notes_by_pid=notes_by_pid,
                 bibkeys=bibkeys,
                 limit=22,
+                clusters=clusters,
             )
 
         fulltext_n = int(evidence_summary.get("fulltext", 0) or 0) if isinstance(evidence_summary, dict) else 0
@@ -632,6 +661,38 @@ def _pids_from_clusters(clusters: Any) -> list[str]:
     return out
 
 
+def _cluster_ordered_pids(pids: list[str], clusters: Any) -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    cluster_lists: list[list[str]] = []
+    if isinstance(clusters, list):
+        for cluster in clusters:
+            if not isinstance(cluster, dict):
+                continue
+            cluster_pids = [str(pid).strip() for pid in (cluster.get("paper_ids") or []) if str(pid).strip() and str(pid).strip() in pids]
+            if cluster_pids:
+                cluster_lists.append(cluster_pids)
+    idx = 0
+    while True:
+        added = False
+        for cluster_pids in cluster_lists:
+            if idx >= len(cluster_pids):
+                continue
+            pid = cluster_pids[idx]
+            if pid not in seen:
+                seen.add(pid)
+                ordered.append(pid)
+            added = True
+        if not added:
+            break
+        idx += 1
+    for pid in pids:
+        if pid not in seen:
+            ordered.append(pid)
+            seen.add(pid)
+    return ordered
+
+
 def _pids_from_bound_evidence(evidence_ids: Any, *, bank_by_eid: dict[str, dict[str, Any]]) -> list[str]:
     out: list[str] = []
     if not isinstance(evidence_ids, list):
@@ -718,6 +779,7 @@ def _sanitize_source_sentence(text: str) -> str:
     s = _LEADING_CONTEXT_RE.sub("", s)
     s = _LEADING_DISCOURSE_RE.sub("", s)
     s = _LEADING_CONCESSION_RE.sub("", s)
+    s = re.sub(r"(?i)^is a significant gap exists\b", "A significant gap exists", s)
     s = _LEADING_SELF_REF_RE.sub("", s)
     s = _LEADING_AUTHOR_FINDING_RE.sub("", s)
     s = _LEADING_AUTHOR_PREDICATE_RE.sub("", s)
@@ -770,6 +832,10 @@ def _sanitize_source_sentence(text: str) -> str:
     if s:
         s = s[:1].upper() + s[1:]
     s = re.sub(r"\s{2,}", " ", s).strip(" ,;:")
+    if re.match(r"(?i)^abstract-level evidence only\b", s):
+        return ""
+    if re.match(r"(?i)^title-only evidence\b", s):
+        return ""
     if any(pattern.search(s) for pattern in _GENERIC_SUMMARY_PATTERNS):
         return ""
     if len(s) < 16:
@@ -807,104 +873,135 @@ def _is_meta_paper_title(title: str) -> bool:
     return bool(t and _META_PAPER_TITLE_RE.search(t))
 
 
-def _evidence_snippets(*, workspace: Path, pids: list[str], notes_by_pid: dict[str, dict[str, Any]], bibkeys: set[str], limit: int) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
+def _note_snippet_candidates(*, workspace: Path, pid: str, note: dict[str, Any], bibkeys: set[str]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    bibkey = str(note.get("bibkey") or "").strip()
+    if not bibkey or (bibkeys and bibkey not in bibkeys):
+        return candidates
 
-    for pid in pids:
+    def add_candidate(text: str, *, source: str, pointer: str, base_score: int) -> None:
+        cleaned = _sanitize_source_text(text, sentence_limit=1)
+        if not cleaned:
+            return
+        if re.match(r"(?i)^abstract-level evidence only\b", cleaned):
+            return
+        if re.match(r"(?i)^title-only evidence\b", cleaned):
+            return
+        if _SURVEY_META_SENTENCE_RE.search(cleaned):
+            return
+        score = _snippet_specificity_score(cleaned) + int(base_score)
+        if score < 1:
+            return
+        candidates.append(
+            {
+                "text": cleaned,
+                "paper_id": pid,
+                "citations": [bibkey],
+                "provenance": {
+                    "evidence_level": str(note.get("evidence_level") or "").strip().lower() or "unknown",
+                    "source": source,
+                    "pointer": pointer,
+                },
+                "score": score,
+            }
+        )
+
+    key_results = note.get("key_results")
+    if isinstance(key_results, list):
+        for idx, kr in enumerate(key_results):
+            raw_kr = str(kr).strip()
+            if not raw_kr:
+                continue
+            low = raw_kr.lower()
+            if low.startswith("key quantitative results") or low.startswith("evidence level"):
+                continue
+            add_candidate(raw_kr, source="paper_notes", pointer=f"papers/paper_notes.jsonl:paper_id={pid}#key_results[{idx}]", base_score=3)
+
+    limitations = note.get("limitations") or []
+    if isinstance(limitations, list):
+        for idx, lim in enumerate(limitations[:6]):
+            add_candidate(str(lim or ""), source="paper_notes", pointer=f"papers/paper_notes.jsonl:paper_id={pid}#limitations[{idx}]", base_score=2)
+
+    method = str(note.get("method") or "").strip()
+    if method:
+        add_candidate(method, source="paper_notes", pointer=f"papers/paper_notes.jsonl:paper_id={pid}#method", base_score=1)
+
+    abstract = str(note.get("abstract") or "").strip()
+    if abstract:
+        for idx, sent in enumerate(_split_sentences(abstract)[:4]):
+            add_candidate(sent, source="abstract", pointer=f"papers/paper_notes.jsonl:paper_id={pid}#abstract[{idx}]", base_score=1)
+
+    bullets = note.get("summary_bullets") or []
+    if isinstance(bullets, list):
+        for idx, bullet in enumerate(bullets[:8]):
+            raw_b = str(bullet).strip()
+            if len(raw_b) < 24:
+                continue
+            low = raw_b.lower()
+            if low.startswith("evidence level") or low.startswith("main idea (from title)"):
+                continue
+            add_candidate(raw_b, source="paper_notes", pointer=f"papers/paper_notes.jsonl:paper_id={pid}#summary_bullets[{idx}]", base_score=0)
+
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for cand in sorted(candidates, key=lambda item: (-int(item.get("score") or 0), -len(str(item.get("text") or "")), str(item.get("text") or "").lower())):
+        key = str(cand.get("text") or "").strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(cand)
+    return deduped
+
+
+def _evidence_snippets(
+    *,
+    workspace: Path,
+    pids: list[str],
+    notes_by_pid: dict[str, dict[str, Any]],
+    bibkeys: set[str],
+    limit: int,
+    clusters: Any | None = None,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    ordered_pids = _cluster_ordered_pids(pids, clusters)
+
+    for pid in ordered_pids:
         note = notes_by_pid.get(pid) or {}
         if _is_meta_paper_title(str(note.get("title") or "")):
             continue
-        bibkey = str(note.get("bibkey") or "").strip()
-        if not bibkey or (bibkeys and bibkey not in bibkeys):
-            continue
-        cite = bibkey
+        note_candidates = _note_snippet_candidates(workspace=workspace, pid=pid, note=note, bibkeys=bibkeys)
 
-        key_results = note.get("key_results")
-        preferred_snippet = ""
-        preferred_score = -10
-        if isinstance(key_results, list):
-            for kr in key_results:
-                raw_kr = str(kr).strip()
-                if not raw_kr:
-                    continue
-                low = raw_kr.lower()
-                if low.startswith("key quantitative results") or low.startswith("evidence level"):
-                    continue
-                cleaned = _sanitize_source_text(raw_kr, sentence_limit=1)
-                if not cleaned:
-                    continue
-                if _SURVEY_META_SENTENCE_RE.search(cleaned):
-                    continue
-                score = _snippet_specificity_score(cleaned)
-                if score < 3:
-                    continue
-                if score > preferred_score:
-                    preferred_snippet = cleaned
-                    preferred_score = score
+        if not note_candidates:
+            evidence_level = str(note.get("evidence_level") or "").strip().lower() or "unknown"
+            fulltext_rel = str(note.get("fulltext_path") or "").strip()
+            fulltext_path = (workspace / fulltext_rel) if fulltext_rel else None
+            if evidence_level == "fulltext" and fulltext_path and fulltext_path.exists() and fulltext_path.stat().st_size > 800:
+                raw = fulltext_path.read_text(encoding="utf-8", errors="ignore")[:3000]
+                cleaned = _sanitize_source_text(raw, sentence_limit=2)
+                bibkey = str(note.get("bibkey") or "").strip()
+                if cleaned and bibkey:
+                    note_candidates = [
+                        {
+                            "text": cleaned,
+                            "paper_id": pid,
+                            "citations": [bibkey],
+                            "provenance": {
+                                "evidence_level": evidence_level,
+                                "source": "fulltext",
+                                "pointer": str(fulltext_rel),
+                            },
+                            "score": _snippet_specificity_score(cleaned) + 1,
+                        }
+                    ]
 
-        evidence_level = str(note.get("evidence_level") or "").strip().lower() or "unknown"
-        abstract = str(note.get("abstract") or "").strip()
-
-        fulltext_rel = str(note.get("fulltext_path") or "").strip()
-        fulltext_path = (workspace / fulltext_rel) if fulltext_rel else None
-
-        text = ""
-        provenance: dict[str, Any] = {"evidence_level": evidence_level}
-
-        if preferred_snippet:
-            text = preferred_snippet
-            provenance.update({"source": "paper_notes", "pointer": f"papers/paper_notes.jsonl:paper_id={pid}#key_results"})
-        elif evidence_level == "fulltext" and fulltext_path and fulltext_path.exists() and fulltext_path.stat().st_size > 800:
-            raw = fulltext_path.read_text(encoding="utf-8", errors="ignore")[:3000]
-            text = _sanitize_source_text(raw, sentence_limit=2)
-            provenance.update({"source": "fulltext", "pointer": str(fulltext_rel)})
-        elif abstract:
-            # Prefer a more informative sentence (e.g., numeric results / evaluation cues) over the first two sentences.
-            sents = [s for s in (_sanitize_source_sentence(raw) for raw in _split_sentences(abstract)) if s]
-            scored = sorted(
-                [( _snippet_specificity_score(s), s) for s in sents],
-                key=lambda item: (-item[0], -len(item[1]), item[1].lower()),
-            )
-            chosen = ""
-            for score, s in scored:
-                if score >= 2:
-                    chosen = s
-                    break
-            for s in sents:
-                if chosen:
-                    break
-                if _snippet_specificity_score(s) >= 0:
-                    chosen = s
-                    break
-            text = (chosen or " ".join(sents[:2]) or _sanitize_source_text(abstract, sentence_limit=2)).strip()
-            provenance.update({"source": "abstract", "pointer": f"papers/paper_notes.jsonl:paper_id={pid}#abstract"})
-        else:
-            bullets = note.get("summary_bullets") or []
-            if isinstance(bullets, list):
-                for b in bullets:
-                    raw_b = str(b).strip()
-                    if len(raw_b) < 24:
-                        continue
-                    low = raw_b.lower()
-                    if low.startswith("evidence level") or low.startswith("main idea (from title)"):
-                        continue
-                    cleaned = _sanitize_source_text(raw_b, sentence_limit=1)
-                    if cleaned:
-                        text = cleaned
-                        provenance.update({"source": "paper_notes", "pointer": f"papers/paper_notes.jsonl:paper_id={pid}#summary_bullets"})
-                        break
-
-        if text and _snippet_specificity_score(text) < 0:
-            text = ""
-        if text:
-            text = _sanitize_source_text(text, sentence_limit=2)
-        if text:
+        if note_candidates:
+            chosen = note_candidates[0]
             out.append(
                 {
-                    "text": text,
+                    "text": _sanitize_source_text(chosen.get("text") or "", sentence_limit=2),
                     "paper_id": pid,
-                    "citations": [cite],
-                    "provenance": provenance,
+                    "citations": chosen.get("citations") or [],
+                    "provenance": chosen.get("provenance") or {},
                 }
             )
 

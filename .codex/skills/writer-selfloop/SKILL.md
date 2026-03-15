@@ -123,7 +123,7 @@ Rewrite locally when:
 6) Rerun the gate until PASS
 
 After PASS (merge-aware voice safety):
-- Proceed to `section-logic-polisher` -> `argument-selfloop` -> `paragraph-curator` -> `style-harmonizer` -> `opener-variator` -> `transition-weaver` -> `section-merger` -> `post-merge-voice-gate`.
+- Proceed to `section-logic-polisher` -> `argument-selfloop` -> `paragraph-curator` -> `style-harmonizer` -> `opener-variator` -> `evaluation-anchor-checker` -> `transition-weaver` -> `section-merger` -> `post-merge-voice-gate`.
 - If `post-merge-voice-gate` FAILs with `source: transitions`, fix `outline/transitions.md` via `transition-weaver` and re-merge (do not patch the merged draft).
 
 After PASS (mandatory style hygiene for `survey`/`deep`):
@@ -131,6 +131,7 @@ After PASS (mandatory style hygiene for `survey`/`deep`):
 - If it flags opener cadence / `overview` narration, run `opener-variator` on the listed files.
 - If it flags count-based limitation slots (e.g., `Two limitations ...`), run `limitation-weaver` on the listed files.
 - Otherwise (or after micro-fixes), run `style-harmonizer` on the listed `sections/*.md` files.
+- Before merge, run `evaluation-anchor-checker` on the settled H3 files so any remaining numeric claims keep same-sentence task/metric/constraint context. Treat this as the last section-level sweep, not as a post-audit patch.
 - Keep meaning + citations fixed; treat this as surface-level rewrite, not new content.
 
 ## How to fix a failing H3 (semantic recipe)

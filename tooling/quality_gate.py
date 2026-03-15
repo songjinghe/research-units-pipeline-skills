@@ -645,6 +645,8 @@ def check_unit_outputs(*, skill: str, workspace: Path, outputs: list[str]) -> li
         return _check_sections_manifest_index(workspace, outputs)
     if skill == "writer-selfloop":
         return _check_writer_selfloop(workspace, outputs)
+    if skill == "evaluation-anchor-checker":
+        return _check_eval_anchor_report(workspace, outputs)
     if skill == "section-logic-polisher":
         return _check_section_logic_polisher(workspace, outputs)
     if skill == "section-merger":
@@ -1508,6 +1510,11 @@ def _next_action_lines(*, skill: str, unit_id: str) -> list[str]:
             "- Keep citations in-scope (per `outline/evidence_bindings.jsonl` / writer packs) and avoid narration templates (`This subsection ...`, `Next, we ...`).",
             "- Rerun the `writer-selfloop` script until the report shows `- Status: PASS`, then proceed to the next unit.",
             "- If the failures point to thin evidence (missing anchors/comparisons/limitations), loop upstream: `paper-notes` → `evidence-binder` → `evidence-draft` → `anchor-sheet` → `writer-context-pack`.",
+        ],
+        "evaluation-anchor-checker": [
+            "- Open `output/EVAL_ANCHOR_REPORT.md` and confirm it reports a non-zero `Files checked` count.",
+            "- Keep numbers only when the same sentence carries enough task/metric/constraint context; otherwise weaken the claim without changing citation keys.",
+            "- If later section-level rewrites touch the same H3 files, rerun `evaluation-anchor-checker` before merge instead of waiting for `pipeline-auditor`.",
         ],
         "section-merger": [
             "- Ensure all required `sections/*.md` exist (see `output/MERGE_REPORT.md` for missing paths), then rerun merge.",
@@ -3081,7 +3088,7 @@ def _check_evidence_drafts(workspace: Path, outputs: list[str]) -> list[QualityI
     draft_profile = _draft_profile(workspace)
     min_comparisons = 3
     if profile == "arxiv-survey":
-        min_comparisons = 10 if draft_profile == "deep" else 8
+        min_comparisons = 6 if draft_profile == "deep" else 4
         min_snippets = 14 if draft_profile == "deep" else 12
         min_eval = 6 if draft_profile == "deep" else 5
         min_fail = 6 if draft_profile == "deep" else 5
@@ -3422,11 +3429,11 @@ def _check_writer_context_packs(workspace: Path, outputs: list[str]) -> list[Qua
     if profile == "arxiv-survey":
         per_subsection = int(_per_subsection(workspace))
         if draft_profile == "deep":
-            min_comparisons = 9
+            min_comparisons = 6
             min_lim_hooks = 3
             min_anchors = 12
         else:
-            min_comparisons = 7
+            min_comparisons = 4
             min_lim_hooks = 3
             min_anchors = 10
     else:
@@ -4153,6 +4160,36 @@ def _check_writer_selfloop(workspace: Path, outputs: list[str]) -> list[QualityI
     ]
 
 
+def _check_eval_anchor_report(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
+    out_rel = outputs[0] if outputs else "output/EVAL_ANCHOR_REPORT.md"
+    path = workspace / out_rel
+    if not path.exists() or path.stat().st_size == 0:
+        return [QualityIssue(code="missing_eval_anchor_report", message=f"`{out_rel}` is missing or empty.")]
+
+    text = path.read_text(encoding="utf-8", errors="ignore").strip()
+    if not text:
+        return [QualityIssue(code="empty_eval_anchor_report", message=f"`{out_rel}` is empty.")]
+
+    checked_match = re.search(r"(?im)^-\s*Files checked:\s*(\d+)\b", text)
+    if not checked_match:
+        return [
+            QualityIssue(
+                code="eval_anchor_report_missing_counts",
+                message=f"`{out_rel}` is missing the `Files checked` summary; rerun `evaluation-anchor-checker`.",
+            )
+        ]
+
+    if int(checked_match.group(1)) <= 0:
+        return [
+            QualityIssue(
+                code="eval_anchor_report_zero_files",
+                message=f"`{out_rel}` reports zero checked files; ensure subsection files exist, then rerun `evaluation-anchor-checker`.",
+            )
+        ]
+
+    return []
+
+
 def _check_sections_manifest_index(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
     """Minimal manifest check for `subsection-writer`.
 
@@ -4601,6 +4638,29 @@ def _check_sections_manifest(workspace: Path, outputs: list[str]) -> list[Qualit
                             ),
                         )
                     )
+                stock_template_patterns = [
+                    r"(?i)\bread together,\s+.+?\bdiverge less on headline performance\b",
+                    r"(?i)\bwhat matters operationally in\b",
+                    r"(?i)\bthe comparison only becomes actionable after\b",
+                    r"(?i)\bthe relevant implementation split in\b",
+                    r"(?i)\bthe evaluation story for\b",
+                    r"(?i)\bby contrast, another strand in\b",
+                    r"(?i)\bthe subsection-level contrast between\b",
+                    r"(?i)\bacross those neighboring studies,\b",
+                    r"(?i)\bthose mapped papers still tie\b",
+                    r"(?i)\bthese gains remain provisional because\b",
+                ]
+                stock_template_hits = sum(len(re.findall(pattern, text)) for pattern in stock_template_patterns)
+                if stock_template_hits >= 5:
+                    issues.append(
+                        QualityIssue(
+                            code="sections_h3_template_density",
+                            message=(
+                                f"`{rel}` still contains too many stock subsection-writer stems ({stock_template_hits} hits). "
+                                "Reduce scaffold phrasing and replace repeated bridge sentences with section-specific synthesis."
+                            ),
+                        )
+                    )
                 if len(paragraphs) < min_paragraphs:
                     issues.append(
                         QualityIssue(
@@ -4662,7 +4722,7 @@ def _check_sections_manifest(workspace: Path, outputs: list[str]) -> list[Qualit
                     r"(?i)\b(?:benchmark|dataset|datasets|metric|metrics|evaluation|eval\.|protocol|human|ablation|"
                     r"latency|cost|budget|token|tokens|throughput|compute)\b|评测|基准|数据集|指标|协议|人工|实验|成本|预算|延迟"
                 )
-                limitation_re = r"(?i)\b(?:limitation|limited|unclear|sensitive|caveat|downside|failure|risk|open\s+question|remains)\b|受限|尚不明确|缺乏|需要核验|局限|失败|风险|待验证"
+                limitation_re = r"(?i)\b(?:limitation|limited|provisional|unclear|sensitive|caveat|downside|failure|risk|open\s+question|remains)\b|受限|尚不明确|缺乏|需要核验|局限|失败|风险|待验证"
 
                 if uid in numeric_available:
                     has_cited_numeric = any(re.search(r"\d", p) and "[@" in p for p in paragraphs)

@@ -28,6 +28,24 @@ Especially for `key_results` and `limitations`, drop or rewrite:
   - `Training vision-based manipulation policies ... remains an important and unresolved challenge ...`
   - `Learning to control robots directly based on images is a primary challenge in robotics.`
   - `Vision-language-action (VLA) models have advanced generalist robotic learning ...`
+- survey / review organization lines that only describe paper structure:
+  - `This survey examines ...`
+  - `This survey provides a comprehensive overview/review ...`
+  - `This review presents ...`
+  - `In this survey, we provide/present/offer ...`
+  - `We organize existing methods ...`
+  - `Finally, we identify open challenges ...`
+  - `Through a critical review ...`
+  - `After a detailed summary ...`
+- benchmark-validation boilerplate that still lacks a concrete comparison handle:
+  - `Extensive experiments ... validate the superiority/effectiveness ...`
+  - `Our experiments also provide an extensive evaluation ...`
+  - `Evaluations across simulation and real-world environments ...`
+  - `Comprehensive evaluation ... shows ...`
+- review-roadmap or availability lines that are not evidence:
+  - `Each layer is explored in detail ...`
+  - `These elements collectively point to a research pathway ...`
+  - `Project page: https://...`
 
 ## What should remain
 

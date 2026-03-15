@@ -28,6 +28,7 @@ Prefer:
 - one axis per contrast-heavy paragraph
 - direct connective language (`whereas`, `in contrast`, `unlike`, `while`)
 - citations attached to the sentence that makes the contrast
+- reader-facing axis language normalized into natural prose (`and`, `across`, `under`) instead of brief-style slash labels
 
 Avoid:
 - slash-list axis labels copied from briefs

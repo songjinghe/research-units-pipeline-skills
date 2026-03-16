@@ -64,6 +64,25 @@
     "(?i)^we\\s+also\\s+maintain\\s+an\\s+active\\s+repository\\b",
     "(?i)^a\\s+comprehensive\\s+list\\s+of\\b",
     "(?i)^furthermore,?\\s+the\\s+future\\s+research\\s+directions\\s+for\\b",
-    "(?i)^through\\s+systematic\\s+organization\\s+of\\s+current\\s+research\\b"
+    "(?i)^through\\s+systematic\\s+organization\\s+of\\s+current\\s+research\\b",
+    "(?i)^one\\s+key\\s+challenge\\s+in\\s+this\\s+context\\s+is\\b",
+    "(?i)^large\\s+real-world\\s+robot\\s+datasets\\s+hold\\s+great\\s+potential\\b",
+    "(?i)^three\\s+key\\s+findings\\s+mapped\\s+to\\s+these\\s+axes\\b",
+    "(?i)^internet-scale\\s+data\\s+has\\s+enabled\\s+broad\\s+reasoning\\s+capabilities\\b",
+    "(?i)^language\\s+models\\s+are\\s+often\\s+used\\s+to\\s+interact\\s+with\\s+human\\s+beings\\s+through\\s+dialogue\\b",
+    "(?i)^it\\s+comprises\\s+[A-Z][A-Za-z0-9-]+(?:-[A-Za-z0-9-]+)*\\b",
+    "(?i)^to\\s+support\\s+this,\\s*we\\s+present\\s+[A-Z][A-Za-z0-9.-]+\\b",
+    "(?i)^molmospaces-bench\\s+exhibits\\s+strong\\s+sim-to-real\\s+correlation\\b.*\\bconfirm\\b.*\\bidentify\\b",
+    "(?i)^these\\s+models\\s+can\\s+simulate\\s+realistic\\s+visual\\s+outcomes\\b",
+    "(?i)^general\\s+visual\\s+representations\\s+learned\\s+from\\s+web-scale\\s+datasets\\b",
+    "(?i)^vision-language-action\\s*\\(vla\\)\\s+models?\\s+achieve\\s+strong\\s+generalization\\b",
+    "(?i)^robot\\s+learning\\s+from\\s+interacting\\s+with\\s+the\\s+physical\\s+world\\s+is\\s+fundamentally\\s+bottlenecked\\b",
+    "(?i)^language-guided\\s+long-horizon\\s+mobile\\s+manipulation\\s+has\\s+long\\s+been\\s+a\\s+grand\\s+challenge\\b",
+    "(?i)^simulation\\s+has\\s+great\\s+potential\\s+in\\s+supplementing\\s+large-scale\\s+data\\b",
+    "(?i)^a\\s+robotic\\s+foundation\\s+model\\s+built\\s+upon\\b",
+    "(?i)^agentworld\\s+is\\s+an\\s+interactive\\s+simulation\\s+platform\\b",
+    "(?i)^it\\s+typically\\s+relies\\s+on\\s+large\\s+amounts\\s+of\\s+human\\s+demonstration\\s+data\\b",
+    "(?i)^recent\\s+approaches\\s+attempt\\s+to\\s+mitigate\\s+these\\s+limitations\\b",
+    "(?i)^existing\\s+manipulation\\s+datasets\\s+remain\\s+costly\\s+to\\s+curate\\b"
   ]
 }

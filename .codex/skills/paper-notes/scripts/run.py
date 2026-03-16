@@ -35,6 +35,9 @@ _RESULT_SKIP_PATTERNS = [re.compile(str(x).strip()) for x in (_SOURCE_HYGIENE.ge
 _RESULT_DROP_PATTERNS = [re.compile(str(x).strip()) for x in (_SOURCE_HYGIENE.get("result_drop_patterns") or []) if str(x).strip()]
 _LIMITATION_KEEP_RE = re.compile(str(_SOURCE_HYGIENE.get("limitation_keep_pattern") or r"$^"))
 _LIMITATION_DROP_PATTERNS = [re.compile(str(x).strip()) for x in (_SOURCE_HYGIENE.get("limitation_drop_patterns") or []) if str(x).strip()]
+_RESULT_MALFORMED_COORDINATION_RE = re.compile(
+    r"(?i)\b(?:exhibits?|shows?|demonstrates?|reveals?|achieves?)\b[^.]{0,220},\s*(?:confirm|confirms|identify|identifies|show|shows)\b"
+)
 
 
 def main() -> int:
@@ -621,6 +624,8 @@ def _sanitize_note_sentence(text: str, *, kind: str) -> str:
 
     if kind == "result":
         if _EMBEDDED_AUTHOR_PREDICATE_RE.search(s):
+            return ""
+        if _RESULT_MALFORMED_COORDINATION_RE.search(s):
             return ""
         s = re.sub(
             r"(?i)^it\s+(improves|permits|enables|achieves|reduces|increases|outperforms|supports|demonstrates|reveals)\b",

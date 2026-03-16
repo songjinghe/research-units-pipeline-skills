@@ -32,6 +32,23 @@ _GENERIC_EVAL_SHOW_RE = re.compile(
     r'(?i)^(?:our\s+|comprehensive\s+)?(?:extensive|comprehensive)\s+evaluation(?:s)?'
     r'(?:\s*\([^)]*\))?(?:\s+(?:in|across|on)\s+[^,]{0,160})?\s+shows?\b'
 )
+_WRITER_UNSAFE_SUPPORT_RE = re.compile(
+    r'(?i)^molmospaces-bench\s+exhibits\s+strong\s+sim-to-real\s+correlation\b.*\bconfirm\b.*\bidentify\b|'
+    r'^these\s+models\s+can\s+simulate\s+realistic\s+visual\s+outcomes\b|'
+    r'^general\s+visual\s+representations\s+learned\s+from\s+web-scale\s+datasets\b|'
+    r'^vision-language-action\s*\(vla\)\s+models?\s+achieve\s+strong\s+generalization\b|'
+    r'^robot\s+learning\s+from\s+interacting\s+with\s+the\s+physical\s+world\s+is\s+fundamentally\s+bottlenecked\b|'
+    r'^language-guided\s+long-horizon\s+mobile\s+manipulation\s+has\s+long\s+been\s+a\s+grand\s+challenge\b|'
+    r'^simulation\s+has\s+great\s+potential\s+in\s+supplementing\s+large-scale\s+data\b|'
+    r'^a\s+robotic\s+foundation\s+model\s+built\s+upon\b|'
+    r'^agentworld\s+is\s+an\s+interactive\s+simulation\s+platform\b|'
+    r'^it\s+typically\s+relies\s+on\s+large\s+amounts\s+of\s+human\s+demonstration\s+data\b|'
+    r'^recent\s+approaches\s+attempt\s+to\s+mitigate\s+these\s+limitations\b|'
+    r'^existing\s+manipulation\s+datasets\s+remain\s+costly\s+to\s+curate\b'
+)
+_MALFORMED_RESULT_RE = re.compile(
+    r'(?i)\b(?:exhibits?|shows?|demonstrates?|reveals?|achieves?)\b[^.]{0,220},\s*(?:confirm|confirms|identify|identifies|show|shows)\b'
+)
 _GENERIC_LIMIT_RE = re.compile(r'(?i)\b(?:open challenges?|future work|research directions?|provide a review|offer a quantitative comparison|summarize|review of|benchmark suite|comprehensive simulation benchmark)\b')
 _LIMIT_SIGNAL_RE = re.compile(
     r'(?i)\b(?:limit\w*|challenge(?:s)?|risk\w*|fail\w*|fragil\w*|bottleneck\w*|cost\w*|latency|'
@@ -199,6 +216,22 @@ def _clause(text: str, *, limit: int = 220) -> str:
     if not s:
         return ''
     if re.match(r'^[A-Z]{2,}\b', s) or re.match(r'^\d', s):
+        return s
+    return s[0].lower() + s[1:] if s[0].isalpha() else s
+
+
+def _sentence_initial(text: Any) -> str:
+    s = re.sub(r'\s+', ' ', str(text or '').strip())
+    if not s:
+        return ''
+    return s[0].upper() + s[1:] if s[0].isalpha() else s
+
+
+def _mid_sentence_label(text: Any) -> str:
+    s = re.sub(r'\s+', ' ', str(text or '').strip())
+    if not s:
+        return ''
+    if re.match(r'^[A-Z]{2,}\b', s):
         return s
     return s[0].lower() + s[1:] if s[0].isalpha() else s
 
@@ -850,6 +883,8 @@ def _support_text(value: Any, *, kind: str) -> str:
         return ''
     if text and (_SURVEY_META_RE.search(text) or _GENERIC_EVAL_SHOW_RE.search(text)):
         return ''
+    if text and (_WRITER_UNSAFE_SUPPORT_RE.search(text) or _MALFORMED_RESULT_RE.search(text)):
+        return ''
     if not text:
         return ''
     if _is_fragmentary(text):
@@ -1353,7 +1388,7 @@ def _compose_cluster_paragraph(
         if benchmark:
             sentences.append(_sentence_with_cites(benchmark.get('text') or '', benchmark.get('citations') or [], max_keys=4))
         if limits:
-            limit_text = str(limits[0].get('text') or '').strip()
+            limit_text = _clause(limits[0].get('text') or '', limit=220)
             if limit_text:
                 limit_options = _job_template_options(
                     'cluster',
@@ -1460,26 +1495,29 @@ def _compose_synthesis_paragraph(
         a_fallback = _first_nonempty(cluster_a.get('facts') or [])
         b_fallback = _first_nonempty(cluster_b.get('facts') or [])
         if a_fallback.get('text') and b_fallback.get('text'):
+            a_clause = _clause(str(a_fallback.get('text') or '').strip(), limit=220)
+            b_clause = _clause(str(b_fallback.get('text') or '').strip(), limit=220)
             fallback_cites = _uniq((a_fallback.get('citations') or []) + (b_fallback.get('citations') or []))
-            fallback_options = _job_template_options(
-                'synthesis',
-                'fallback',
-                fallback=['At a higher level, {cluster_a} emphasize {a_text}, whereas {cluster_b} emphasize {b_text}'],
-                cluster_a=str(cluster_a.get('label') or '').strip(),
-                cluster_b=str(cluster_b.get('label') or '').strip(),
-                a_text=str(a_fallback.get('text') or '').strip(),
-                b_text=str(b_fallback.get('text') or '').strip(),
-            )
-            sentences.append(
-                _sentence_with_cites(
-                    _seeded_text(
-                        f'synthesis:fallback:{title}:{axis_text}',
-                        fallback_options,
-                    ),
-                    fallback_cites,
-                    max_keys=5,
+            if a_clause and b_clause:
+                fallback_options = _job_template_options(
+                    'synthesis',
+                    'fallback',
+                    fallback=['At a higher level, {cluster_a} emphasize {a_text}, whereas {cluster_b} emphasize {b_text}'],
+                    cluster_a=str(cluster_a.get('label') or '').strip(),
+                    cluster_b=str(cluster_b.get('label') or '').strip(),
+                    a_text=a_clause,
+                    b_text=b_clause,
                 )
-            )
+                sentences.append(
+                    _sentence_with_cites(
+                        _seeded_text(
+                            f'synthesis:fallback:{title}:{axis_text}',
+                            fallback_options,
+                        ),
+                        fallback_cites,
+                        max_keys=5,
+                    )
+                )
     if not sentences:
         return ''
     sentences.insert(0, lead_sentence)
@@ -1499,6 +1537,8 @@ def _compose_decision_paragraph(
 ) -> str:
     a_axis = _normalized_axis_series(cluster_a.get('axes') or [], limit=2) or _tmpl('fallbacks', 'lens')
     b_axis = _normalized_axis_series(cluster_b.get('axes') or [], limit=2) or _tmpl('fallbacks', 'lens')
+    a_label = _sentence_initial(cluster_a.get('label') or '')
+    b_label = _sentence_initial(cluster_b.get('label') or '')
     lead_options = _job_template_options(
         'decision',
         'lead',
@@ -1525,19 +1565,24 @@ def _compose_decision_paragraph(
     ]
     evidence_found = False
     if a_record.get('text') and b_record.get('text'):
-        evidence_found = True
+        a_clause = _clause(a_record.get('text') or '', limit=220)
+        b_clause = _clause(b_record.get('text') or '', limit=220)
         both_cites = _uniq((a_record.get('citations') or []) + (b_record.get('citations') or []))
-        sentences.append(
-            _sentence_with_cites(
-                f'{cluster_a.get("label")} are easier to justify when {a_record.get("text")}, whereas {cluster_b.get("label")} become more persuasive when {b_record.get("text")}',
-                both_cites,
-                max_keys=5,
+        if a_clause and b_clause:
+            evidence_found = True
+            sentences.append(
+                _sentence_with_cites(
+                    f'{a_label} are easier to justify when {a_clause}, whereas {_mid_sentence_label(b_label)} become more persuasive when {b_clause}',
+                    both_cites,
+                    max_keys=5,
+                )
             )
-        )
     benchmark = _first_nonempty(benchmark_records)
     if benchmark:
-        evidence_found = True
-        sentences.append(_sentence_with_cites(benchmark.get('text') or '', benchmark.get('citations') or [], max_keys=4))
+        benchmark_clause = _clause(benchmark.get('text') or '', limit=220)
+        if benchmark_clause:
+            evidence_found = True
+            sentences.append(_sentence_with_cites(benchmark_clause, benchmark.get('citations') or [], max_keys=4))
     if protocol_citations:
         evidence_found = True
         protocol_options = _job_template_options(

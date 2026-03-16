@@ -321,7 +321,7 @@ def _markdown_to_latex(md: str) -> str:
             i += 1
             continue
 
-        m = re.match(r"^\*\*(?:Appendix\s+)?Table\s+([A-Za-z0-9]+)\.\s+(.+)\*\*$", stripped)
+        m = re.match(r"^\*\*(?:Appendix\s+)?Table\s+([A-Za-z0-9]+)[\.:]\s+(.+?)\*\*\.?$", stripped)
         if m:
             pending_table_caption = (m.group(1), m.group(2))
             i += 1

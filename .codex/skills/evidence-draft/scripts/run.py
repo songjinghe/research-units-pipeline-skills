@@ -60,6 +60,32 @@ _EVAL_STOP = {
     "diffusion",
     "transformer",
 }
+_TOPIC_STOPWORDS = {
+    "and",
+    "the",
+    "with",
+    "from",
+    "into",
+    "across",
+    "under",
+    "over",
+    "between",
+    "task",
+    "tasks",
+    "study",
+    "studies",
+    "design",
+    "system",
+    "systems",
+    "model",
+    "models",
+    "method",
+    "methods",
+    "paper",
+    "papers",
+    "evaluation",
+    "protocol",
+}
 
 _URL_RE = re.compile(r"https?://\S+")
 _AVAILABILITY_VERB_RE = re.compile(
@@ -119,7 +145,8 @@ _FINITE_VERB_RE = re.compile(
 )
 _SURVEY_META_SENTENCE_RE = re.compile(
     r"(?i)\b(?:survey|review)\b.*\b(?:categoriz|summariz|overview|taxonomy|landscape|scope|history|promising directions?)\b|"
-    r"\bmain contribution\b|\bsynthesis of\b|\bidentification of promising directions\b|\btrace the history\b"
+    r"\bmain contribution\b|\bsynthesis of\b|\bidentification of promising directions\b|\btrace the history\b|"
+    r"\bthree key findings mapped to these axes\b"
 )
 _META_PAPER_TITLE_RE = re.compile(r"(?i)\b(?:survey|review|overview|taxonomy)\b")
 _GENERIC_EVIDENCE_RE = re.compile(
@@ -131,7 +158,14 @@ _GENERIC_EVIDENCE_RE = re.compile(
     r"this field is exploding|"
     r"offering great potential|"
     r"in this thesis\b|"
-    r"the results demonstrate that\b"
+    r"the results demonstrate that\b|"
+    r"one key challenge in this context is\b|"
+    r"large real-world robot datasets hold great potential\b|"
+    r"internet-scale data has enabled broad reasoning capabilities\b|"
+    r"language models are often used to interact with human beings through dialogue\b|"
+    r"three key findings mapped to these axes\b|"
+    r"it comprises [A-Z][A-Za-z0-9-]+(?:-[A-Za-z0-9-]+)*\b|"
+    r"to support this, we present [A-Z][A-Za-z0-9.-]+\b"
     r")"
 )
 _EMBODIED_CONTEXT_RE = re.compile(
@@ -139,6 +173,25 @@ _EMBODIED_CONTEXT_RE = re.compile(
     r"task|transfer|generalization|latency|failure|robust|deployment|safety|LIBERO|Bridge|RT-2|OpenVLA|ManiSkill|RoboCasa|MOTIF)\b"
 )
 _CONCRETE_CLAIM_RE = re.compile(r"\b\d+(?:\.\d+)?%?\b|\b[A-Z]{2,}(?:-[A-Z0-9]+)*\b|\b[A-Z][a-z]+[A-Z][A-Za-z0-9-]*\b")
+_WRITER_UNSAFE_SNIPPET_RE = re.compile(
+    r"(?i)^molmospaces-bench\s+exhibits\s+strong\s+sim-to-real\s+correlation\b.*\bconfirm\b.*\bidentify\b|"
+    r"^these\s+models\s+can\s+simulate\s+realistic\s+visual\s+outcomes\b|"
+    r"^general\s+visual\s+representations\s+learned\s+from\s+web-scale\s+datasets\b|"
+    r"^vision-language-action\s*\(vla\)\s+models?\s+achieve\s+strong\s+generalization\b|"
+    r"^robot\s+learning\s+from\s+interacting\s+with\s+the\s+physical\s+world\s+is\s+fundamentally\s+bottlenecked\b|"
+    r"^language-guided\s+long-horizon\s+mobile\s+manipulation\s+has\s+long\s+been\s+a\s+grand\s+challenge\b|"
+    r"^simulation\s+has\s+great\s+potential\s+in\s+supplementing\s+large-scale\s+data\b|"
+    r"^a\s+robotic\s+foundation\s+model\s+built\s+upon\b|"
+    r"^agentworld\s+is\s+an\s+interactive\s+simulation\s+platform\b|"
+    r"^it\s+typically\s+relies\s+on\s+large\s+amounts\s+of\s+human\s+demonstration\s+data\b|"
+    r"^recent\s+approaches\s+attempt\s+to\s+mitigate\s+these\s+limitations\b|"
+    r"^existing\s+manipulation\s+datasets\s+remain\s+costly\s+to\s+curate\b"
+)
+_CLAIM_PORTABILITY_RE = re.compile(
+    r"(?i)\b(?:\d+(?:\.\d+)?%?|outperform\w*|improv\w*|success\s+rate|correlation|transfer|generaliz\w*|"
+    r"robust\w*|failure\w*|limit\w*|bottleneck|cost|latency|benchmark|metric|dataset|sim-to-real|ood|"
+    r"real-world|novel\s+(?:task|object|scene|environment)|cross-embodiment)\b"
+)
 _GENERIC_SUMMARY_PATTERNS = _compile_hygiene_pattern_list(
     "generic_summary_patterns",
     [
@@ -254,6 +307,46 @@ def _dedupe_preserve_order(items: list[str]) -> list[str]:
         seen.add(text)
         out.append(text)
     return out
+
+
+def _topic_tokens(*, title: str, axes: list[str]) -> set[str]:
+    raw = " ".join([str(title or "")] + [str(a or "") for a in (axes or [])])
+    return {
+        tok
+        for tok in re.findall(r"[A-Za-z][A-Za-z0-9-]{2,}", raw.lower())
+        if tok not in _TOPIC_STOPWORDS and len(tok) >= 4
+    }
+
+
+def _text_relevant_to_topic(text: str, *, title: str, axes: list[str]) -> bool:
+    tokens = _topic_tokens(title=title, axes=axes)
+    if not tokens:
+        return True
+    low = re.sub(r"\s+", " ", str(text or "").lower())
+    return any(tok in low for tok in tokens)
+
+
+def _claim_eligible(text: str) -> bool:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return False
+    if _SURVEY_META_SENTENCE_RE.search(s) or _GENERIC_EVIDENCE_RE.search(s):
+        return False
+    if _WRITER_UNSAFE_SNIPPET_RE.search(s):
+        return False
+    return bool(_CLAIM_PORTABILITY_RE.search(s))
+
+
+def _comparison_eligible(text: str) -> bool:
+    s = re.sub(r"\s+", " ", str(text or "").strip())
+    if not s:
+        return False
+    if _WRITER_UNSAFE_SNIPPET_RE.search(s):
+        return False
+    specificity = _snippet_specificity_score(s)
+    if specificity < 2:
+        return False
+    return bool(_CLAIM_PORTABILITY_RE.search(s) or _EMBODIED_CONTEXT_RE.search(s))
 
 
 def _assert_h3_cutover_ready(*, workspace: Path, consumer: str) -> None:
@@ -559,6 +652,7 @@ def main() -> int:
             _append_unique(blocking_missing, _block_message(policy, 'too_few_claim_candidates', min_needed=3))
 
         concrete_comparisons = _comparisons(
+            title=title,
             axes=axes,
             clusters=clusters,
             cite_keys=cite_keys,
@@ -1093,6 +1187,10 @@ def _claim_candidates(
         claim = re.sub(r"\s+", " ", claim).strip()
         if len(claim) < 24:
             continue
+        if not _claim_eligible(claim):
+            continue
+        if not _text_relevant_to_topic(claim, title=title, axes=axes) and _snippet_specificity_score(claim) < 4:
+            continue
         if len(claim) > 400:
             claim = claim[:400].rstrip()
             if " " in claim[-60:]:
@@ -1113,6 +1211,7 @@ def _claim_candidates(
 
 def _comparisons(
     *,
+    title: str,
     axes: list[str],
     clusters: Any,
     cite_keys: list[str],
@@ -1223,17 +1322,31 @@ def _comparisons(
             text = str(snip.get("text") or "").strip()
             if not text:
                 continue
-
             low = text.lower()
+            topic_fit = _text_relevant_to_topic(text, title=title, axes=axes)
+            specificity = _snippet_specificity_score(text)
+            if specificity < 1:
+                continue
+            if not _comparison_eligible(text):
+                continue
             score = 0
+            score += min(3, max(0, specificity - 1))
             for kw in kws:
                 if kw and kw in low:
                     score += 1
+            if any(kw and kw in low for kw in kws[:4]):
+                score += 1
+            if topic_fit:
+                score += 1
             if re.search(r"\b\d+(?:\.\d+)?%?\b", text):
                 score += 1
             prov = snip.get("provenance")
             if isinstance(prov, dict) and str(prov.get("evidence_level") or "").strip().lower() == "fulltext":
                 score += 1
+            if not topic_fit:
+                score -= 2
+                if specificity < 3:
+                    continue
             scored.append((score, len(text), low[:80], snip))
 
         scored.sort(key=lambda t: (-t[0], -t[1], t[2]))

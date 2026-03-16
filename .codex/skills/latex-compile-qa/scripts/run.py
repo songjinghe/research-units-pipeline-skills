@@ -169,25 +169,29 @@ def _collect_warnings(*, tex_dir: Path, stdout: str, stderr: str) -> dict[str, i
     log_text = log_path.read_text(encoding="utf-8", errors="ignore") if log_path.exists() else ""
     aux_text = "\n".join([stdout or "", stderr or ""]).strip()
 
-    text = log_text if log_text.strip() else aux_text
-
-    patterns: list[tuple[str, str]] = [
+    log_patterns: list[tuple[str, str]] = [
         ("citation_undefined", r"(?im)^Package\s+natbib\s+Warning: Citation.+undefined"),
         ("citation_undefined", r"(?im)There were undefined citations"),
         ("reference_undefined", r"(?im)there were undefined references"),
         ("missing_character", r"(?im)^Missing character:"),
         ("float_too_large", r"(?im)^LaTeX Warning: Float too large for page"),
         ("overfull_hbox", r"(?im)^Overfull \\hbox"),
+        ("overfull_vbox", r"(?im)^Overfull \\vbox"),
         ("underfull_hbox", r"(?im)^Underfull \\hbox"),
         ("rerun_references", r"(?im)Rerun to get cross-references right"),
     ]
+    aux_patterns: list[tuple[str, str]] = [
+        ("annotation_out_of_page", r"(?im)^xdvipdfmx:warning:\s+Annotation out of page boundary"),
+    ]
 
     counts: dict[str, int] = {}
-    for name, pat in patterns:
-        counts[name] = counts.get(name, 0) + len(re.findall(pat, text))
+    for name, pat in log_patterns:
+        counts[name] = counts.get(name, 0) + len(re.findall(pat, log_text))
+    for name, pat in aux_patterns:
+        counts[name] = counts.get(name, 0) + len(re.findall(pat, aux_text))
 
     latex_warns = 0
-    for ln in text.splitlines():
+    for ln in log_text.splitlines():
         if "LaTeX Warning:" in ln and "hbox" not in ln.lower():
             latex_warns += 1
     if latex_warns:

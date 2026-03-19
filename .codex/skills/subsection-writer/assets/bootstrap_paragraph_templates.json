@@ -41,7 +41,7 @@
       "{title} becomes clearer once the competing assumptions are stated up front: {thesis} {seed_cites}. The resulting friction is that {tension}.",
       "{title} is not one comparison but several overlapping ones: {thesis} {seed_cites}. The difficult part is that {tension}.",
       "The useful question in {title_lower} is which results survive a change in setup, embodiment, or reporting frame: {thesis} {seed_cites}. That is exactly where {tension}.",
-      "{title} only starts to cohere once the comparison contract is explicit: {thesis} {seed_cites}. The hard part is that {tension}."
+      "{title} only starts to cohere once the comparison conditions are explicit: {thesis} {seed_cites}. The hard part is that {tension}."
     ],
     "cautious_fallback": [
       "Even when the evidence remains partial, {title_lower} still reveals usable trade-offs once protocol differences and failure cases are kept explicit {used_cites}.",

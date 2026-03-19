@@ -55,24 +55,24 @@
   ],
   "weaken_templates": {
     "default": [
-      "In {title_lower}, reported gains on the stated benchmark and task setting remain specific to the reported {metric} and {constraint} conditions in {task}",
-      "For {title_lower}, the cited number should be read as local to the reported benchmark and task setup, including its {metric} and {constraint} conditions in {task}",
-      "Within {title_lower}, this numeric result is tied to the stated evaluation setup in {task}, especially the reported {metric} and {constraint} conditions"
+      "That number belongs to the cited setup in {task}; without fuller {metric} and {constraint} detail it should not be read as a portable comparison in {title_lower}",
+      "This result remains setup-bound in {task}, especially under its reported {metric} and {constraint} conditions, rather than travelling as a broader comparison in {title_lower}",
+      "The cited number only holds under the stated setup in {task}; fuller {metric} and {constraint} detail is still needed before it can travel beyond {title_lower}"
     ],
     "performance": [
-      "In {title_lower}, reported performance gains on the stated benchmark and task setting remain tied to the reported {metric} and {constraint} conditions in {task}",
-      "For {title_lower}, the reported improvement stays local to the cited benchmark and task setup, including its {metric} and {constraint} conditions in {task}",
-      "Within {title_lower}, this performance gain should be read inside the stated evaluation setup for {task}, not outside its reported {metric} and {constraint} conditions"
+      "This benchmark edge stays local to the reported setup in {task}; it still needs fuller {metric} and {constraint} detail before it can travel across {title_lower}",
+      "The reported improvement should be read inside the cited setup for {task}, including its {metric} and {constraint} conditions, rather than as a portable gain in {title_lower}",
+      "The performance edge is still setup-bound in {task}; without fuller {metric} and {constraint} detail it should not be promoted into a broader comparison in {title_lower}"
     ],
     "tradeoff": [
-      "In {title_lower}, the reported trade-off remains specific to the stated benchmark and task setting plus the {constraint} conditions in {task}",
-      "For {title_lower}, that trade-off should be read as local to the reported evaluation setup in {task}, especially its {constraint} conditions",
-      "Within {title_lower}, the cited trade-off only holds under the stated benchmark and task setup for {task}, including the reported {constraint} conditions"
+      "That trade-off is only demonstrated under the stated setup in {task}, especially under its {constraint} conditions, rather than across {title_lower} at large",
+      "The cited trade-off should be read as local to the reported setup in {task}, with its {constraint} conditions doing much of the work",
+      "This trade-off remains setup-bound in {task}; it does not travel cleanly beyond its stated {constraint} conditions in {title_lower}"
     ],
     "comparison": [
-      "In {title_lower}, the reported comparison favors one system under the stated benchmark and task setting, but the numeric margin is not portable without fuller {metric} and {constraint} detail",
-      "For {title_lower}, that numeric comparison is tied to the cited benchmark and task setup and does not travel cleanly without fuller {metric} and {constraint} detail",
-      "Within {title_lower}, the comparison should be treated as local to the reported evaluation setup because the numeric margin still lacks fuller {metric} and {constraint} detail"
+      "This numeric margin is still setup-bound in {task}; without fuller {metric} and {constraint} detail it should not be treated as a portable ranking in {title_lower}",
+      "The comparison only holds as stated for the cited setup in {task}; fuller {metric} and {constraint} detail is still needed before the margin can travel across {title_lower}",
+      "The reported edge stays benchmark-local in {task}; the numeric margin remains too dependent on its {metric} and {constraint} conditions to function as a broader ranking in {title_lower}"
     ]
   }
 }

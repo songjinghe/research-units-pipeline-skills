@@ -170,6 +170,35 @@ def main() -> int:
                 pointer=str(it.get("pointer") or "").strip(),
             )
 
+        # Claim candidates: preserve cite-backed, non-placeholder claim sentences as additional anchors.
+        for it in rec.get("claim_candidates") or []:
+            if not isinstance(it, dict):
+                continue
+            add_anchor(
+                hook_type="claim",
+                text=str(it.get("claim") or "").strip(),
+                citations=[str(c).strip() for c in (it.get("citations") or []) if str(c).strip()],
+                paper_id=str(it.get("paper_id") or "").strip(),
+                evidence_id=str(it.get("evidence_id") or "").strip(),
+                pointer=str(it.get("pointer") or "").strip(),
+            )
+
+        # If still thin, top off with any remaining cite-backed evidence snippets rather than failing on extraction narrowness.
+        if len(anchors) < 12:
+            for sn in rec.get("evidence_snippets") or []:
+                if not isinstance(sn, dict):
+                    continue
+                add_anchor(
+                    hook_type="fact",
+                    text=str(sn.get("text") or "").strip(),
+                    citations=[str(c).strip() for c in (sn.get("citations") or []) if str(c).strip()],
+                    paper_id=str(sn.get("paper_id") or "").strip(),
+                    evidence_id=str(sn.get("evidence_id") or "").strip(),
+                    pointer=str((sn.get("provenance") or {}).get("pointer") or "").strip(),
+                )
+                if len(anchors) >= 12:
+                    break
+
         # De-dupe anchors by normalized text.
         deduped: list[dict[str, Any]] = []
         seen: set[str] = set()
@@ -180,6 +209,76 @@ def main() -> int:
                 continue
             seen.add(norm)
             deduped.append(a)
+
+        def try_append(*, hook_type: str, text: str, citations: list[str], paper_id: str = "", evidence_id: str = "", pointer: str = "") -> None:
+            if len(deduped) >= 12:
+                return
+            norm_text = _trim(text)
+            norm = re.sub(r"\s+", " ", norm_text.strip().lower())
+            norm = re.sub(r"\[@[^\]]+\]", "", norm)
+            if not norm or norm in seen:
+                return
+            cite_list = []
+            seen_cites: set[str] = set()
+            for c in citations:
+                key = _normalize_cite_key(c, bib_keys=bib_keys)
+                if key and key not in seen_cites:
+                    seen_cites.add(key)
+                    cite_list.append(key)
+            if not cite_list:
+                return
+            seen.add(norm)
+            deduped.append({
+                "hook_type": hook_type,
+                "text": norm_text,
+                "citations": cite_list,
+                "paper_id": paper_id,
+                "evidence_id": evidence_id,
+                "pointer": pointer,
+            })
+
+        if len(deduped) < 12:
+            for sn in rec.get("evidence_snippets") or []:
+                if not isinstance(sn, dict):
+                    continue
+                try_append(
+                    hook_type="fact",
+                    text=str(sn.get("text") or "").strip(),
+                    citations=[str(c).strip() for c in (sn.get("citations") or []) if str(c).strip()],
+                    paper_id=str(sn.get("paper_id") or "").strip(),
+                    evidence_id=str(sn.get("evidence_id") or "").strip(),
+                    pointer=str((sn.get("provenance") or {}).get("pointer") or "").strip(),
+                )
+                if len(deduped) >= 12:
+                    break
+
+        if len(deduped) < 12:
+            for it in rec.get("claim_candidates") or []:
+                if not isinstance(it, dict):
+                    continue
+                try_append(
+                    hook_type="claim",
+                    text=str(it.get("claim") or "").strip(),
+                    citations=[str(c).strip() for c in (it.get("citations") or []) if str(c).strip()],
+                    paper_id=str(it.get("paper_id") or "").strip(),
+                    evidence_id=str(it.get("evidence_id") or "").strip(),
+                    pointer=str(it.get("pointer") or "").strip(),
+                )
+                if len(deduped) >= 12:
+                    break
+
+        if len(deduped) < 12:
+            for it in rec.get("evaluation_protocol") or []:
+                if not isinstance(it, dict):
+                    continue
+                try_append(
+                    hook_type="eval",
+                    text=str(it.get("bullet") or "").strip(),
+                    citations=[str(c).strip() for c in (it.get("citations") or []) if str(c).strip()],
+                    pointer=str(it.get("pointer") or "").strip(),
+                )
+                if len(deduped) >= 12:
+                    break
 
         records.append({"sub_id": sub_id, "title": title, "anchors": deduped[:12], "generated_at": now_iso_seconds()})
 

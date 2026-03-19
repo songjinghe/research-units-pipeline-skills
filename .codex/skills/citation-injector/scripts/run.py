@@ -22,6 +22,12 @@ def _norm_title(text: str) -> str:
     return re.sub(r'[^a-z0-9]+', ' ', str(text or '').lower()).strip()
 
 
+def _surface_focus(text: str) -> str:
+    cleaned = re.sub(r'^\s*\d+(?:\.\d+)*\s+', '', str(text or '').strip())
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip(' .,:;')
+    return cleaned.lower()
+
+
 def _parse_budget_report(md: str) -> tuple[int, int, dict[str, list[str]], dict[str, list[str]]]:
     target = 0
     gap = 0
@@ -105,29 +111,93 @@ def _pick_variant(*, seed: str, options: list[str]) -> str:
     return options[h % len(options)]
 
 
-def _in_scope_sentences(keys: list[str], *, title: str = "") -> list[str]:
+def _format_cite_text(keys: list[str]) -> str:
+    phrases = [f'[@{k}]' for k in _uniq(keys)]
+    if not phrases:
+        return ''
+    if len(phrases) == 1:
+        return phrases[0]
+    if len(phrases) == 2:
+        return f'{phrases[0]} and {phrases[1]}'
+    return ', '.join(phrases[:-1]) + f', and {phrases[-1]}'
+
+
+def _load_writer_pack_context(workspace: Path) -> dict[str, dict[str, object]]:
+    contexts: dict[str, dict[str, object]] = {}
+    packs_path = workspace / "outline" / "writer_context_packs.jsonl"
+    if not packs_path.exists() or packs_path.stat().st_size <= 0:
+        return contexts
+    for raw in packs_path.read_text(encoding='utf-8', errors='ignore').splitlines():
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            rec = json.loads(raw)
+        except Exception:
+            continue
+        if not isinstance(rec, dict):
+            continue
+        title = _norm_title(rec.get('title') or '')
+        if not title:
+            continue
+        clusters: list[str] = []
+        for item in (rec.get('clusters') or []):
+            if not isinstance(item, dict):
+                continue
+            label = re.sub(r'\s+', ' ', str(item.get('label') or '').strip()).strip(' .,:;')
+            if label and label not in clusters:
+                clusters.append(label)
+        axes = [
+            re.sub(r'\s+', ' ', str(axis or '').strip()).strip(' .,:;')
+            for axis in (rec.get('axes') or [])
+            if str(axis or '').strip()
+        ]
+        contexts[title] = {
+            'contrast_hook': re.sub(r'\s+', ' ', str(rec.get('contrast_hook') or '').strip()).strip(' .,:;'),
+            'axes': axes,
+            'clusters': clusters,
+        }
+    return contexts
+
+
+def _in_scope_sentences(keys: list[str], *, title: str = "", context: dict[str, object] | None = None) -> list[str]:
     keys = _uniq(keys)
     if not keys:
         return []
-    focus = re.sub(r'\s+', ' ', str(title or '').strip().lower()).strip(' .,:;') or 'the same question'
-    templates = [
-        "Related evidence on {focus} appears in {cite_text}.",
-        "Comparable reports for {focus} include {cite_text}.",
-        "{focus_cap} is also discussed in {cite_text}.",
-        "A parallel line of evidence for {focus} comes from {cite_text}.",
-    ]
+    focus = _surface_focus(title) or 'the same question'
+    ctx = context or {}
+    axes = _uniq([str(x or '').strip() for x in (ctx.get('axes') or []) if str(x or '').strip()])
+    hint = axes[0] if axes else re.sub(r'\s+', ' ', str(ctx.get('contrast_hook') or '').strip()).strip(' .,:;')
+    clusters = _uniq([str(x or '').strip() for x in (ctx.get('clusters') or []) if str(x or '').strip()])
+    templates: list[str] = []
+    if len(clusters) >= 2:
+        templates.extend([
+            "Across {focus}, adjacent studies extend both {cluster_a} and {cluster_b} {cite_text}.",
+            "Comparable cases in {focus} appear on both sides of the comparison {cite_text}.",
+        ])
+    if hint:
+        templates.extend([
+            "Additional work in {focus} keeps returning to {hint} as a comparison pressure {cite_text}.",
+            "Related studies in {focus} also sharpen the record around {hint} {cite_text}.",
+        ])
+    templates.extend([
+        "Additional studies in {focus} help bound the comparison {cite_text}.",
+        "Neighboring work in {focus} broadens the evidence base {cite_text}.",
+    ])
     out: list[str] = []
-    for idx in range(0, len(keys), 4):
-        chunk = keys[idx: idx + 4]
-        phrases = [f'[@{k}]' for k in chunk]
-        if len(phrases) == 1:
-            cite_text = phrases[0]
-        elif len(phrases) == 2:
-            cite_text = f'{phrases[0]} and {phrases[1]}'
-        else:
-            cite_text = ', '.join(phrases[:-1]) + f', and {phrases[-1]}'
+    for idx in range(0, len(keys), 6):
+        chunk = keys[idx: idx + 6]
+        cite_text = _format_cite_text(chunk)
         template = _pick_variant(seed=f"{focus}:{idx}:{'|'.join(chunk)}", options=templates)
-        out.append(template.format(focus=focus, focus_cap=focus[:1].upper() + focus[1:], cite_text=cite_text))
+        out.append(
+            template.format(
+                focus=focus,
+                hint=hint,
+                cluster_a=clusters[0] if clusters else 'one line of work',
+                cluster_b=clusters[1] if len(clusters) > 1 else 'another line of work',
+                cite_text=cite_text,
+            )
+        )
     return out
 
 
@@ -136,25 +206,38 @@ def _global_top_up_sentences(keys: list[str], *, title: str = "the broader surve
     if not keys:
         return []
     templates = [
-        "Broader survey-level evidence appears in {tail}.",
-        "Related survey-wide comparisons appear in {tail}.",
-        "Additional survey-wide support comes from {tail}.",
+        "Appendix-level background references also include {tail}.",
+        "Broader survey context is also visible in {tail}.",
+        "Supplementary cross-chapter references include {tail}.",
     ]
     out: list[str] = []
-    for idx in range(0, len(keys), 4):
-        chunk = keys[idx: idx + 4]
+    for idx in range(0, len(keys), 8):
+        chunk = keys[idx: idx + 8]
         if not chunk:
             continue
-        phrases = [f"[@{k}]" for k in chunk]
-        if len(phrases) == 1:
-            tail = phrases[0]
-        elif len(phrases) == 2:
-            tail = f"{phrases[0]} and {phrases[1]}"
-        else:
-            tail = ", ".join(phrases[:-1]) + f", and {phrases[-1]}"
+        tail = _format_cite_text(chunk)
         template = _pick_variant(seed=f"global:{title}:{idx}:{'|'.join(chunk)}", options=templates)
         out.append(template.format(title_lower=str(title or "the broader survey").strip().lower(), tail=tail))
     return out
+
+
+def _inject_sentences_into_block(block: str, sentences: list[str]) -> str:
+    sentence_block = ' '.join(re.sub(r'\s+', ' ', s.strip()) for s in sentences if str(s or '').strip()).strip()
+    if not sentence_block:
+        return block
+    lines = block.splitlines()
+    if not lines or not lines[0].startswith('### '):
+        return (block.rstrip() + ' ' + sentence_block).strip()
+    heading = lines[0].rstrip()
+    body = '\n'.join(lines[1:]).strip()
+    if not body:
+        return heading + '\n\n' + sentence_block
+    paragraphs = [part.strip() for part in re.split(r'\n\s*\n', body) if part.strip()]
+    if not paragraphs:
+        return heading + '\n\n' + sentence_block
+    insert_at = 1 if len(paragraphs) >= 2 else len(paragraphs)
+    paragraphs.insert(insert_at, sentence_block)
+    return heading + '\n\n' + '\n\n'.join(paragraphs)
 
 
 def _load_writer_pack_pool(workspace: Path) -> list[str]:
@@ -230,7 +313,8 @@ def main() -> int:
     budget = budget_path.read_text(encoding='utf-8', errors='ignore')
     target, gap_from_budget, suggestions, suggestions_by_title = _parse_budget_report(budget)
     draft_profile = _draft_profile(workspace)
-    local_floor = 14 if draft_profile == 'deep' else 12
+    local_floor = 0
+    pack_context = _load_writer_pack_context(workspace)
 
     current_unique = len(set(_extract_cites(draft)))
     modified_blocks = 0
@@ -248,7 +332,7 @@ def main() -> int:
                 existing = set(_extract_cites(block))
                 local_need = max(0, int(local_floor) - len(existing))
                 needed_budget = max(0, int(target) - len(seen_after))
-                desired = max(local_need, needed_budget)
+                desired = needed_budget if needed_budget > 0 else local_need
                 if desired <= 0:
                     new_parts.append(block)
                     continue
@@ -258,10 +342,10 @@ def main() -> int:
                 if len(needed) < desired:
                     needed.extend(reusable_local[: max(0, desired - len(needed))])
                 if needed:
-                    inserted = needed[:8]
-                    sentences = _in_scope_sentences(inserted, title=title)
+                    inserted = needed[:4]
+                    sentences = _in_scope_sentences(inserted, title=title, context=pack_context.get(_norm_title(title)))
                     if sentences:
-                        block = block.rstrip() + ' ' + ' '.join(sentences)
+                        block = _inject_sentences_into_block(block, sentences)
                         modified_blocks += 1
                         seen_after.update(inserted)
             new_parts.append(block)
@@ -280,21 +364,52 @@ def main() -> int:
             if key not in pool:
                 pool.append(key)
         remaining = [k for k in pool if k not in set(_extract_cites(draft))]
-        needed = max(0, int(target) - int(unique_after_h3))
-        global_lines = _global_top_up_sentences(remaining[: max(needed, 4)], title="the broader survey")
-        if global_lines:
-            appendix_markers = ['\n**Appendix', '\n## Appendix']
-            insert_at = len(draft)
-            for marker in appendix_markers:
-                idx = draft.find(marker)
-                if idx != -1:
-                    insert_at = min(insert_at, idx)
-            extra = '\n\n'.join(global_lines)
-            if insert_at < len(draft):
-                draft = draft[:insert_at].rstrip() + '\n\n' + extra + '\n\n' + draft[insert_at:].lstrip()
-            else:
-                draft = draft.rstrip() + '\n\n' + extra + '\n'
-            atomic_write_text(draft_path, draft)
+        if remaining:
+            redistributed: list[str] = []
+            seen_after = set(_extract_cites(draft))
+            new_parts = []
+            for title, lines in _split_h3(draft):
+                block = '\n'.join(lines).rstrip()
+                if title is None:
+                    new_parts.append(block)
+                    continue
+                if not remaining or len(seen_after) >= int(target):
+                    new_parts.append(block)
+                    continue
+                take = min(3, max(1, int(target) - len(seen_after)), len(remaining))
+                chunk = remaining[:take]
+                remaining = remaining[take:]
+                sentences = _in_scope_sentences(chunk, title=title, context=pack_context.get(_norm_title(title)))
+                if sentences:
+                    block = _inject_sentences_into_block(block, sentences)
+                    redistributed.extend(chunk)
+                    seen_after.update(chunk)
+                    modified_blocks += 1
+                new_parts.append(block)
+            if redistributed:
+                draft = '\n'.join(part for part in new_parts if part is not None).rstrip() + '\n'
+                atomic_write_text(draft_path, draft)
+                unique_after_h3 = len(set(_extract_cites(draft)))
+        if target > 0 and unique_after_h3 < target:
+            remaining = [k for k in pool if k not in set(_extract_cites(draft))]
+            needed = max(0, int(target) - int(unique_after_h3))
+            global_lines = _global_top_up_sentences(remaining[: max(needed, 4)], title="the broader survey")
+            if global_lines:
+                appendix_markers = ['\n**Appendix', '\n## Appendix']
+                insert_at = len(draft)
+                found_appendix = False
+                for marker in appendix_markers:
+                    idx = draft.find(marker)
+                    if idx != -1:
+                        line_end = draft.find('\n', idx + 1)
+                        insert_at = min(insert_at, (line_end + 1) if line_end != -1 else len(draft))
+                        found_appendix = True
+                extra = '\n\n'.join(global_lines)
+                if insert_at < len(draft):
+                    draft = draft[:insert_at].rstrip() + '\n\n' + extra + '\n\n' + draft[insert_at:].lstrip()
+                else:
+                    draft = draft.rstrip() + '\n\n' + extra + '\n'
+                atomic_write_text(draft_path, draft)
 
     unique = len(set(_extract_cites(draft)))
     gap_current = max(0, int(target) - int(unique)) if target > 0 else 0

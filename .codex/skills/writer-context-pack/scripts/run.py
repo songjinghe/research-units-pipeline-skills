@@ -758,10 +758,6 @@ def main() -> int:
                 }
             )
         anchor_facts = _rank_text_records(anchor_pool, title=title, axes=axes, extras=relevance_terms, global_text_usage=global_text_usage)[:keep_limit]
-        for rec in anchor_facts:
-            key = _normalized_text_key(rec.get("text") or "")
-            if key:
-                global_text_usage[key] = global_text_usage.get(key, 0) + 1
 
         # Comparison cards (A-vs-B contrasts).
         raw_comparisons = pack.get("concrete_comparisons") or []
@@ -863,6 +859,55 @@ def main() -> int:
                 }
             )
         claim_candidates = _rank_text_records(claim_pool, title=title, axes=axes, extras=relevance_terms, global_text_usage=global_text_usage)[: int(profile_limits.get("claim_keep_limit") or 6)]
+
+        if len(anchor_facts) < keep_limit:
+            backfill_anchor_pool: list[dict[str, Any]] = list(anchor_facts)
+            for card in comparison_cards:
+                for side in ("A_highlights", "B_highlights"):
+                    for hl in (card.get(side) or [])[:2]:
+                        if not isinstance(hl, dict):
+                            continue
+                        excerpt = _sanitize_source_text(hl.get("excerpt") or "")
+                        cites = _normalize_cite_keys(hl.get("citations") or [], bibkeys=bibkeys)
+                        if not excerpt or not cites:
+                            continue
+                        backfill_anchor_pool.append(
+                            {
+                                "hook_type": "comparison_highlight",
+                                "text": _trim(excerpt, max_len=TRIM["anchor_fact"]),
+                                "citations": cites,
+                                "paper_id": str(hl.get("paper_id") or "").strip(),
+                                "evidence_id": str(hl.get("evidence_id") or "").strip(),
+                                "pointer": str(hl.get("pointer") or "").strip(),
+                            }
+                        )
+            for claim in claim_candidates:
+                text_claim = _sanitize_source_text(claim.get("claim") or "")
+                cites = _normalize_cite_keys(claim.get("citations") or [], bibkeys=bibkeys)
+                if not text_claim or not cites:
+                    continue
+                backfill_anchor_pool.append(
+                    {
+                        "hook_type": "claim_backfill",
+                        "text": _trim(text_claim, max_len=TRIM["anchor_fact"]),
+                        "citations": cites,
+                        "paper_id": "",
+                        "evidence_id": "",
+                        "pointer": "",
+                    }
+                )
+            anchor_facts = _rank_text_records(
+                backfill_anchor_pool,
+                title=title,
+                axes=axes,
+                extras=relevance_terms,
+                global_text_usage=global_text_usage,
+            )[:keep_limit]
+
+        for rec in anchor_facts:
+            key = _normalized_text_key(rec.get("text") or "")
+            if key:
+                global_text_usage[key] = global_text_usage.get(key, 0) + 1
         for rec in claim_candidates:
             key = _normalized_text_key(rec.get("claim") or "")
             if key:

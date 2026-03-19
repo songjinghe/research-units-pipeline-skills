@@ -65,7 +65,8 @@ def _split_sentences(paragraph: str) -> list[str]:
     text = _normalize_space(paragraph)
     if not text:
         return []
-    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+    protected = re.sub(r'(?i)\bvs\.', 'vs', text)
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", protected) if part.strip()]
 
 
 def _extract_cites(text: str) -> str:

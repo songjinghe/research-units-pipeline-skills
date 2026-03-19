@@ -164,7 +164,24 @@
     "(?i)^agentworld\\s+is\\s+an\\s+interactive\\s+simulation\\s+platform\\b",
     "(?i)^it\\s+typically\\s+relies\\s+on\\s+large\\s+amounts\\s+of\\s+human\\s+demonstration\\s+data\\b",
     "(?i)^recent\\s+approaches\\s+attempt\\s+to\\s+mitigate\\s+these\\s+limitations\\b",
-    "(?i)^existing\\s+manipulation\\s+datasets\\s+remain\\s+costly\\s+to\\s+curate\\b"
+    "(?i)^existing\\s+manipulation\\s+datasets\\s+remain\\s+costly\\s+to\\s+curate\\b",
+    "(?i)^developing\\s+mllms?\\s+for\\s+real-world\\s+robots?\\s+is\\s+challenging\\b",
+    "(?i)^training\\s+vision-language-action\\s*\\(vla\\)\\s+models?\\s+for\\s+generalist\\s+robots?\\s+typically\\s+requires\\b",
+    "(?i)^learning\\s+visuomotor\\s+policy\\s+for\\s+multi-task\\s+robotic\\s+manipulation\\s+has\\s+been\\s+a\\s+long-standing\\s+challenge\\b",
+    "(?i)^building\\s+a\\s+generalist\\s+robot\\b.*\\bremains\\s+an\\s+open\\s+challenge\\b",
+    "(?i)^robot\\s+learning\\s+is\\s+witnessing\\s+a\\s+significant\\s+increase\\b",
+    "(?i)^offering\\s+great\\s+potential\\s+in\\s+robotic\\s+manipulation\\b",
+    "(?i)^three\\s+fundamental\\s+limitations\\s+hinder\\s+progress\\b",
+    "(?i)^despite\\s+rapid\\s+advances\\s+in\\s+learning-based\\s+planning\\s+and\\s+control\\b",
+    "(?i)^recent\\s+progress\\s+in\\s+robotic\\s+world\\s+models\\s+has\\s+leveraged\\b",
+    "(?i)^a\\s+compelling\\s+alternative\\s+is\\s+to\\s+co-train\\s+the\\s+policy\\b",
+    "(?i)^while\\s+vlm\\s+backbones\\s+endow\\s+vlas\\b",
+    "(?i)^due\\s+to\\s+the\\s+scarcity\\s+of\\s+large-scale\\s+3d\\s+data\\b",
+    "(?i)^extensive\\s+experiments\\s+across\\s+simulated\\s+and\\s+real-world\\s+benchmarks\\s+show\\s+that\\s+FASTerVQ\\b.*\\bFASTerVLA\\s+further\\b",
+    "(?i)^this\\s+brings\\s+up\\s+a\\s+notably\\s+difficult\\s+challenge\\s+for\\s+robots\\b",
+    "(?i)^strap\\s+outperforms\\s+both\\s+prior\\s+retrieval\\s+algorithms\\b.*\\blearn\\s+robust\\b",
+    "(?i)^large\\s+policies\\s+pretrained\\s+on\\s+diverse\\s+robot\\s+datasets\\b.*\\byet\\b",
+    "(?i)^we\\s+experimentally\\s+confirm\\s+that\\s+our\\s+dreaming\\s+model\\s+enables\\s+robot\\s+learning\\s+of\\s+policies\\s+that\\s+transfer\\s+to\\s+the\\s+real-world\\b"
   ],
   "limitation_keep_pattern": "(?i)\\b(?:limit\\w*|challeng\\w*|gap\\w*|fragil\\w*|bottleneck\\w*|uncertain\\w*|underexplored|cost\\w*|scarce|lack\\w*|missing|constrain\\w*|restrict\\w*|partial\\s+observability|real-world\\s+deployment|negative\\s+transfer|failure\\w*|ood|out-of-distribution)\\b",
   "limitation_drop_patterns": [
@@ -175,6 +192,18 @@
     "(?i)^this\\s+paper\\s+provides\\s+a\\s+thorough\\s+review\\b",
     "(?i)^to\\s+tackle\\s+these\\s+challenges,\\s*this\\s+survey\\s+introduces\\b",
     "(?i)^language-guided\\s+long-horizon\\s+mobile\\s+manipulation\\s+has\\s+long\\s+been\\s+a\\s+grand\\s+challenge\\b",
-    "(?i)^simulation\\s+has\\s+great\\s+potential\\s+in\\s+supplementing\\s+large-scale\\s+data\\b"
+    "(?i)^simulation\\s+has\\s+great\\s+potential\\s+in\\s+supplementing\\s+large-scale\\s+data\\b",
+    "(?i)^developing\\s+mllms?\\s+for\\s+real-world\\s+robots?\\s+is\\s+challenging\\b",
+    "(?i)^training\\s+vision-language-action\\s*\\(vla\\)\\s+models?\\s+for\\s+generalist\\s+robots?\\s+typically\\s+requires\\b",
+    "(?i)^learning\\s+visuomotor\\s+policy\\s+for\\s+multi-task\\s+robotic\\s+manipulation\\s+has\\s+been\\s+a\\s+long-standing\\s+challenge\\b",
+    "(?i)^building\\s+a\\s+generalist\\s+robot\\b.*\\bremains\\s+an\\s+open\\s+challenge\\b",
+    "(?i)^robot\\s+learning\\s+is\\s+witnessing\\s+a\\s+significant\\s+increase\\b",
+    "(?i)^offering\\s+great\\s+potential\\s+in\\s+robotic\\s+manipulation\\b",
+    "(?i)^three\\s+fundamental\\s+limitations\\s+hinder\\s+progress\\b",
+    "(?i)^despite\\s+rapid\\s+advances\\s+in\\s+learning-based\\s+planning\\s+and\\s+control\\b",
+    "(?i)^recent\\s+progress\\s+in\\s+robotic\\s+world\\s+models\\s+has\\s+leveraged\\b",
+    "(?i)^a\\s+compelling\\s+alternative\\s+is\\s+to\\s+co-train\\s+the\\s+policy\\b",
+    "(?i)^while\\s+vlm\\s+backbones\\s+endow\\s+vlas\\b",
+    "(?i)^due\\s+to\\s+the\\s+scarcity\\s+of\\s+large-scale\\s+3d\\s+data\\b"
   ]
 }

@@ -7,13 +7,13 @@
         "The useful decision point in {title_lower} is which commitments survive a change in benchmark, embodiment, or reporting frame"
       ],
       "contrast-first": [
-        "The sharpest split in {title_lower} is between {cluster_a} and {cluster_b}, because their results move under different assumptions",
+        "What most separates {title_lower} is the split between {cluster_a} and {cluster_b}, because their results move under different assumptions",
         "What most separates {title_lower} is the contrast between {cluster_a} and {cluster_b}, especially once the underlying setup changes",
-        "The cleanest entry into {title_lower} is the divide between {cluster_a} and {cluster_b}, because it exposes how different assumptions alter what each result actually means"
+        "A central tension is how the divide between {cluster_a} and {cluster_b} changes what each result can actually mean within {title_lower}"
       ],
       "protocol-first": [
         "In {title_lower}, benchmark claims only stay readable when the underlying assumptions are treated as part of the result rather than as background protocol detail",
-        "{title} becomes much easier to interpret once those assumptions are kept explicit in the comparison contract",
+        "{title} becomes much easier to interpret once those assumptions are kept explicit in the comparison frame",
         "The comparison in {title_lower} only holds when those assumptions remain visible instead of being absorbed into a generic benchmark story"
       ],
       "failure-first": [
@@ -35,7 +35,7 @@
     "tension_followup": [
       "The comparison becomes unstable because {tension}",
       "The resulting pressure is that {tension}",
-      "That is why the evidence keeps drifting whenever {tension}"
+      "The evidence starts to drift as soon as {tension}"
     ]
   },
   "cluster": {
@@ -46,9 +46,9 @@
         "Papers grouped under {label} sharpen the contrast in {title_lower} because changing those assumptions changes what the method is actually built to do"
       ],
       "lead_B": [
-        "In contrast, a strand grouped here as {label} shifts which assumptions the comparison has to keep fixed",
-        "Reading the subsection through {label} moves the disagreement away from {other_label} and toward a different set of assumptions",
-        "Papers grouped under {label} change the comparison in {title_lower} because they force those assumptions to be read differently from {other_label}"
+        "A second strand, grouped here as {label}, shifts which assumptions the comparison has to keep fixed",
+        "Seen through {label}, the disagreement moves away from {other_label} and toward a different set of assumptions",
+        "{label} recasts the comparison in {title_lower} by changing which assumptions stay fixed relative to {other_label}"
       ],
       "closing": [
         "That is why papers in this cluster treat those assumptions as the main source of methodological variation",
@@ -64,9 +64,9 @@
         "The implementation split that matters in {title_lower} is where those decisions are enforced inside the stack"
       ],
       "lead_B": [
-        "In contrast, the alternative strand only becomes clear once implementation choices reveal how {label_group} operationalize those decisions",
+        "The alternative strand only becomes clear once implementation choices reveal how {label_group} operationalize those decisions",
         "Implementation details matter here because {label_group} turn those decisions into concrete system commitments",
-        "What separates {label_group} from {other_label} is the point in the stack where those decisions become operational"
+        "The implementation contrast with {other_label} turns on where {label_group} make those decisions operational"
       ],
       "closing": [
         "The implementation story therefore turns on how those decisions are operationalized in training, control, or data construction",
@@ -94,17 +94,16 @@
         "The benchmark story for {label} becomes fragile once those assumptions stop travelling with the score"
       ],
       "limit": [
-        "Those gains remain tentative because {limit_text}",
-        "The comparison remains limited by one boundary condition: {limit_text}",
-        "The reported edge should be read cautiously because the evidence remains limited: {limit_text}",
-        "One reason the headline overstates portability is that the comparison remains limited by {limit_text}",
-        "The evidence remains provisional under a narrower condition: {limit_text}",
-        "The result should be treated as limited evidence rather than a portable ranking because {limit_text}"
+        "A narrower reading is warranted here because {limit_text}",
+        "What keeps this from becoming a portable comparison is that {limit_text}",
+        "One local evidential boundary still matters here because {limit_text}",
+        "The safer interpretation stays local because {limit_text}",
+        "A more limited reading is the sounder one here because {limit_text}"
       ],
       "limit_fallback": [
         "Those gains remain provisional whenever task, metric, and deployment constraints are not stated together",
-        "The comparison is hard to trust once task, metric, and deployment constraints stop appearing as one reporting unit",
-        "What keeps the evidence provisional is that task, metric, and deployment constraints are often reported separately rather than as one comparison contract"
+        "The comparison stops travelling once task, metric, and deployment constraints are reported separately rather than as one contract",
+        "A cross-paper reading stays fragile when task, metric, and deployment constraints do not appear as one reporting unit"
       ],
       "closing": [
         "For {label}, benchmark scope, metric choice, and deployment constraints remain part of the claim rather than detachable metadata",
@@ -120,22 +119,23 @@
   },
   "synthesis": {
     "lead": [
-      "Seen together, {cluster_a} and {cluster_b} diverge less on headline performance than on the assumptions that make their results travel",
+      "Across {title_lower}, {cluster_a} and {cluster_b} diverge less on headline performance than on the assumptions that make their results travel",
       "Across {title_lower}, the real split between {cluster_a} and {cluster_b} lies in which assumptions each route keeps fixed, not in one isolated result",
-      "At subsection level, the contrast between {cluster_a} and {cluster_b} is clearest once the comparison stays attached to its underlying assumptions"
+      "The broader contrast in {title_lower} only becomes clear once the comparison stays attached to the assumptions each route is actually holding fixed",
+      "Across this subsection, the meaningful split between {cluster_a} and {cluster_b} is which assumptions each route preserves once the setting starts to move"
     ],
     "fallback": [
-      "At a higher level, {cluster_a} emphasize {a_text}, whereas {cluster_b} emphasize {b_text}",
-      "The broader contrast is that {cluster_a} are usually justified through {a_text}, while {cluster_b} are defended through {b_text}",
-      "What persists across the subsection is a contrast between {cluster_a} leaning on {a_text} and {cluster_b} leaning on {b_text}"
+      "At a broader level, evidence for {cluster_a} keeps returning to the finding that {a_text}, whereas the case for {cluster_b} more often turns on the finding that {b_text}",
+      "The more durable contrast is that findings supporting {cluster_a} keep emphasizing the claim that {a_text}, while evidence for {cluster_b} more often emphasizes the claim that {b_text}",
+      "What persists across the subsection is that the record for {cluster_a} keeps pointing back to the finding that {a_text}, whereas the record for {cluster_b} more often relies on the finding that {b_text}"
     ]
   },
   "decision": {
     "lead": [
-      "For an actual design choice in {title_lower}, the question is which requirement cannot be relaxed",
+      "The practical decision in {title_lower} is which requirement the target setting cannot relax",
       "The practical choice in {title_lower} begins once the target setting decides which requirement must stay fixed",
       "The practical issue in {title_lower} is not a generic winner but which side of the trade-off the target setting has to preserve",
-      "A decision in {title_lower} only becomes reliable once the target setting commits to one side of the trade-off"
+      "A usable decision in {title_lower} only appears once the target setting commits to one side of the trade-off"
     ],
     "protocol": [
       "Benchmark scope, metric choice, and deployment constraints still decide whether either route can be compared beyond one local setting",
@@ -147,36 +147,42 @@
   },
   "breadth": {
     "lead": [
-      "Other mapped papers in {title_lower} point in the same direction even when they emphasize different local mechanisms",
-      "The wider mapped literature on {title_lower} keeps the same pressure in view across neighboring systems",
-      "Beyond the focal papers, adjacent work on {title_lower} still reinforces the same comparison pressure"
+      "Related work around {title_lower} widens the record without eliminating the setup differences that still matter most",
+      "Neighboring studies on {title_lower} revisit the same comparison under slightly different assumptions",
+      "Beyond the focal papers, adjacent work on {title_lower} adds coverage but also shows how quickly the comparison frame can drift",
+      "Across nearby systems, the surrounding literature on {title_lower} broadens the evidence base while leaving key protocol differences exposed"
     ],
     "body": [
-      "Across those neighboring studies, the same assumptions continue to move together rather than behaving like separable knobs",
-      "Read together, the adjacent studies keep linking the same decisions instead of turning them into isolated design choices",
-      "The mapped papers keep tying the same assumptions together, which is why the comparison does not reduce to one local mechanism"
+      "Read together, these neighboring studies broaden the record but keep the same reporting gaps in view",
+      "What the adjacent papers add is less a clean verdict than more examples of how setup choices reshape the claim",
+      "Across the surrounding evidence, the main disagreement still comes from which assumptions stay fixed and which are allowed to move",
+      "Those nearby studies matter because they show how quickly protocol and embodiment details re-enter the comparison"
     ]
   },
   "limitation": {
-      "lead": [
-        "Several issues still block a clean ranking across {title_lower}",
-        "The main unresolved issue in {title_lower} is not just which route performs better, but which parts of the evidence can actually be compared without distortion",
-        "What remains unsettled in {title_lower} is less the presence of results than the instability of the comparison frame itself",
-        "The open problem in {title_lower} is how to judge these results on common evidential ground rather than on adjacent local setups",
-        "The literature in {title_lower} is broad, but the comparison still fragments once scope and protocol assumptions start moving together",
-        "The remaining uncertainty in {title_lower} comes from how quickly the comparison frame shifts across neighboring papers",
-        "What still resists a clean reading in {title_lower} is the mismatch between broad claims and the local conditions that support them"
-      ],
-      "protocol": [
-        "A more decisive answer will require tighter reporting on task, metric, and constraint choices so that {cluster_a} and {cluster_b} can be compared under the same evidential frame",
-        "The remaining uncertainty will not shrink unless later work reports task, metric, and constraint choices tightly enough to compare {cluster_a} against {cluster_b} on common ground",
-        "What is missing most is a reporting discipline that keeps task, metric, and deployment constraints explicit enough for {cluster_a} and {cluster_b} to be judged against the same evidence contract",
-        "Progress will stay hard to judge until papers report task, metric, horizon, and deployment conditions together rather than as separate afterthoughts",
-        "A sharper answer depends on knowing when benchmark wins actually transfer across embodiments, environments, and cost regimes"
-      ],
+    "lead": [
+      "The main limitation in {title_lower} is uneven comparability rather than a lack of reported gains",
+      "What still makes {title_lower} hard to synthesize is that similar claims are often reported under different local conditions",
+      "The hardest part of reading {title_lower} is deciding which results survive a like-for-like comparison",
+      "Evidence in {title_lower} is richest locally and weakest when asked to travel across settings",
+      "What remains uncertain in {title_lower} is not whether results exist, but whether they stay comparable once the setup shifts"
+    ],
+    "protocol": [
+      "A firmer comparison will depend on reporting task, metric, and deployment assumptions tightly enough to read {cluster_a} against {cluster_b} on the same footing",
+      "Cross-paper judgment remains fragile until work on {cluster_a} and {cluster_b} exposes task, metric, and deployment constraints in comparable form",
+      "What is still missing is reporting that keeps task, metric, and deployment details visible when {cluster_a} and {cluster_b} are compared",
+      "Progress will remain local until papers report task, metric, horizon, and deployment conditions as one explicit package",
+      "A sharper answer depends on knowing when gains survive changes in embodiment, environment, and budget rather than only one benchmark"
+    ],
     "rq_fallback": [
       "A useful open question is therefore how future work can answer the subsection question, `{rq}`, under protocols that remain aligned across neighboring settings.",
       "The unresolved question is how future work can answer `{rq}` without relaxing the protocol assumptions that currently keep the evidence apart."
+    ],
+    "signal": [
+      "In {title_lower}, the current record still supports only a cautious comparison; stronger claims depend on tighter task, metric, and deployment reporting",
+      "For {title_lower}, the evidence remains uneven enough that cross-paper conclusions should stay modest until reporting contracts tighten",
+      "Within {title_lower}, stronger synthesis depends on later work making task, metric, and deployment assumptions easier to align across papers",
+      "Across {title_lower}, the present evidence is informative but not yet stable enough to settle the comparison without tighter reporting"
     ]
   }
 }

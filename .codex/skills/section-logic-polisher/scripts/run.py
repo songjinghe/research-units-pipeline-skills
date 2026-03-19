@@ -75,6 +75,7 @@ def _has_thesis(paragraph: str) -> bool:
         r"(?i)\b(a|an|one)\s+(?:central|core|key)\s+(?:tension|challenge|trade[-\s]?off|bottleneck|constraint)\s+is\b",
         r"(?i)\bthe\s+(?:central|real|main|useful|practical)\s+decision\s+in\b",
         r"(?i)\bthe\s+useful\s+decision\s+point\s+in\b",
+        r"(?i)\bthe\s+(?:central|real|main|practical)\s+issue\s+in\b.+?\bis\b",
         r"(?i)\bin\s+.+?,\s+the\s+(?:real|main|practical)\s+decision\s+is\b",
         r"(?i)\bthe\s+comparison\s+in\b.+?\b(?:only\s+holds|turns\s+on|depends\s+less\s+on|becomes\s+unstable\s+because)\b",
         r"(?i)\bwhat\s+makes\b.+?\b(?:difficult\s+to\s+read|hard\s+to\s+(?:read|compare|synthesize)|easiest\s+to\s+read)\b",

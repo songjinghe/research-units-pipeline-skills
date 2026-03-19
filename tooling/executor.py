@@ -342,6 +342,41 @@ def _compute_current_checkpoint(table: UnitsTable) -> str:
     return "DONE"
 
 
+def invalidate_downstream_units(table: UnitsTable, *, root_unit_id: str) -> list[str]:
+    """Reset all transitive downstream dependents of `root_unit_id` to TODO.
+
+    This is used when a previously satisfied upstream unit is reopened for rerun.
+    Keeping downstream units as DONE would otherwise leave stale artifacts in place
+    and make later `run` invocations stop too early.
+    """
+
+    root = str(root_unit_id or "").strip()
+    if not root:
+        return []
+
+    direct_children: dict[str, list[dict[str, str]]] = {}
+    for row in table.rows:
+        unit_id = str(row.get("unit_id") or "").strip()
+        for dep in parse_semicolon_list(row.get("depends_on")):
+            direct_children.setdefault(dep, []).append(row)
+
+    affected: list[str] = []
+    seen: set[str] = set()
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        for child in direct_children.get(current, []):
+            child_id = str(child.get("unit_id") or "").strip()
+            if not child_id or child_id in seen:
+                continue
+            seen.add(child_id)
+            if str(child.get("status") or "").strip().upper() != "TODO":
+                child["status"] = "TODO"
+                affected.append(child_id)
+            stack.append(child_id)
+    return affected
+
+
 def _strip_optional_marker(relpath: str) -> str:
     relpath = (relpath or "").strip()
     if relpath.startswith("?"):

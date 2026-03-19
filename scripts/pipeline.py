@@ -251,25 +251,43 @@ def main() -> int:
             raise SystemExit("--status must be one of TODO|DOING|DONE|BLOCKED|SKIP")
 
         from tooling.common import UnitsTable, now_iso_seconds, update_status_log
-        from tooling.executor import _refresh_status_checkpoint  # type: ignore
+        from tooling.executor import _refresh_status_checkpoint, invalidate_downstream_units  # type: ignore
 
         units_path = workspace / "UNITS.csv"
         if not units_path.exists():
             raise SystemExit(f"Missing {units_path}")
         table = UnitsTable.load(units_path)
         found = False
+        previous_status = ""
         for row in table.rows:
             if str(row.get("unit_id") or "").strip() == unit_id:
+                previous_status = str(row.get("status") or "").strip().upper()
                 row["status"] = status
                 found = True
                 break
         if not found:
             raise SystemExit(f"Unit not found: {unit_id}")
+
+        invalidated: list[str] = []
+        if status not in {"DONE", "SKIP"}:
+            invalidated = invalidate_downstream_units(table, root_unit_id=unit_id)
         table.save(units_path)
         if note:
             update_status_log(workspace / "STATUS.md", f"{now_iso_seconds()} {unit_id} NOTE {note}")
+        if invalidated:
+            preview = ", ".join(invalidated[:8])
+            suffix = " ..." if len(invalidated) > 8 else ""
+            update_status_log(
+                workspace / "STATUS.md",
+                f"{now_iso_seconds()} {unit_id} NOTE reset downstream to TODO: {preview}{suffix}",
+            )
         _refresh_status_checkpoint(workspace / "STATUS.md", table)
-        print(f"Marked {unit_id} as {status} in {units_path}")
+        msg = f"Marked {unit_id} as {status} in {units_path}"
+        if invalidated:
+            msg += f"; reset {len(invalidated)} downstream unit(s) to TODO"
+        elif previous_status == status:
+            msg += "; no downstream reset needed"
+        print(msg)
         return 0
 
     raise SystemExit("unreachable")

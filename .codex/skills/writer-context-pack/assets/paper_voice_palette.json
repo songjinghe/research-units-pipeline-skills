@@ -57,7 +57,7 @@
     "As a result, survey comparisons should",
     "survey synthesis should",
     "survey comparisons should",
-    "Taken together,",
+    "Across these studies,",
     "The safest synthesis",
     "The safest conclusion",
     "That conclusion remains",
@@ -69,6 +69,13 @@
     "abstract-only evidence",
     "Key takeaway:",
     "Main takeaway:",
+    "Related references for",
+    "Further relevant work in",
+    "Nearby evidence for",
+    "Additional cited work in",
+    "same underlying difficulty",
+    "same underlying evidential frame",
+    "evidence here remains bounded rather than settled",
     "protocol token",
     "protocol tokens",
     "constraint token",
@@ -80,7 +87,8 @@
     "In this survey",
     "In our survey",
     "Our survey",
-    "This survey"
+    "This survey",
+    "the evidence here remains bounded rather than settled"
   ],
   "opener_archetypes": {
     "tension-first": [
@@ -199,7 +207,7 @@
     "Moreover,",
     "Furthermore,",
     "This suggests",
-    "Taken together,",
+    "Across these studies,",
     "The safest synthesis",
     "The safest conclusion",
     "That conclusion remains",
@@ -217,7 +225,14 @@
     "In other words,",
     "Therefore,",
     "In addition,",
-    "As a result,"
+    "As a result,",
+    "Related references for",
+    "Further relevant work in",
+    "Nearby evidence for",
+    "Additional cited work in",
+    "same underlying difficulty",
+    "same underlying evidential frame",
+    "evidence here remains bounded rather than settled"
   ],
   "discourse_stem_rewrites": {
     "Additionally,": [
@@ -230,10 +245,12 @@
       "These results point to",
       "A plausible explanation is"
     ],
-    "Taken together,": [
-      "Across these studies,",
+    "Across these studies,": [
       "Collectively,",
-      "The evidence suggests"
+      "Stepping back,",
+      "Across reported protocols,",
+      "Viewed across settings,",
+      "One way to read this evidence is that"
     ],
     "The key point is that": [
       "A practical implication is that",
@@ -292,13 +309,6 @@
       "Consequently,",
       "A practical implication is that"
     ],
-    "Across these studies,": [
-      "Collectively,",
-      "Stepping back,",
-      "Across reported protocols,",
-      "Viewed across settings,",
-      "One way to read this evidence is that"
-    ],
     "For practitioners,": [
       "In deployed settings,",
       "Operationally,",
@@ -346,6 +356,41 @@
       "The comparison therefore remains bounded:",
       "This evidence is most useful when",
       "A conservative reading is to keep"
+    ],
+    "Related references for": [
+      "The surrounding record on",
+      "Studies such as",
+      "Additional cases in"
+    ],
+    "Further relevant work in": [
+      "The broader record on",
+      "Additional cases in",
+      "Studies such as"
+    ],
+    "Nearby evidence for": [
+      "The surrounding record on",
+      "The broader comparison in",
+      "Studies such as"
+    ],
+    "Additional cited work in": [
+      "The broader record on",
+      "Related cases in",
+      "Nearby studies on"
+    ],
+    "same underlying difficulty": [
+      "the same comparison pressure",
+      "the same reporting problem",
+      "the same cross-paper tension"
+    ],
+    "same underlying evidential frame": [
+      "the same comparison frame",
+      "the same reporting frame",
+      "the same interpretation problem"
+    ],
+    "evidence here remains bounded rather than settled": [
+      "cross-paper claims still depend on better-aligned reporting",
+      "the evidence base is still easier to read locally than across papers",
+      "a firmer synthesis still depends on more explicit protocol reporting"
     ]
   },
   "role_cards": {

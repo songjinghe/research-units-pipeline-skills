@@ -4563,7 +4563,10 @@ def _check_sections_manifest(workspace: Path, outputs: list[str]) -> list[Qualit
             profile = _pipeline_profile(workspace)
             draft_profile = _draft_profile(workspace)
             if profile == "arxiv-survey":
-                min_cites = 14 if draft_profile == "deep" else 12
+                # Survey H3s should stay evidence-dense, but local floors must not force
+                # citation-padding or template-only breadth paragraphs. Use a lower local
+                # floor here and rely on the global citation target later in the pipeline.
+                min_cites = 8 if draft_profile == "deep" else 6
                 if len(cite_keys) < min_cites:
                     issues.append(
                         QualityIssue(
@@ -4574,13 +4577,13 @@ def _check_sections_manifest(workspace: Path, outputs: list[str]) -> list[Qualit
 
             if profile == "arxiv-survey":
                 if draft_profile == "deep":
-                    min_paragraphs = 11
+                    min_paragraphs = 9
                     # Keep sections "thick" without forcing filler; prefer argument-move checks over raw length.
                     # This is a post-citation length floor (citations removed) used as a readability proxy.
-                    min_chars = 6000
+                    min_chars = 4300
                 else:
-                    min_paragraphs = 10
-                    min_chars = 5000
+                    min_paragraphs = 8
+                    min_chars = 3300
 
                 paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text.strip()) if p.strip()]
                 # Paper voice: block narration templates that read like outline commentary

@@ -8,12 +8,13 @@ It is designed for the space between fragile prompting and overly rigid scriptin
 
 ## What This Repo Covers
 
-The codebase currently centers on three workflows:
+The codebase currently centers on four workflows:
 
 | Workflow | Use it for | Default deliverable | English | 中文 |
 |---|---|---|---|---|
 | `latex-survey` | evidence-first literature surveys with optional LaTeX/PDF delivery | `output/DRAFT.md`, `latex/main.tex`, `latex/main.pdf` | [Guide](readme/latex-survey.md) | [说明](readme/latex-survey.zh-CN.md) |
 | `idea-brainstorm` | literature-grounded research direction discovery and discussion memos | `output/REPORT.md` | [Guide](readme/idea-brainstorm.md) | [说明](readme/idea-brainstorm.zh-CN.md) |
+| `source-tutorial` | transform multi-source materials into a reader-first tutorial with PDF and Beamer slides | `output/TUTORIAL.md`, `latex/main.pdf`, `latex/slides/main.pdf` | [Guide](readme/source-tutorial.md) | [说明](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | restructuring an existing Chinese graduation thesis project into a thesis engineering workflow | pipeline + thesis skill packages | [Guide](readme/graduate-paper.md) | [说明](readme/graduate-paper.zh-CN.md) |
 
 These workflows share the same architecture:
@@ -37,7 +38,9 @@ Use `latex-survey` when the goal is a serious review paper with explicit retriev
 
 Use `idea-brainstorm` when the goal is to generate a literature-backed memo of candidate research directions for discussion, not to write a paper yet.
 
-Use `graduate-paper` when you already have thesis materials such as a template, existing TeX, Overleaf drafts, PDFs, figures, or prior papers, and need to reorganize them into a Chinese degree thesis workflow. This path is currently the least automated of the three.
+Use `source-tutorial` when you already have webpages, PDFs, notes, repo docs, or documentation sites and want to turn them into a reader-first tutorial rather than a survey or memo.
+
+Use `graduate-paper` when you already have thesis materials such as a template, existing TeX, Overleaf drafts, PDFs, figures, or prior papers, and need to reorganize them into a Chinese degree thesis workflow. This path is currently the least automated of the four.
 
 ## How To Use The Repo
 
@@ -57,6 +60,10 @@ Brainstorm literature-grounded research ideas around embodied agents for home ro
 ```
 
 ```text
+Use the source-tutorial pipeline to turn webpages and repo docs about robot learning into a tutorial with PDF and slides.
+```
+
+```text
 Use the graduate-paper workflow to reorganize my Chinese thesis materials before rewriting chapters.
 ```
 
@@ -65,6 +72,7 @@ If you want tighter control, pin the pipeline directly:
 - [pipelines/arxiv-survey.pipeline.md](pipelines/arxiv-survey.pipeline.md)
 - [pipelines/arxiv-survey-latex.pipeline.md](pipelines/arxiv-survey-latex.pipeline.md)
 - [pipelines/idea-brainstorm.pipeline.md](pipelines/idea-brainstorm.pipeline.md)
+- [pipelines/source-tutorial.pipeline.md](pipelines/source-tutorial.pipeline.md)
 - [pipelines/graduate-paper-pipeline.md](pipelines/graduate-paper-pipeline.md)
 
 ## Recommended Reading Path
@@ -82,6 +90,7 @@ Feature guides:
 |---|---|---|
 | `latex-survey` | [readme/latex-survey.md](readme/latex-survey.md) | [readme/latex-survey.zh-CN.md](readme/latex-survey.zh-CN.md) |
 | `idea-brainstorm` | [readme/idea-brainstorm.md](readme/idea-brainstorm.md) | [readme/idea-brainstorm.zh-CN.md](readme/idea-brainstorm.zh-CN.md) |
+| `source-tutorial` | [readme/source-tutorial.md](readme/source-tutorial.md) | [readme/source-tutorial.zh-CN.md](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | [readme/graduate-paper.md](readme/graduate-paper.md) | [readme/graduate-paper.zh-CN.md](readme/graduate-paper.zh-CN.md) |
 
 Project references:
@@ -95,6 +104,7 @@ Legacy language-specific copies of the older survey-focused README still live un
 
 - `latex-survey` is the most complete writing pipeline in the repo and the main path when the deliverable is a survey paper or PDF.
 - `idea-brainstorm` is structured and executable, but optimized for discussion-ready idea memos rather than paper drafting.
+- `source-tutorial` is now the canonical tutorial path: source-grounded, tutorial-first, with article PDF and Beamer slides as first-class delivery artifacts.
 - `graduate-paper` now has a clearer pipeline design and a first batch of thesis-oriented skills, but it should currently be treated as a guided workflow framework rather than a fully automated thesis runner.
 
 ## Star History

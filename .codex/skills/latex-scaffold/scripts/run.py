@@ -33,13 +33,34 @@ def main() -> int:
     ensure_dir(out_path.parent)
 
     draft_path = workspace / "output" / "DRAFT.md"
+    tutorial_path = workspace / "output" / "TUTORIAL.md"
+    profile = ""
+    try:
+        from tooling.common import load_workspace_pipeline_spec
+
+        spec = load_workspace_pipeline_spec(workspace)
+        profile = str(spec.profile or "").strip() if spec is not None else ""
+    except Exception:
+        profile = ""
+
+    if profile == "source-tutorial" and tutorial_path.exists():
+        draft_path = tutorial_path
+    elif draft_path.exists() and tutorial_path.exists():
+        preview = draft_path.read_text(encoding="utf-8", errors="ignore")
+        low_preview = preview.lower()
+        if "(placeholder)" in low_preview or "<!-- scaffold" in low_preview or "draft (placeholder)" in low_preview:
+            draft_path = tutorial_path
+    elif not draft_path.exists():
+        draft_path = tutorial_path
     if not draft_path.exists():
-        raise SystemExit(f"Missing input: {draft_path}")
+        raise SystemExit(f"Missing input: {workspace / 'output' / 'DRAFT.md'} or {workspace / 'output' / 'TUTORIAL.md'}")
 
     md = draft_path.read_text(encoding="utf-8", errors="ignore")
     title = _read_first_h1(md) or _read_goal(workspace) or "Survey"
     body = _markdown_to_latex(md)
     use_ctex = _has_cjk(md)
+    bib_path = workspace / "citations" / "ref.bib"
+    include_bibliography = bib_path.exists() and _has_real_bib_entries(bib_path)
 
     tex = "\n".join(
         [
@@ -77,8 +98,14 @@ def main() -> int:
             "",
             body.strip(),
             "",
-            r"\bibliographystyle{plainnat}",
-            r"\bibliography{../citations/ref}",
+            *(
+                [
+                    r"\bibliographystyle{plainnat}",
+                    r"\bibliography{../citations/ref}",
+                ]
+                if include_bibliography
+                else []
+            ),
             "",
             r"\end{document}",
             "",
@@ -105,6 +132,14 @@ def _read_goal(workspace: Path) -> str:
             continue
         return line
     return ""
+
+
+def _has_real_bib_entries(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return False
+    return bool(re.search(r"(?m)^@\w+\s*\{", text))
 
 
 def _has_cjk(text: str) -> bool:

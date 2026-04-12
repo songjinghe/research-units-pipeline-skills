@@ -28,6 +28,8 @@ flowchart LR
   S_appendix_table_writer["`appendix-table-writer`"]:::skill
   F_GOAL_md["`GOAL.md`"]:::file
   F_GOAL_md --> S_appendix_table_writer
+  F_assets_table_cell_hygiene_json["`assets/table_cell_hygiene.json`"]:::file
+  F_assets_table_cell_hygiene_json --> S_appendix_table_writer
   F_citations_ref_bib --> S_appendix_table_writer
   F_outline_anchor_sheet_jsonl --> S_appendix_table_writer
   F_outline_evidence_drafts_jsonl --> S_appendix_table_writer
@@ -37,8 +39,11 @@ flowchart LR
   F_outline_table_schema_md --> S_appendix_table_writer
   F_outline_tables_index_md["`outline/tables_index.md`"]:::file
   F_outline_tables_index_md --> S_appendix_table_writer
+  F_references_table_cell_hygiene_md["`references/table_cell_hygiene.md`"]:::file
+  F_references_table_cell_hygiene_md --> S_appendix_table_writer
   F_outline_tables_appendix_md["`outline/tables_appendix.md`"]:::file
   S_appendix_table_writer --> F_outline_tables_appendix_md
+  S_argument_selfloop["`argument-selfloop`"]:::skill
   S_artifact_contract_auditor["`artifact-contract-auditor`"]:::skill
   F_PIPELINE_lock_md["`PIPELINE.lock.md`"]:::file
   F_PIPELINE_lock_md --> S_artifact_contract_auditor
@@ -55,6 +60,19 @@ flowchart LR
   S_arxiv_search --> F_papers_papers_raw_csv
   F_papers_papers_raw_jsonl["`papers/papers_raw.jsonl`"]:::file
   S_arxiv_search --> F_papers_papers_raw_jsonl
+  S_beamer_compile_qa["`beamer-compile-qa`"]:::skill
+  F_latex_slides_main_tex["`latex/slides/main.tex`"]:::file
+  F_latex_slides_main_tex --> S_beamer_compile_qa
+  F_latex_slides_main_pdf["`latex/slides/main.pdf`"]:::file
+  S_beamer_compile_qa --> F_latex_slides_main_pdf
+  F_output_SLIDES_BUILD_REPORT_md["`output/SLIDES_BUILD_REPORT.md`"]:::file
+  S_beamer_compile_qa --> F_output_SLIDES_BUILD_REPORT_md
+  S_beamer_scaffold["`beamer-scaffold`"]:::skill
+  F_outline_module_plan_yml["`outline/module_plan.yml`"]:::file
+  F_outline_module_plan_yml --> S_beamer_scaffold
+  F_output_TUTORIAL_md["`output/TUTORIAL.md`"]:::file
+  F_output_TUTORIAL_md --> S_beamer_scaffold
+  S_beamer_scaffold --> F_latex_slides_main_tex
   S_bias_assessor["`bias-assessor`"]:::skill
   F_papers_extraction_table_csv["`papers/extraction_table.csv`"]:::file
   F_papers_extraction_table_csv --> S_bias_assessor
@@ -74,6 +92,12 @@ flowchart LR
   F_outline_writer_context_packs_jsonl --> S_chapter_lead_writer
   F_sections_S_sec_id__lead_md["`sections/S<sec_id>_lead.md`"]:::file
   S_chapter_lead_writer --> F_sections_S_sec_id__lead_md
+  S_chapter_skeleton["`chapter-skeleton`"]:::skill
+  F_GOAL_md --> S_chapter_skeleton
+  F_outline_taxonomy_yml["`outline/taxonomy.yml`"]:::file
+  F_outline_taxonomy_yml --> S_chapter_skeleton
+  F_outline_chapter_skeleton_yml["`outline/chapter_skeleton.yml`"]:::file
+  S_chapter_skeleton --> F_outline_chapter_skeleton_yml
   S_citation_anchoring["`citation-anchoring`"]:::skill
   F_output_DRAFT_md["`output/DRAFT.md`"]:::file
   F_output_DRAFT_md --> S_citation_anchoring
@@ -132,6 +156,23 @@ flowchart LR
   S_dedupe_rank --> F_papers_core_set_csv
   F_papers_papers_dedup_jsonl["`papers/papers_dedup.jsonl`"]:::file
   S_dedupe_rank --> F_papers_papers_dedup_jsonl
+  S_deliverable_selfloop["`deliverable-selfloop`"]:::skill
+  F_output_APPENDIX_md["`output/APPENDIX.md`"]:::file
+  F_output_APPENDIX_md --> S_deliverable_selfloop
+  F_output_REPORT_json["`output/REPORT.json`"]:::file
+  F_output_REPORT_json --> S_deliverable_selfloop
+  F_output_REPORT_md["`output/REPORT.md`"]:::file
+  F_output_REPORT_md --> S_deliverable_selfloop
+  F_output_trace_IDEA_DIRECTION_POOL_md["`output/trace/IDEA_DIRECTION_POOL.md`"]:::file
+  F_output_trace_IDEA_DIRECTION_POOL_md --> S_deliverable_selfloop
+  F_output_trace_IDEA_SCREENING_TABLE_md["`output/trace/IDEA_SCREENING_TABLE.md`"]:::file
+  F_output_trace_IDEA_SCREENING_TABLE_md --> S_deliverable_selfloop
+  F_output_trace_IDEA_SHORTLIST_md["`output/trace/IDEA_SHORTLIST.md`"]:::file
+  F_output_trace_IDEA_SHORTLIST_md --> S_deliverable_selfloop
+  F_output_trace_IDEA_SIGNAL_TABLE_md["`output/trace/IDEA_SIGNAL_TABLE.md`"]:::file
+  F_output_trace_IDEA_SIGNAL_TABLE_md --> S_deliverable_selfloop
+  F_output_DELIVERABLE_SELFLOOP_TODO_md["`output/DELIVERABLE_SELFLOOP_TODO.md`"]:::file
+  S_deliverable_selfloop --> F_output_DELIVERABLE_SELFLOOP_TODO_md
   S_draft_polisher["`draft-polisher`"]:::skill
   F_citations_ref_bib --> S_draft_polisher
   F_outline_evidence_drafts_jsonl --> S_draft_polisher
@@ -148,6 +189,8 @@ flowchart LR
   F_sections_md["`sections/*.md`"]:::file
   F_sections_md --> S_evaluation_anchor_checker
   S_evaluation_anchor_checker --> F_output_DRAFT_md
+  F_output_EVAL_ANCHOR_REPORT_md["`output/EVAL_ANCHOR_REPORT.md`"]:::file
+  S_evaluation_anchor_checker --> F_output_EVAL_ANCHOR_REPORT_md
   F_output_eval_anchors_checked_refined_ok["`output/eval_anchors_checked.refined.ok`"]:::file
   S_evaluation_anchor_checker --> F_output_eval_anchors_checked_refined_ok
   S_evaluation_anchor_checker --> F_sections_md
@@ -187,7 +230,6 @@ flowchart LR
   F_output_EVIDENCE_SELFLOOP_TODO_md["`output/EVIDENCE_SELFLOOP_TODO.md`"]:::file
   S_evidence_selfloop --> F_output_EVIDENCE_SELFLOOP_TODO_md
   S_exercise_builder["`exercise-builder`"]:::skill
-  F_outline_module_plan_yml["`outline/module_plan.yml`"]:::file
   F_outline_module_plan_yml --> S_exercise_builder
   S_exercise_builder --> F_outline_module_plan_yml
   S_extraction_form["`extraction-form`"]:::skill
@@ -210,12 +252,23 @@ flowchart LR
   F_papers_retrieval_report_md["`papers/retrieval_report.md`"]:::file
   F_papers_retrieval_report_md --> S_front_matter_writer
   F_queries_md --> S_front_matter_writer
+  F_output_FRONT_MATTER_CONTEXT_json["`output/FRONT_MATTER_CONTEXT.json`"]:::file
+  S_front_matter_writer --> F_output_FRONT_MATTER_CONTEXT_json
+  F_output_FRONT_MATTER_REPORT_md["`output/FRONT_MATTER_REPORT.md`"]:::file
+  S_front_matter_writer --> F_output_FRONT_MATTER_REPORT_md
+  F_sections_S_sec_id_md["`sections/S<sec_id>.md`"]:::file
+  S_front_matter_writer --> F_sections_S_sec_id_md
+  F_sections_abstract_md["`sections/abstract.md`"]:::file
+  S_front_matter_writer --> F_sections_abstract_md
+  F_sections_conclusion_md["`sections/conclusion.md`"]:::file
+  S_front_matter_writer --> F_sections_conclusion_md
+  F_sections_discussion_md["`sections/discussion.md`"]:::file
+  S_front_matter_writer --> F_sections_discussion_md
   S_global_reviewer["`global-reviewer`"]:::skill
   F_citations_ref_bib --> S_global_reviewer
   F_outline_claim_evidence_matrix_md --> S_global_reviewer
   F_outline_mapping_tsv --> S_global_reviewer
   F_outline_outline_yml --> S_global_reviewer
-  F_outline_taxonomy_yml["`outline/taxonomy.yml`"]:::file
   F_outline_taxonomy_yml --> S_global_reviewer
   F_output_DRAFT_md --> S_global_reviewer
   S_global_reviewer --> F_output_DRAFT_md
@@ -224,6 +277,25 @@ flowchart LR
   S_grad_paragraph["`grad-paragraph`"]:::skill
   F_sections_S_sub_id_md["`sections/S<sub_id>.md`"]:::file
   S_grad_paragraph --> F_sections_S_sub_id_md
+  S_human_checkpoint["`human-checkpoint`"]:::skill
+  F_DECISIONS_md --> S_human_checkpoint
+  F_STATUS_md["`STATUS.md`"]:::file
+  F_STATUS_md --> S_human_checkpoint
+  F_UNITS_csv --> S_human_checkpoint
+  S_human_checkpoint --> F_DECISIONS_md
+  S_idea_brief["`idea-brief`"]:::skill
+  F_DECISIONS_md --> S_idea_brief
+  F_GOAL_md --> S_idea_brief
+  F_queries_md --> S_idea_brief
+  S_idea_brief --> F_DECISIONS_md
+  F_output_trace_IDEA_BRIEF_md["`output/trace/IDEA_BRIEF.md`"]:::file
+  S_idea_brief --> F_output_trace_IDEA_BRIEF_md
+  S_idea_brief --> F_queries_md
+  S_idea_direction_generator["`idea-direction-generator`"]:::skill
+  S_idea_memo_writer["`idea-memo-writer`"]:::skill
+  S_idea_screener["`idea-screener`"]:::skill
+  S_idea_shortlist_curator["`idea-shortlist-curator`"]:::skill
+  S_idea_signal_mapper["`idea-signal-mapper`"]:::skill
   S_keyword_expansion["`keyword-expansion`"]:::skill
   F_DECISIONS_md --> S_keyword_expansion
   F_queries_md --> S_keyword_expansion
@@ -239,6 +311,7 @@ flowchart LR
   S_latex_scaffold["`latex-scaffold`"]:::skill
   F_citations_ref_bib --> S_latex_scaffold
   F_output_DRAFT_md --> S_latex_scaffold
+  F_output_TUTORIAL_md --> S_latex_scaffold
   S_latex_scaffold --> F_latex_main_tex
   S_limitation_weaver["`limitation-weaver`"]:::skill
   F_outline_writer_context_packs_jsonl --> S_limitation_weaver
@@ -259,9 +332,21 @@ flowchart LR
   S_literature_engineer --> F_papers_papers_raw_csv
   S_literature_engineer --> F_papers_papers_raw_jsonl
   S_literature_engineer --> F_papers_retrieval_report_md
+  S_manuscript_ingest["`manuscript-ingest`"]:::skill
+  F_GOAL_md --> S_manuscript_ingest
+  F_output_PAPER_md --> S_manuscript_ingest
+  S_manuscript_ingest --> F_output_PAPER_md
   S_module_planner["`module-planner`"]:::skill
   F_outline_concept_graph_yml --> S_module_planner
   S_module_planner --> F_outline_module_plan_yml
+  S_module_source_coverage["`module-source-coverage`"]:::skill
+  F_outline_module_plan_yml --> S_module_source_coverage
+  F_sources_index_jsonl["`sources/index.jsonl`"]:::file
+  F_sources_index_jsonl --> S_module_source_coverage
+  F_sources_provenance_jsonl["`sources/provenance.jsonl`"]:::file
+  F_sources_provenance_jsonl --> S_module_source_coverage
+  F_outline_source_coverage_jsonl["`outline/source_coverage.jsonl`"]:::file
+  S_module_source_coverage --> F_outline_source_coverage_jsonl
   S_novelty_matrix["`novelty-matrix`"]:::skill
   F_output_CLAIMS_md --> S_novelty_matrix
   F_output_NOVELTY_MATRIX_md["`output/NOVELTY_MATRIX.md`"]:::file
@@ -301,7 +386,25 @@ flowchart LR
   F_papers_fulltext_txt["`papers/fulltext/*.txt`"]:::file
   F_papers_fulltext_txt --> S_paper_notes
   F_papers_fulltext_index_jsonl --> S_paper_notes
+  S_paper_notes --> F_papers_evidence_bank_jsonl
   S_paper_notes --> F_papers_paper_notes_jsonl
+  S_paragraph_curator["`paragraph-curator`"]:::skill
+  F_outline_writer_context_packs_jsonl --> S_paragraph_curator
+  F_output_ARGUMENT_SKELETON_md["`output/ARGUMENT_SKELETON.md`"]:::file
+  F_output_ARGUMENT_SKELETON_md --> S_paragraph_curator
+  F_output_SECTION_ARGUMENT_SUMMARIES_jsonl["`output/SECTION_ARGUMENT_SUMMARIES.jsonl`"]:::file
+  F_output_SECTION_ARGUMENT_SUMMARIES_jsonl --> S_paragraph_curator
+  F_output_SECTION_LOGIC_REPORT_md["`output/SECTION_LOGIC_REPORT.md`"]:::file
+  F_output_SECTION_LOGIC_REPORT_md --> S_paragraph_curator
+  F_output_WRITER_SELFLOOP_TODO_md --> S_paragraph_curator
+  F_sections["`sections/`"]:::file
+  F_sections --> S_paragraph_curator
+  F_sections_S_sub_id_md --> S_paragraph_curator
+  F_output_PARAGRAPH_CURATION_REPORT_md["`output/PARAGRAPH_CURATION_REPORT.md`"]:::file
+  S_paragraph_curator --> F_output_PARAGRAPH_CURATION_REPORT_md
+  S_paragraph_curator --> F_sections_md
+  F_sections_paragraphs_curated_refined_ok["`sections/paragraphs_curated.refined.ok`"]:::file
+  S_paragraph_curator --> F_sections_paragraphs_curated_refined_ok
   S_pdf_text_extractor["`pdf-text-extractor`"]:::skill
   F_outline_mapping_tsv --> S_pdf_text_extractor
   F_papers_core_set_csv --> S_pdf_text_extractor
@@ -321,7 +424,6 @@ flowchart LR
   F_DECISIONS_md --> S_pipeline_router
   F_GOAL_md --> S_pipeline_router
   F_PIPELINE_lock_md --> S_pipeline_router
-  F_STATUS_md["`STATUS.md`"]:::file
   F_STATUS_md --> S_pipeline_router
   F_assets_pipeline_selection_form_md["`assets/pipeline-selection-form.md`"]:::file
   F_assets_pipeline_selection_form_md --> S_pipeline_router
@@ -399,14 +501,30 @@ flowchart LR
   F_papers_papers_dedup_jsonl --> S_screening_manager
   F_papers_papers_raw_jsonl --> S_screening_manager
   S_screening_manager --> F_papers_screening_log_csv
+  S_section_bindings["`section-bindings`"]:::skill
+  F_outline_chapter_skeleton_yml --> S_section_bindings
+  F_papers_core_set_csv --> S_section_bindings
+  F_papers_papers_dedup_jsonl --> S_section_bindings
+  F_outline_section_binding_report_md["`outline/section_binding_report.md`"]:::file
+  S_section_bindings --> F_outline_section_binding_report_md
+  F_outline_section_bindings_jsonl["`outline/section_bindings.jsonl`"]:::file
+  S_section_bindings --> F_outline_section_bindings_jsonl
+  S_section_briefs["`section-briefs`"]:::skill
+  F_GOAL_md --> S_section_briefs
+  F_outline_chapter_skeleton_yml --> S_section_briefs
+  F_outline_section_bindings_jsonl --> S_section_briefs
+  F_outline_section_briefs_jsonl["`outline/section_briefs.jsonl`"]:::file
+  S_section_briefs --> F_outline_section_briefs_jsonl
   S_section_logic_polisher["`section-logic-polisher`"]:::skill
+  F_S_sec___sub_md["`S<sec>_<sub>.md`"]:::file
+  F_S_sec___sub_md --> S_section_logic_polisher
   F_outline_subsection_briefs_jsonl --> S_section_logic_polisher
   F_outline_writer_context_packs_jsonl --> S_section_logic_polisher
-  F_sections["`sections/`"]:::file
   F_sections --> S_section_logic_polisher
-  F_output_SECTION_LOGIC_REPORT_md["`output/SECTION_LOGIC_REPORT.md`"]:::file
   S_section_logic_polisher --> F_output_SECTION_LOGIC_REPORT_md
   S_section_logic_polisher --> F_sections
+  F_sections_S_sec___sub_md["`sections/S<sec>_<sub>.md`"]:::file
+  S_section_logic_polisher --> F_sections_S_sec___sub_md
   S_section_mapper["`section-mapper`"]:::skill
   F_outline_outline_yml --> S_section_mapper
   F_papers_core_set_csv --> S_section_mapper
@@ -429,6 +547,27 @@ flowchart LR
   F_papers_papers_dedup_jsonl --> S_snapshot_writer
   F_queries_md --> S_snapshot_writer
   S_snapshot_writer --> F_output_SNAPSHOT_md
+  S_source_ingest["`source-ingest`"]:::skill
+  F_sources_manifest_yml["`sources/manifest.yml`"]:::file
+  F_sources_manifest_yml --> S_source_ingest
+  S_source_ingest --> F_sources_index_jsonl
+  S_source_ingest --> F_sources_provenance_jsonl
+  S_source_manifest["`source-manifest`"]:::skill
+  F_DECISIONS_md --> S_source_manifest
+  F_GOAL_md --> S_source_manifest
+  S_source_manifest --> F_sources_manifest_yml
+  S_source_tutorial_spec["`source-tutorial-spec`"]:::skill
+  F_DECISIONS_md --> S_source_tutorial_spec
+  F_GOAL_md --> S_source_tutorial_spec
+  F_sources_index_jsonl --> S_source_tutorial_spec
+  F_sources_provenance_jsonl --> S_source_tutorial_spec
+  S_source_tutorial_spec --> F_output_TUTORIAL_SPEC_md
+  S_source_tutorial_writer["`source-tutorial-writer`"]:::skill
+  F_DECISIONS_md --> S_source_tutorial_writer
+  F_outline_module_plan_yml --> S_source_tutorial_writer
+  F_outline_tutorial_context_packs_jsonl["`outline/tutorial_context_packs.jsonl`"]:::file
+  F_outline_tutorial_context_packs_jsonl --> S_source_tutorial_writer
+  S_source_tutorial_writer --> F_output_TUTORIAL_md
   S_style_harmonizer["`style-harmonizer`"]:::skill
   F_outline_writer_context_packs_jsonl --> S_style_harmonizer
   F_output_WRITER_SELFLOOP_TODO_md --> S_style_harmonizer
@@ -460,6 +599,13 @@ flowchart LR
   F_outline_outline_yml --> S_subsection_writer
   F_outline_subsection_briefs_jsonl --> S_subsection_writer
   F_outline_writer_context_packs_jsonl --> S_subsection_writer
+  S_subsection_writer --> F_sections_S_sec_id_md
+  S_subsection_writer --> F_sections_S_sec_id__lead_md
+  S_subsection_writer --> F_sections_S_sub_id_md
+  S_subsection_writer --> F_sections_abstract_md
+  S_subsection_writer --> F_sections_conclusion_md
+  S_subsection_writer --> F_sections_discussion_md
+  S_subsection_writer --> F_sections_sections_manifest_jsonl
   S_survey_seed_harvest["`survey-seed-harvest`"]:::skill
   F_papers_papers_dedup_jsonl --> S_survey_seed_harvest
   S_survey_seed_harvest --> F_outline_taxonomy_yml
@@ -491,8 +637,10 @@ flowchart LR
   S_table_schema --> F_outline_table_schema_md
   S_taxonomy_builder["`taxonomy-builder`"]:::skill
   F_DECISIONS_md --> S_taxonomy_builder
+  F_GOAL_md --> S_taxonomy_builder
   F_papers_core_set_csv --> S_taxonomy_builder
   F_papers_papers_dedup_jsonl --> S_taxonomy_builder
+  F_queries_md --> S_taxonomy_builder
   S_taxonomy_builder --> F_outline_taxonomy_yml
   S_terminology_normalizer["`terminology-normalizer`"]:::skill
   F_outline_outline_yml --> S_terminology_normalizer
@@ -501,15 +649,119 @@ flowchart LR
   S_terminology_normalizer --> F_output_DRAFT_md
   F_output_GLOSSARY_md["`output/GLOSSARY.md`"]:::file
   S_terminology_normalizer --> F_output_GLOSSARY_md
+  S_thesis_chapter_reconstructor["`thesis-chapter-reconstructor`"]:::skill
+  F_codex_md_chapter_role_map_md["`codex_md/chapter_role_map.md`"]:::file
+  F_codex_md_chapter_role_map_md --> S_thesis_chapter_reconstructor
+  F_codex_md_question_list_md["`codex_md/question_list.md`"]:::file
+  F_codex_md_question_list_md --> S_thesis_chapter_reconstructor
+  F_codex_md_chapter_rewrite_rules_md["`codex_md/chapter_rewrite_rules.md`"]:::file
+  S_thesis_chapter_reconstructor --> F_codex_md_chapter_rewrite_rules_md
+  S_thesis_citation_enhance_review["`thesis-citation-enhance-review`"]:::skill
+  F_references_bib["`references/*.bib`"]:::file
+  F_references_bib --> S_thesis_citation_enhance_review
+  S_thesis_compile_review["`thesis-compile-review`"]:::skill
+  F_claude_md_review_checklist_md["`claude_md/review_checklist.md`"]:::file
+  F_claude_md_review_checklist_md --> S_thesis_compile_review
+  F_references_bib --> S_thesis_compile_review
+  S_thesis_compile_review --> F_claude_md_review_checklist_md
+  F_output_THESIS_BUILD_REPORT_md["`output/THESIS_BUILD_REPORT.md`"]:::file
+  S_thesis_compile_review --> F_output_THESIS_BUILD_REPORT_md
+  S_thesis_frontmatter_sync["`thesis-frontmatter-sync`"]:::skill
+  F_abstract_abstract_en_tex["`abstract/abstract-en.tex`"]:::file
+  S_thesis_frontmatter_sync --> F_abstract_abstract_en_tex
+  F_abstract_abstract_tex["`abstract/abstract.tex`"]:::file
+  S_thesis_frontmatter_sync --> F_abstract_abstract_tex
+  F_achievements["`achievements/...`"]:::file
+  S_thesis_frontmatter_sync --> F_achievements
+  F_acknowledgement["`acknowledgement/...`"]:::file
+  S_thesis_frontmatter_sync --> F_acknowledgement
+  F_chapters_appendix_tex["`chapters/appendix.tex`"]:::file
+  S_thesis_frontmatter_sync --> F_chapters_appendix_tex
+  F_preface["`preface/...`"]:::file
+  S_thesis_frontmatter_sync --> F_preface
+  S_thesis_markdown_aligner["`thesis-markdown-aligner`"]:::skill
+  F_codex_md_question_list_md --> S_thesis_markdown_aligner
+  F_codex_md_00_thesis_outline_md["`codex_md/00_thesis_outline.md`"]:::file
+  S_thesis_markdown_aligner --> F_codex_md_00_thesis_outline_md
+  F_codex_md_symbol_metric_table_md["`codex_md/symbol_metric_table.md`"]:::file
+  S_thesis_markdown_aligner --> F_codex_md_symbol_metric_table_md
+  F_codex_md_terminology_glossary_md["`codex_md/terminology_glossary.md`"]:::file
+  S_thesis_markdown_aligner --> F_codex_md_terminology_glossary_md
+  F_missing_info_md["`missing_info.md`"]:::file
+  S_thesis_markdown_aligner --> F_missing_info_md
+  S_thesis_question_list["`thesis-question-list`"]:::skill
+  F_claude_md_review_checklist_md --> S_thesis_question_list
+  F_codex_md_md["`codex_md/*.md`"]:::file
+  F_codex_md_md --> S_thesis_question_list
+  F_codex_md_material_index_md["`codex_md/material_index.md`"]:::file
+  F_codex_md_material_index_md --> S_thesis_question_list
+  F_codex_md_missing_info_md["`codex_md/missing_info.md`"]:::file
+  F_codex_md_missing_info_md --> S_thesis_question_list
+  S_thesis_question_list --> F_codex_md_question_list_md
+  S_thesis_source_role_mapper["`thesis-source-role-mapper`"]:::skill
+  F_codex_md_material_index_md --> S_thesis_source_role_mapper
+  F_codex_md_question_list_md --> S_thesis_source_role_mapper
+  S_thesis_source_role_mapper --> F_codex_md_chapter_role_map_md
+  S_thesis_style_polisher["`thesis-style-polisher`"]:::skill
+  F_GPT_md["`GPT口癖与高频用词调研.md`"]:::file
+  F_GPT_md --> S_thesis_style_polisher
+  F_md["`中文写作要求.md`"]:::file
+  F_md --> S_thesis_style_polisher
+  S_thesis_tex_writeback["`thesis-tex-writeback`"]:::skill
+  F_chapters_tex["`chapters/*.tex`"]:::file
+  F_chapters_tex --> S_thesis_tex_writeback
+  F_codex_md_00_thesis_outline_md --> S_thesis_tex_writeback
+  F_codex_md_figure_plan_md["`codex_md/figure_plan.md`"]:::file
+  F_codex_md_figure_plan_md --> S_thesis_tex_writeback
+  F_codex_md_symbol_metric_table_md --> S_thesis_tex_writeback
+  F_codex_md_terminology_glossary_md --> S_thesis_tex_writeback
+  S_thesis_tex_writeback --> F_chapters_tex
+  S_thesis_visual_layout_planner["`thesis-visual-layout-planner`"]:::skill
+  S_thesis_visual_layout_planner --> F_codex_md_figure_plan_md
+  F_codex_md_mermaid["`codex_md/mermaid/`"]:::file
+  S_thesis_visual_layout_planner --> F_codex_md_mermaid
+  F_tmp_layout["`tmp_layout/`"]:::file
+  S_thesis_visual_layout_planner --> F_tmp_layout
+  F_tmp_layout2["`tmp_layout2/`"]:::file
+  S_thesis_visual_layout_planner --> F_tmp_layout2
+  S_thesis_workspace_init["`thesis-workspace-init`"]:::skill
+  F_Overleaf_ref["`Overleaf_ref/`"]:::file
+  F_Overleaf_ref --> S_thesis_workspace_init
+  F_chapters_tex --> S_thesis_workspace_init
+  F_pdf["`pdf/`"]:::file
+  F_pdf --> S_thesis_workspace_init
+  F_references["`references/`"]:::file
+  F_references --> S_thesis_workspace_init
+  S_thesis_workspace_init --> F_claude_md_review_checklist_md
+  S_thesis_workspace_init --> F_codex_md_00_thesis_outline_md
+  S_thesis_workspace_init --> F_codex_md_material_index_md
+  F_codex_md_material_readiness_md["`codex_md/material_readiness.md`"]:::file
+  S_thesis_workspace_init --> F_codex_md_material_readiness_md
+  S_thesis_workspace_init --> F_codex_md_mermaid
+  S_thesis_workspace_init --> F_codex_md_missing_info_md
+  S_thesis_workspace_init --> F_codex_md_question_list_md
+  F_mermaid["`mermaid/`"]:::file
+  S_thesis_workspace_init --> F_mermaid
+  S_thesis_workspace_init --> F_tmp_layout
+  S_thesis_workspace_init --> F_tmp_layout2
   S_transition_weaver["`transition-weaver`"]:::skill
   F_outline_outline_yml --> S_transition_weaver
   F_outline_subsection_briefs_jsonl --> S_transition_weaver
   S_transition_weaver --> F_outline_transitions_md
+  S_tutorial_context_pack["`tutorial-context-pack`"]:::skill
+  F_outline_module_plan_yml --> S_tutorial_context_pack
+  F_outline_source_coverage_jsonl --> S_tutorial_context_pack
+  F_sources_provenance_jsonl --> S_tutorial_context_pack
+  S_tutorial_context_pack --> F_outline_tutorial_context_packs_jsonl
   S_tutorial_module_writer["`tutorial-module-writer`"]:::skill
   F_DECISIONS_md --> S_tutorial_module_writer
   F_outline_module_plan_yml --> S_tutorial_module_writer
-  F_output_TUTORIAL_md["`output/TUTORIAL.md`"]:::file
   S_tutorial_module_writer --> F_output_TUTORIAL_md
+  S_tutorial_selfloop["`tutorial-selfloop`"]:::skill
+  F_outline_module_plan_yml --> S_tutorial_selfloop
+  F_output_TUTORIAL_md --> S_tutorial_selfloop
+  F_output_TUTORIAL_SELFLOOP_TODO_md["`output/TUTORIAL_SELFLOOP_TODO.md`"]:::file
+  S_tutorial_selfloop --> F_output_TUTORIAL_SELFLOOP_TODO_md
   S_tutorial_spec["`tutorial-spec`"]:::skill
   F_DECISIONS_md --> S_tutorial_spec
   F_GOAL_md --> S_tutorial_spec
@@ -566,125 +818,7 @@ flowchart LR
 
 ### arxiv-survey-latex
 
-```mermaid
-flowchart LR
-  classDef unit fill:#fff3e0,stroke:#fb8c00,color:#e65100;
-  classDef human fill:#ffebee,stroke:#e53935,color:#b71c1c,stroke-width:2px;
-
-  subgraph "C0 - Init"
-    U_U001["`U001`\n`workspace-init`"]:::unit
-    U_U002["`U002`\n`pipeline-router`"]:::unit
-  end
-
-  subgraph "C1 - Retrieval & core set"
-    U_U010["`U010`\n`literature-engineer`"]:::unit
-    U_U020["`U020`\n`dedupe-rank`"]:::unit
-  end
-
-  subgraph "C2 - Structure"
-    U_U030["`U030`\n`taxonomy-builder`"]:::unit
-    U_U040["`U040`\n`outline-builder`"]:::unit
-    U_U050["`U050`\n`section-mapper`"]:::unit
-    U_U051["`U051`\n`outline-refiner`"]:::unit
-    U_U052["`U052`\n`pipeline-router`"]:::unit
-    U_U055["`U055`\n`pipeline-router`"]:::unit
-    class U_U055 human
-  end
-
-  subgraph "C3 - Evidence pack"
-    U_U058["`U058`\n`pdf-text-extractor`"]:::unit
-    U_U060["`U060`\n`paper-notes`"]:::unit
-    U_U075["`U075`\n`subsection-briefs`"]:::unit
-    U_U076["`U076`\n`chapter-briefs`"]:::unit
-  end
-
-  subgraph "C4 - Citations + evidence packs"
-    U_U090["`U090`\n`citation-verifier`"]:::unit
-    U_U091["`U091`\n`evidence-binder`"]:::unit
-    U_U092["`U092`\n`evidence-draft`"]:::unit
-    U_U0925["`U0925`\n`table-schema`"]:::unit
-    U_U0926["`U0926`\n`table-filler`"]:::unit
-    U_U0927["`U0927`\n`appendix-table-writer`"]:::unit
-    U_U093["`U093`\n`anchor-sheet`"]:::unit
-    U_U0935["`U0935`\n`schema-normalizer`"]:::unit
-    U_U099["`U099`\n`writer-context-pack`"]:::unit
-    U_U0995["`U0995`\n`evidence-selfloop`"]:::unit
-    U_U094["`U094`\n`claim-matrix-rewriter`"]:::unit
-  end
-
-  subgraph "C5 - Draft + PDF"
-    U_U095["`U095`\n`front-matter-writer`"]:::unit
-    U_U096["`U096`\n`chapter-lead-writer`"]:::unit
-    U_U100["`U100`\n`subsection-writer`"]:::unit
-    U_U1005["`U1005`\n`writer-selfloop`"]:::unit
-    U_U1006["`U1006`\n`style-harmonizer`"]:::unit
-    U_U102["`U102`\n`section-logic-polisher`"]:::unit
-    U_U098["`U098`\n`transition-weaver`"]:::unit
-    U_U101["`U101`\n`section-merger`"]:::unit
-    U_U103["`U103`\n`post-merge-voice-gate`"]:::unit
-    U_U104["`U104`\n`citation-diversifier`"]:::unit
-    U_U1045["`U1045`\n`citation-injector`"]:::unit
-    U_U105["`U105`\n`draft-polisher`"]:::unit
-    U_U108["`U108`\n`global-reviewer`"]:::unit
-    U_U109["`U109`\n`pipeline-auditor`"]:::unit
-    U_U110["`U110`\n`latex-scaffold`"]:::unit
-    U_U120["`U120`\n`latex-compile-qa`"]:::unit
-    U_U130["`U130`\n`artifact-contract-auditor`"]:::unit
-  end
-
-  U_U001 --> U_U002
-  U_U002 --> U_U010
-  U_U010 --> U_U020
-  U_U020 --> U_U030
-  U_U030 --> U_U040
-  U_U040 --> U_U050
-  U_U050 --> U_U051
-  U_U051 --> U_U052
-  U_U052 --> U_U055
-  U_U055 --> U_U058
-  U_U058 --> U_U060
-  U_U060 --> U_U075
-  U_U075 --> U_U076
-  U_U060 --> U_U090
-  U_U090 --> U_U091
-  U_U075 --> U_U091
-  U_U060 --> U_U091
-  U_U091 --> U_U092
-  U_U092 --> U_U0925
-  U_U0925 --> U_U0926
-  U_U093 --> U_U0926
-  U_U0926 --> U_U0927
-  U_U093 --> U_U0927
-  U_U092 --> U_U093
-  U_U093 --> U_U0935
-  U_U0935 --> U_U099
-  U_U076 --> U_U099
-  U_U099 --> U_U0995
-  U_U092 --> U_U094
-  U_U0995 --> U_U095
-  U_U0995 --> U_U096
-  U_U0995 --> U_U100
-  U_U099 --> U_U100
-  U_U076 --> U_U100
-  U_U095 --> U_U1005
-  U_U096 --> U_U1005
-  U_U100 --> U_U1005
-  U_U1005 --> U_U1006
-  U_U1006 --> U_U102
-  U_U102 --> U_U098
-  U_U100 --> U_U101
-  U_U098 --> U_U101
-  U_U0927 --> U_U101
-  U_U101 --> U_U103
-  U_U103 --> U_U104
-  U_U104 --> U_U1045
-  U_U1045 --> U_U105
-  U_U105 --> U_U108
-  U_U108 --> U_U109
-  U_U109 --> U_U110
-  U_U110 --> U_U120
-  U_U120 --> U_U130
-```
+- Missing units template: ``
 
 ### arxiv-survey
 
@@ -705,11 +839,14 @@ flowchart LR
 
   subgraph "C2 - Structure"
     U_U030["`U030`\n`taxonomy-builder`"]:::unit
+    U_U035["`U035`\n`chapter-skeleton`"]:::unit
+    U_U037["`U037`\n`section-bindings`"]:::unit
+    U_U038["`U038`\n`section-briefs`"]:::unit
     U_U040["`U040`\n`outline-builder`"]:::unit
     U_U050["`U050`\n`section-mapper`"]:::unit
     U_U051["`U051`\n`outline-refiner`"]:::unit
     U_U052["`U052`\n`pipeline-router`"]:::unit
-    U_U055["`U055`\n`pipeline-router`"]:::unit
+    U_U055["`U055`\n`human-checkpoint`"]:::unit
     class U_U055 human
   end
 
@@ -740,7 +877,11 @@ flowchart LR
     U_U100["`U100`\n`subsection-writer`"]:::unit
     U_U1005["`U1005`\n`writer-selfloop`"]:::unit
     U_U1006["`U1006`\n`style-harmonizer`"]:::unit
+    U_U1007["`U1007`\n`opener-variator`"]:::unit
+    U_U1008["`U1008`\n`evaluation-anchor-checker`"]:::unit
     U_U102["`U102`\n`section-logic-polisher`"]:::unit
+    U_U1025["`U1025`\n`argument-selfloop`"]:::unit
+    U_U1026["`U1026`\n`paragraph-curator`"]:::unit
     U_U098["`U098`\n`transition-weaver`"]:::unit
     U_U101["`U101`\n`section-merger`"]:::unit
     U_U103["`U103`\n`post-merge-voice-gate`"]:::unit
@@ -756,7 +897,10 @@ flowchart LR
   U_U002 --> U_U010
   U_U010 --> U_U020
   U_U020 --> U_U030
-  U_U030 --> U_U040
+  U_U030 --> U_U035
+  U_U035 --> U_U037
+  U_U037 --> U_U038
+  U_U038 --> U_U040
   U_U040 --> U_U050
   U_U050 --> U_U051
   U_U051 --> U_U052
@@ -789,9 +933,13 @@ flowchart LR
   U_U095 --> U_U1005
   U_U096 --> U_U1005
   U_U100 --> U_U1005
-  U_U1005 --> U_U1006
-  U_U1006 --> U_U102
-  U_U102 --> U_U098
+  U_U1026 --> U_U1006
+  U_U1006 --> U_U1007
+  U_U1007 --> U_U1008
+  U_U1005 --> U_U102
+  U_U102 --> U_U1025
+  U_U1025 --> U_U1026
+  U_U1008 --> U_U098
   U_U100 --> U_U101
   U_U098 --> U_U101
   U_U0927 --> U_U101
@@ -802,6 +950,68 @@ flowchart LR
   U_U105 --> U_U108
   U_U108 --> U_U109
   U_U109 --> U_U130
+```
+
+### idea-brainstorm
+
+```mermaid
+flowchart LR
+  classDef unit fill:#fff3e0,stroke:#fb8c00,color:#e65100;
+  classDef human fill:#ffebee,stroke:#e53935,color:#b71c1c,stroke-width:2px;
+
+  subgraph "C0 - Init + idea brief"
+    U_U001["`U001`\n`workspace-init`"]:::unit
+    U_U002["`U002`\n`pipeline-router`"]:::unit
+    U_U003["`U003`\n`idea-brief`"]:::unit
+    U_U005["`U005`\n`human-checkpoint`"]:::unit
+    class U_U005 human
+  end
+
+  subgraph "C1 - Retrieval + core set"
+    U_U010["`U010`\n`literature-engineer`"]:::unit
+    U_U020["`U020`\n`dedupe-rank`"]:::unit
+  end
+
+  subgraph "C2 - Idea landscape / focus"
+    U_U030["`U030`\n`taxonomy-builder`"]:::unit
+    U_U042["`U042`\n`pipeline-router`"]:::unit
+    U_U045["`U045`\n`human-checkpoint`"]:::unit
+    class U_U045 human
+  end
+
+  subgraph "C3 - Evidence signals"
+    U_U060["`U060`\n`paper-notes`"]:::unit
+    U_U065["`U065`\n`idea-signal-mapper`"]:::unit
+  end
+
+  subgraph "C4 - Direction pool + screening"
+    U_U070["`U070`\n`idea-direction-generator`"]:::unit
+    U_U072["`U072`\n`idea-screener`"]:::unit
+  end
+
+  subgraph "C5 - Shortlist + memo synthesis + self-loop"
+    U_U075["`U075`\n`idea-shortlist-curator`"]:::unit
+    U_U077["`U077`\n`idea-memo-writer`"]:::unit
+    U_U080["`U080`\n`deliverable-selfloop`"]:::unit
+    U_U090["`U090`\n`artifact-contract-auditor`"]:::unit
+  end
+
+  U_U001 --> U_U002
+  U_U002 --> U_U003
+  U_U003 --> U_U005
+  U_U005 --> U_U010
+  U_U010 --> U_U020
+  U_U020 --> U_U030
+  U_U030 --> U_U042
+  U_U042 --> U_U045
+  U_U045 --> U_U060
+  U_U060 --> U_U065
+  U_U065 --> U_U070
+  U_U070 --> U_U072
+  U_U072 --> U_U075
+  U_U075 --> U_U077
+  U_U077 --> U_U080
+  U_U080 --> U_U090
 ```
 
 ### lit-snapshot
@@ -825,12 +1035,13 @@ flowchart LR
     U_U030["`U030`\n`taxonomy-builder`"]:::unit
     U_U040["`U040`\n`outline-builder`"]:::unit
     U_U042["`U042`\n`pipeline-router`"]:::unit
-    U_U045["`U045`\n`pipeline-router`"]:::unit
+    U_U045["`U045`\n`human-checkpoint`"]:::unit
     class U_U045 human
   end
 
   subgraph "C3 - Snapshot"
     U_U050["`U050`\n`snapshot-writer`"]:::unit
+    U_U055["`U055`\n`deliverable-selfloop`"]:::unit
     U_U060["`U060`\n`artifact-contract-auditor`"]:::unit
   end
 
@@ -842,7 +1053,8 @@ flowchart LR
   U_U040 --> U_U042
   U_U042 --> U_U045
   U_U045 --> U_U050
-  U_U050 --> U_U060
+  U_U050 --> U_U055
+  U_U055 --> U_U060
 ```
 
 ### peer-review
@@ -858,6 +1070,7 @@ flowchart LR
   end
 
   subgraph "C1 - Claims"
+    U_U005["`U005`\n`manuscript-ingest`"]:::unit
     U_U010["`U010`\n`claims-extractor`"]:::unit
   end
 
@@ -868,16 +1081,80 @@ flowchart LR
 
   subgraph "C3 - Rubric write-up"
     U_U030["`U030`\n`rubric-writer`"]:::unit
+    U_U035["`U035`\n`deliverable-selfloop`"]:::unit
     U_U040["`U040`\n`artifact-contract-auditor`"]:::unit
+  end
+
+  U_U001 --> U_U002
+  U_U002 --> U_U005
+  U_U005 --> U_U010
+  U_U010 --> U_U020
+  U_U010 --> U_U025
+  U_U020 --> U_U030
+  U_U025 --> U_U030
+  U_U030 --> U_U035
+  U_U035 --> U_U040
+```
+
+### source-tutorial
+
+```mermaid
+flowchart LR
+  classDef unit fill:#fff3e0,stroke:#fb8c00,color:#e65100;
+  classDef human fill:#ffebee,stroke:#e53935,color:#b71c1c,stroke-width:2px;
+
+  subgraph "C0 - Init"
+    U_U001["`U001`\n`workspace-init`"]:::unit
+    U_U002["`U002`\n`pipeline-router`"]:::unit
+  end
+
+  subgraph "C1 - Source intake"
+    U_U010["`U010`\n`source-manifest`"]:::unit
+    U_U020["`U020`\n`source-ingest`"]:::unit
+  end
+
+  subgraph "C2 - Pedagogical structure"
+    U_U030["`U030`\n`source-tutorial-spec`"]:::unit
+    U_U040["`U040`\n`concept-graph`"]:::unit
+    U_U050["`U050`\n`module-planner`"]:::unit
+    U_U060["`U060`\n`exercise-builder`"]:::unit
+    U_U070["`U070`\n`module-source-coverage`"]:::unit
+    U_U080["`U080`\n`tutorial-context-pack`"]:::unit
+    U_U090["`U090`\n`human-checkpoint`"]:::unit
+    class U_U090 human
+  end
+
+  subgraph "C3 - Tutorial writing"
+    U_U100["`U100`\n`source-tutorial-writer`"]:::unit
+    U_U110["`U110`\n`tutorial-selfloop`"]:::unit
+  end
+
+  subgraph "C4 - Delivery"
+    U_U120["`U120`\n`latex-scaffold`"]:::unit
+    U_U130["`U130`\n`latex-compile-qa`"]:::unit
+    U_U140["`U140`\n`beamer-scaffold`"]:::unit
+    U_U150["`U150`\n`beamer-compile-qa`"]:::unit
+    U_U160["`U160`\n`artifact-contract-auditor`"]:::unit
   end
 
   U_U001 --> U_U002
   U_U002 --> U_U010
   U_U010 --> U_U020
-  U_U010 --> U_U025
   U_U020 --> U_U030
-  U_U025 --> U_U030
   U_U030 --> U_U040
+  U_U040 --> U_U050
+  U_U050 --> U_U060
+  U_U060 --> U_U070
+  U_U070 --> U_U080
+  U_U080 --> U_U090
+  U_U090 --> U_U100
+  U_U100 --> U_U110
+  U_U110 --> U_U120
+  U_U120 --> U_U130
+  U_U110 --> U_U140
+  U_U140 --> U_U150
+  U_U130 --> U_U160
+  U_U150 --> U_U160
 ```
 
 ### systematic-review
@@ -894,7 +1171,7 @@ flowchart LR
 
   subgraph "C1 - Protocol"
     U_U010["`U010`\n`protocol-writer`"]:::unit
-    U_U020["`U020`\n`pipeline-router`"]:::unit
+    U_U020["`U020`\n`human-checkpoint`"]:::unit
     class U_U020 human
   end
 
@@ -914,6 +1191,7 @@ flowchart LR
 
   subgraph "C5 - Synthesis"
     U_U050["`U050`\n`synthesis-writer`"]:::unit
+    U_U055["`U055`\n`deliverable-selfloop`"]:::unit
     U_U060["`U060`\n`artifact-contract-auditor`"]:::unit
   end
 
@@ -926,44 +1204,10 @@ flowchart LR
   U_U030 --> U_U040
   U_U040 --> U_U045
   U_U045 --> U_U050
-  U_U050 --> U_U060
+  U_U050 --> U_U055
+  U_U055 --> U_U060
 ```
 
 ### tutorial
 
-```mermaid
-flowchart LR
-  classDef unit fill:#fff3e0,stroke:#fb8c00,color:#e65100;
-  classDef human fill:#ffebee,stroke:#e53935,color:#b71c1c,stroke-width:2px;
-
-  subgraph "C0 - Init"
-    U_U001["`U001`\n`workspace-init`"]:::unit
-    U_U002["`U002`\n`pipeline-router`"]:::unit
-  end
-
-  subgraph "C1 - Spec"
-    U_U010["`U010`\n`tutorial-spec`"]:::unit
-  end
-
-  subgraph "C2 - Structure"
-    U_U020["`U020`\n`concept-graph`"]:::unit
-    U_U030["`U030`\n`module-planner`"]:::unit
-    U_U035["`U035`\n`exercise-builder`"]:::unit
-    U_U040["`U040`\n`pipeline-router`"]:::unit
-    class U_U040 human
-  end
-
-  subgraph "C3 - Writing"
-    U_U050["`U050`\n`tutorial-module-writer`"]:::unit
-    U_U060["`U060`\n`artifact-contract-auditor`"]:::unit
-  end
-
-  U_U001 --> U_U002
-  U_U002 --> U_U010
-  U_U010 --> U_U020
-  U_U020 --> U_U030
-  U_U030 --> U_U035
-  U_U035 --> U_U040
-  U_U040 --> U_U050
-  U_U050 --> U_U060
-```
+- Missing units template: ``

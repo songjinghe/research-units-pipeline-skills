@@ -8,12 +8,13 @@
 
 ## 这个仓库当前覆盖什么
 
-目前代码库主要围绕 3 条工作流展开：
+目前代码库主要围绕 4 条工作流展开：
 
 | 工作流 | 适用场景 | 默认交付物 | English | 中文 |
 |---|---|---|---|---|
 | `latex-survey` | 证据优先的文献综述写作，可选 LaTeX/PDF 交付 | `output/DRAFT.md`、`latex/main.tex`、`latex/main.pdf` | [Guide](readme/latex-survey.md) | [说明](readme/latex-survey.zh-CN.md) |
 | `idea-brainstorm` | 基于文献的研究方向发现与讨论备忘录 | `output/REPORT.md` | [Guide](readme/idea-brainstorm.md) | [说明](readme/idea-brainstorm.zh-CN.md) |
+| `source-tutorial` | 把网页/PDF/笔记/repo docs 等多源资料重构成 reader-first tutorial，并输出 PDF 与 Beamer slides | `output/TUTORIAL.md`、`latex/main.pdf`、`latex/slides/main.pdf` | [Guide](readme/source-tutorial.md) | [说明](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | 将现有中文毕业论文材料重构为论文工程流程 | pipeline + thesis skills | [Guide](readme/graduate-paper.md) | [说明](readme/graduate-paper.zh-CN.md) |
 
 这三条工作流共享同一套基本架构：
@@ -37,7 +38,9 @@
 
 当目标还不是写论文，而是把一个主题转成“适合和导师/PI 讨论的、由文献支撑的研究方向备忘录”时，用 `idea-brainstorm`。
 
-当你已经有毕业论文模板、现有 TeX、Overleaf 草稿、PDF、图表或已有 paper，需要把这些材料重组成一条中文学位论文工作流时，用 `graduate-paper`。这条路径目前也是三者里自动化程度最低的一条。
+当你已经有网页、PDF、笔记、repo docs 或文档站点，想把这些材料重构成一个更适合阅读和讲解的教程时，用 `source-tutorial`。
+
+当你已经有毕业论文模板、现有 TeX、Overleaf 草稿、PDF、图表或已有 paper，需要把这些材料重组成一条中文学位论文工作流时，用 `graduate-paper`。这条路径目前也是四者里自动化程度最低的一条。
 
 ## 怎么使用这个仓库
 
@@ -57,6 +60,10 @@ Brainstorm literature-grounded research ideas around embodied agents for home ro
 ```
 
 ```text
+使用 source-tutorial pipeline，把关于 robot learning 的网页和 repo docs 重构成一个 tutorial，并输出 PDF 与 slides。
+```
+
+```text
 Use the graduate-paper workflow to reorganize my Chinese thesis materials before rewriting chapters.
 ```
 
@@ -65,6 +72,7 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 - [pipelines/arxiv-survey.pipeline.md](pipelines/arxiv-survey.pipeline.md)
 - [pipelines/arxiv-survey-latex.pipeline.md](pipelines/arxiv-survey-latex.pipeline.md)
 - [pipelines/idea-brainstorm.pipeline.md](pipelines/idea-brainstorm.pipeline.md)
+- [pipelines/source-tutorial.pipeline.md](pipelines/source-tutorial.pipeline.md)
 - [pipelines/graduate-paper-pipeline.md](pipelines/graduate-paper-pipeline.md)
 
 ## 推荐阅读路径
@@ -82,6 +90,7 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 |---|---|---|
 | `latex-survey` | [readme/latex-survey.md](readme/latex-survey.md) | [readme/latex-survey.zh-CN.md](readme/latex-survey.zh-CN.md) |
 | `idea-brainstorm` | [readme/idea-brainstorm.md](readme/idea-brainstorm.md) | [readme/idea-brainstorm.zh-CN.md](readme/idea-brainstorm.zh-CN.md) |
+| `source-tutorial` | [readme/source-tutorial.md](readme/source-tutorial.md) | [readme/source-tutorial.zh-CN.md](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | [readme/graduate-paper.md](readme/graduate-paper.md) | [readme/graduate-paper.zh-CN.md](readme/graduate-paper.zh-CN.md) |
 
 项目参考：
@@ -95,6 +104,7 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 
 - `latex-survey` 是当前最完整的写作 pipeline，也是需要综述或 PDF 交付时的主路径。
 - `idea-brainstorm` 已经结构化并可执行，但它面向的是讨论型 idea memo，不是论文草稿。
+- `source-tutorial` 现在是教程类任务的 canonical 路径：以 source-grounded 的 reader-first tutorial 为主产品，同时把 article PDF 和 Beamer slides 作为正式交付层。
 - `graduate-paper` 现在已经有更清晰的 pipeline 设计和第一批 thesis skills，但目前更适合作为引导式工作流框架，而不是一键全自动毕业论文生成器。
 
 ## Star History

@@ -11,7 +11,7 @@
 | 跑完整研究 pipeline | `research-pipeline-runner` | `workspace-init`、`pipeline-router`、`unit-planner`、`unit-executor` |
 | 写一篇证据优先的 survey / PDF | `pipelines/arxiv-survey*.pipeline.md` | `literature-engineer`、`taxonomy-builder`、`paper-notes`、`evidence-draft`、`subsection-writer`、`latex-compile-qa` |
 | 做研究方向 brainstorm memo | `pipelines/idea-brainstorm.pipeline.md` | `idea-brief`、`idea-signal-mapper`、`idea-direction-generator`、`idea-memo-writer` |
-| 做 tutorial / 教程 | `pipelines/tutorial.pipeline.md` | `tutorial-spec`、`concept-graph`、`module-planner`、`tutorial-module-writer` |
+| 做 tutorial / 教程 | `pipelines/source-tutorial.pipeline.md` | `source-manifest`、`source-ingest`、`source-tutorial-spec`、`source-tutorial-writer` |
 | 做 systematic review | `pipelines/systematic-review.pipeline.md` | `protocol-writer`、`screening-manager`、`extraction-form`、`synthesis-writer` |
 | 做 peer review / 审稿 | `pipelines/peer-review.pipeline.md` | `manuscript-ingest`、`claims-extractor`、`evidence-auditor`、`rubric-writer` |
 | 重构中文毕业论文 | `pipelines/graduate-paper-pipeline.md` | `thesis-workspace-init`、`thesis-question-list`、`thesis-chapter-reconstructor`、`thesis-tex-writeback` |
@@ -118,15 +118,22 @@
 | `idea-shortlist-curator` | 收敛成 3-5 个 shortlist directions | 已有 screening table，要形成可讨论 shortlist 时 | `output/trace/IDEA_SHORTLIST.md` |
 | `idea-memo-writer` | 把 shortlist 写成最终 memo | 已确定 shortlist，准备形成最终 discussion memo 时 | `output/REPORT.md`、`output/APPENDIX.md`、`output/REPORT.json` |
 
-## 8. Tutorial / 教程
+## 8. Source Tutorial / 教程重构
 
 | Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
 |---|---|---|---|
-| `tutorial-spec` | 定义教程目标、受众、先修、running example | tutorial 起步阶段，先锁 scope 时 | `output/TUTORIAL_SPEC.md` |
+| `source-manifest` | 把用户提供的 URL / 文件整理成 source manifest | source-tutorial 的 intake 起点 | `sources/manifest.yml` |
+| `source-ingest` | 抽取并归一化网页/PDF/repo/docs | source 已确认，准备进入教学重构前 | `sources/index.jsonl`、`sources/provenance.jsonl` |
+| `source-tutorial-spec` | 从已 ingest 的 sources 锁定 tutorial scope | 不再从裸 topic 写 spec，而是从 sources 推导时 | `output/TUTORIAL_SPEC.md` |
 | `concept-graph` | 生成概念依赖图 | 想把知识点排序成 prerequisite graph 时 | `outline/concept_graph.yml` |
 | `module-planner` | 把概念图变成模块序列 | 已有 concept graph，要形成教学模块时 | `outline/module_plan.yml` |
 | `exercise-builder` | 为每个模块补可验证练习 | 模块有了，但还没有“做什么、怎么验收”时 | 更新 `outline/module_plan.yml` |
-| `tutorial-module-writer` | 写完整教程内容 | spec 和 module plan 已批准，准备写教程正文时 | `output/TUTORIAL.md` |
+| `module-source-coverage` | 审计每个模块是否有来源支撑 | prose 前想确认教学结构没有脱离 sources 时 | `outline/source_coverage.jsonl` |
+| `tutorial-context-pack` | 生成每模块的写作上下文包 | 准备把 source-grounded module 变成 tutorial 正文时 | `outline/tutorial_context_packs.jsonl` |
+| `source-tutorial-writer` | 写完整教程内容 | spec 和 module plan 已批准，准备写 source-grounded tutorial 时 | `output/TUTORIAL.md` |
+| `tutorial-selfloop` | 对 tutorial 本体跑 PASS/FAIL gate | tutorial 写完后想确认它像教程而不是长文时 | `output/TUTORIAL_SELFLOOP_TODO.md` |
+| `beamer-scaffold` | 从 tutorial 生成 Beamer slides TeX | 准备生成可讲授/可自学的 deck 时 | `latex/slides/main.tex` |
+| `beamer-compile-qa` | 编译 slides PDF 并产出 build report | 需要正式交付 slides PDF 时 | `latex/slides/main.pdf`、`output/SLIDES_BUILD_REPORT.md` |
 
 ## 9. Systematic Review / 系统综述
 
@@ -183,7 +190,7 @@
 
 ### Tutorial
 
-`tutorial-spec -> concept-graph -> module-planner -> exercise-builder -> tutorial-module-writer`
+`source-manifest -> source-ingest -> source-tutorial-spec -> concept-graph -> module-planner -> exercise-builder -> module-source-coverage -> tutorial-context-pack -> source-tutorial-writer -> tutorial-selfloop -> beamer-scaffold -> beamer-compile-qa`
 
 ### Systematic Review
 

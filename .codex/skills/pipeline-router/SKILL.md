@@ -41,7 +41,7 @@ Optional template:
 User goal → choose:
 - “survey / 综述 / 调研” → `pipelines/arxiv-survey.pipeline.md`
 - “survey + PDF / LaTeX / 可编译” → `pipelines/arxiv-survey-latex.pipeline.md`
-- “tutorial / 教程” → `pipelines/tutorial.pipeline.md`
+- “tutorial / 教程 / source-tutorial” → `pipelines/source-tutorial.pipeline.md`
 - “systematic review / PRISMA / 系统综述” → `pipelines/systematic-review.pipeline.md`
 - “peer review / 审稿” → `pipelines/peer-review.pipeline.md`
 - “idea / ideation / brainstorm / 找 idea / 选题 / 点子” → `pipelines/idea-brainstorm.pipeline.md`

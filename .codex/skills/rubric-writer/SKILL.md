@@ -92,6 +92,51 @@ Optional:
 4. Final recommendation
    - Choose a decision label and justify it primarily via soundness + evidence quality.
 
+5. Traceability pass
+   - Whenever possible, anchor each major concern to claim IDs and evidence-gap IDs.
+   - If `output/NOVELTY_MATRIX.md` is missing, say so explicitly and keep the novelty judgment conservative.
+
+## Output template
+
+Use stable section headings in `output/REVIEW.md`:
+
+### Summary
+- one bounded paragraph on goal + claimed contributions
+
+### Novelty
+- novelty judgment
+- strongest overlap/delta evidence
+- explicit note when `output/NOVELTY_MATRIX.md` is absent
+
+### Soundness
+- top evidence gaps
+- protocol / baseline / ablation concerns
+
+### Clarity
+- issues that block understanding or reproduction
+
+### Impact
+- likely relevance if the major issues are fixed
+
+### Major Concerns
+- each item should follow: `Problem` -> `Why it matters` -> `Minimal fix`
+- whenever possible, include claim IDs / evidence-gap IDs in the first line
+
+### Minor Comments
+- concise presentation / wording / missing-detail comments
+
+### Recommendation
+- one decision label + short justification
+
+### Recommendation labels
+
+Use one of:
+- `accept`
+- `weak_accept`
+- `borderline`
+- `weak_reject`
+- `reject`
+
 ## Mini examples (actionable feedback)
 
 Major concern template (good):
@@ -107,6 +152,8 @@ Generic (bad):
 - [ ] `output/REVIEW.md` covers novelty/soundness/clarity/impact.
 - [ ] Major concerns are actionable (each has a minimal fix).
 - [ ] Critiques are traceable to `output/CLAIMS.md` / `output/MISSING_EVIDENCE.md` (not free-floating).
+- [ ] `output/REVIEW.md` uses the stable section headings above.
+- [ ] If `output/NOVELTY_MATRIX.md` is absent, the review states that limitation explicitly.
 
 ## Troubleshooting
 

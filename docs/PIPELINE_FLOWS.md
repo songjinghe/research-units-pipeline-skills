@@ -200,7 +200,7 @@ flowchart LR
   C2A -.-> PW
 ```
 
-## tutorial (C0–C3)
+## source-tutorial (C0–C4)
 
 ```mermaid
 flowchart LR
@@ -212,22 +212,35 @@ flowchart LR
     PR0[pipeline-router]
   end
 
-  subgraph "C1 - Spec"
-    TS[tutorial-spec]
+  subgraph "C1 - Source intake"
+    SM[source-manifest]
+    SI[source-ingest]
   end
 
   subgraph "C2 - Structure [NO PROSE]"
+    STS[source-tutorial-spec]
     CG[concept-graph]
     MP[module-planner]
     EB[exercise-builder]
+    MSC[module-source-coverage]
+    TCP[tutorial-context-pack]
     C2A{{Approve C2 (HUMAN)}}:::human
   end
 
   subgraph "C3 - Writing [PROSE]"
-    TMW[tutorial-module-writer]
+    STW[source-tutorial-writer]
+    TSL[tutorial-selfloop]
   end
 
-  WS --> PR0 --> TS --> CG --> MP --> EB --> C2A --> TMW
+  subgraph "C4 - Delivery"
+    LS[latex-scaffold]
+    LCQ[latex-compile-qa]
+    BS[beamer-scaffold]
+    BCQ[beamer-compile-qa]
+    ACA[artifact-contract-auditor]
+  end
+
+  WS --> PR0 --> SM --> SI --> STS --> CG --> MP --> EB --> MSC --> TCP --> C2A --> STW --> TSL --> LS --> LCQ --> BS --> BCQ --> ACA
 ```
 
 ## systematic-review (C0–C5)

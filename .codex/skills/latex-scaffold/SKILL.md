@@ -1,7 +1,7 @@
 ---
 name: latex-scaffold
 description: |
-  Scaffold a LaTeX project (`latex/main.tex`, bibliography wiring, structure) from an existing Markdown draft and `citations/ref.bib`.
+  Scaffold a LaTeX project (`latex/main.tex`, optional bibliography wiring, structure) from an existing Markdown draft.
   **Trigger**: latex scaffold, md→tex, LaTeX 项目骨架, 生成 main.tex.
   **Use when**: 需要 LaTeX/PDF 交付（例如 arxiv-survey-latex pipeline），且 draft 已生成/已进入写作阶段。
   **Skip if**: 还没有 `output/DRAFT.md`（或你不需要 LaTeX 交付）。
@@ -17,8 +17,8 @@ This is a deterministic conversion step; prose quality should already be address
 
 ## Inputs
 
-- `output/DRAFT.md` (or another approved draft)
-- `citations/ref.bib`
+- `output/DRAFT.md` or `output/TUTORIAL.md`
+- optional: `citations/ref.bib`
 
 ## Outputs
 
@@ -28,11 +28,12 @@ This is a deterministic conversion step; prose quality should already be address
 
 1. Create `latex/` directory if missing.
 2. Create `latex/main.tex` with sections matching the outline.
-3. Wire bibliography to `citations/ref.bib`.
+3. Wire bibliography to `citations/ref.bib` when that file exists.
 
 ## Quality checklist
 
-- [ ] `latex/main.tex` exists and references `citations/ref.bib`.
+- [ ] `latex/main.tex` exists.
+- [ ] If `citations/ref.bib` exists, `latex/main.tex` references it.
 
 ## Script
 
@@ -47,7 +48,7 @@ This is a deterministic conversion step; prose quality should already be address
 
 ### Examples
 
-- Build `latex/main.tex` from `output/DRAFT.md`:
+- Build `latex/main.tex` from `output/DRAFT.md` or `output/TUTORIAL.md`:
   - `python .codex/skills/latex-scaffold/scripts/run.py --workspace <ws>`
 
 ### Notes

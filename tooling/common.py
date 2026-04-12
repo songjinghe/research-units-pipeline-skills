@@ -748,6 +748,7 @@ _LEGACY_PIPELINE_ALIASES = {
     "idea-finder": "idea-brainstorm",
     "idea-finder.pipeline.md": "idea-brainstorm",
     "pipelines/idea-finder.pipeline.md": "idea-brainstorm",
+    "tutorial": "source-tutorial",
 }
 
 

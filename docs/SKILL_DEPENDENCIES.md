@@ -1084,6 +1084,57 @@ flowchart LR
   U_U109 --> U_U130
 ```
 
+### evidence-review
+
+```mermaid
+flowchart LR
+  classDef unit fill:#fff3e0,stroke:#fb8c00,color:#e65100;
+  classDef human fill:#ffebee,stroke:#e53935,color:#b71c1c,stroke-width:2px;
+
+  subgraph "C0 - Init"
+    U_U001["`U001`\n`workspace-init`"]:::unit
+    U_U002["`U002`\n`pipeline-router`"]:::unit
+  end
+
+  subgraph "C1 - Protocol"
+    U_U010["`U010`\n`protocol-writer`"]:::unit
+    U_U020["`U020`\n`human-checkpoint`"]:::unit
+    class U_U020 human
+  end
+
+  subgraph "C2 - Retrieval & candidate pool"
+    U_U025["`U025`\n`literature-engineer`"]:::unit
+    U_U026["`U026`\n`dedupe-rank`"]:::unit
+  end
+
+  subgraph "C3 - Screening"
+    U_U030["`U030`\n`screening-manager`"]:::unit
+  end
+
+  subgraph "C4 - Extraction"
+    U_U040["`U040`\n`extraction-form`"]:::unit
+    U_U045["`U045`\n`bias-assessor`"]:::unit
+  end
+
+  subgraph "C5 - Synthesis"
+    U_U050["`U050`\n`synthesis-writer`"]:::unit
+    U_U055["`U055`\n`deliverable-selfloop`"]:::unit
+    U_U060["`U060`\n`artifact-contract-auditor`"]:::unit
+  end
+
+  U_U001 --> U_U002
+  U_U002 --> U_U010
+  U_U010 --> U_U020
+  U_U020 --> U_U025
+  U_U025 --> U_U026
+  U_U026 --> U_U030
+  U_U030 --> U_U040
+  U_U040 --> U_U045
+  U_U045 --> U_U050
+  U_U050 --> U_U055
+  U_U055 --> U_U060
+```
+
 ### idea-brainstorm
 
 ```mermaid
@@ -1146,7 +1197,46 @@ flowchart LR
   U_U080 --> U_U090
 ```
 
-### lit-snapshot
+### paper-review
+
+```mermaid
+flowchart LR
+  classDef unit fill:#fff3e0,stroke:#fb8c00,color:#e65100;
+  classDef human fill:#ffebee,stroke:#e53935,color:#b71c1c,stroke-width:2px;
+
+  subgraph "C0 - Init"
+    U_U001["`U001`\n`workspace-init`"]:::unit
+    U_U002["`U002`\n`pipeline-router`"]:::unit
+  end
+
+  subgraph "C1 - Manuscript ingest + claims"
+    U_U005["`U005`\n`manuscript-ingest`"]:::unit
+    U_U010["`U010`\n`claims-extractor`"]:::unit
+  end
+
+  subgraph "C2 - Evidence audit"
+    U_U020["`U020`\n`evidence-auditor`"]:::unit
+    U_U025["`U025`\n`novelty-matrix`"]:::unit
+  end
+
+  subgraph "C3 - Review write-up"
+    U_U030["`U030`\n`rubric-writer`"]:::unit
+    U_U035["`U035`\n`deliverable-selfloop`"]:::unit
+    U_U040["`U040`\n`artifact-contract-auditor`"]:::unit
+  end
+
+  U_U001 --> U_U002
+  U_U002 --> U_U005
+  U_U005 --> U_U010
+  U_U010 --> U_U020
+  U_U010 --> U_U025
+  U_U020 --> U_U030
+  U_U025 --> U_U030
+  U_U030 --> U_U035
+  U_U035 --> U_U040
+```
+
+### research-brief
 
 ```mermaid
 flowchart LR
@@ -1171,7 +1261,7 @@ flowchart LR
     class U_U045 human
   end
 
-  subgraph "C3 - Snapshot"
+  subgraph "C3 - Brief delivery"
     U_U050["`U050`\n`snapshot-writer`"]:::unit
     U_U055["`U055`\n`deliverable-selfloop`"]:::unit
     U_U060["`U060`\n`artifact-contract-auditor`"]:::unit
@@ -1187,45 +1277,6 @@ flowchart LR
   U_U045 --> U_U050
   U_U050 --> U_U055
   U_U055 --> U_U060
-```
-
-### peer-review
-
-```mermaid
-flowchart LR
-  classDef unit fill:#fff3e0,stroke:#fb8c00,color:#e65100;
-  classDef human fill:#ffebee,stroke:#e53935,color:#b71c1c,stroke-width:2px;
-
-  subgraph "C0 - Init"
-    U_U001["`U001`\n`workspace-init`"]:::unit
-    U_U002["`U002`\n`pipeline-router`"]:::unit
-  end
-
-  subgraph "C1 - Claims"
-    U_U005["`U005`\n`manuscript-ingest`"]:::unit
-    U_U010["`U010`\n`claims-extractor`"]:::unit
-  end
-
-  subgraph "C2 - Evidence audit"
-    U_U020["`U020`\n`evidence-auditor`"]:::unit
-    U_U025["`U025`\n`novelty-matrix`"]:::unit
-  end
-
-  subgraph "C3 - Rubric write-up"
-    U_U030["`U030`\n`rubric-writer`"]:::unit
-    U_U035["`U035`\n`deliverable-selfloop`"]:::unit
-    U_U040["`U040`\n`artifact-contract-auditor`"]:::unit
-  end
-
-  U_U001 --> U_U002
-  U_U002 --> U_U005
-  U_U005 --> U_U010
-  U_U010 --> U_U020
-  U_U010 --> U_U025
-  U_U020 --> U_U030
-  U_U025 --> U_U030
-  U_U030 --> U_U035
-  U_U035 --> U_U040
 ```
 
 ### source-tutorial
@@ -1287,55 +1338,4 @@ flowchart LR
   U_U140 --> U_U150
   U_U130 --> U_U160
   U_U150 --> U_U160
-```
-
-### systematic-review
-
-```mermaid
-flowchart LR
-  classDef unit fill:#fff3e0,stroke:#fb8c00,color:#e65100;
-  classDef human fill:#ffebee,stroke:#e53935,color:#b71c1c,stroke-width:2px;
-
-  subgraph "C0 - Init"
-    U_U001["`U001`\n`workspace-init`"]:::unit
-    U_U002["`U002`\n`pipeline-router`"]:::unit
-  end
-
-  subgraph "C1 - Protocol"
-    U_U010["`U010`\n`protocol-writer`"]:::unit
-    U_U020["`U020`\n`human-checkpoint`"]:::unit
-    class U_U020 human
-  end
-
-  subgraph "C2 - Retrieval & candidate pool"
-    U_U025["`U025`\n`literature-engineer`"]:::unit
-    U_U026["`U026`\n`dedupe-rank`"]:::unit
-  end
-
-  subgraph "C3 - Screening"
-    U_U030["`U030`\n`screening-manager`"]:::unit
-  end
-
-  subgraph "C4 - Extraction"
-    U_U040["`U040`\n`extraction-form`"]:::unit
-    U_U045["`U045`\n`bias-assessor`"]:::unit
-  end
-
-  subgraph "C5 - Synthesis"
-    U_U050["`U050`\n`synthesis-writer`"]:::unit
-    U_U055["`U055`\n`deliverable-selfloop`"]:::unit
-    U_U060["`U060`\n`artifact-contract-auditor`"]:::unit
-  end
-
-  U_U001 --> U_U002
-  U_U002 --> U_U010
-  U_U010 --> U_U020
-  U_U020 --> U_U025
-  U_U025 --> U_U026
-  U_U026 --> U_U030
-  U_U030 --> U_U040
-  U_U040 --> U_U045
-  U_U045 --> U_U050
-  U_U050 --> U_U055
-  U_U055 --> U_U060
 ```

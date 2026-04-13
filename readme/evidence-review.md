@@ -1,0 +1,74 @@
+# Evidence Review Guide
+
+> Languages: **English** | [简体中文](evidence-review.zh-CN.md)
+>
+> Navigation: [Project README](../README.md) | [项目主页](../README.zh-CN.md)
+
+## 1. What This Workflow Is For
+
+`evidence-review` is for protocol-driven evidence synthesis across a candidate study pool.
+
+It is the high-rigor path for questions like:
+
+- what does the available evidence support?
+- what survives screening and extraction?
+- where are the bias and heterogeneity limits?
+
+The main output is:
+
+- `output/SYNTHESIS.md`
+
+## 2. Why This Is Not Just A Bigger Brief
+
+This workflow is deliberately heavier than `research-brief`.
+
+Its contract includes:
+
+- protocol
+- candidate-pool auditability
+- screening log
+- extraction table
+- bias assessment
+- bounded synthesis
+
+That is why it remains a separate execution contract instead of being folded into a light briefing path.
+
+## 3. When To Use It
+
+Use `evidence-review` when:
+
+- you need an auditable review question
+- you expect explicit inclusion/exclusion rules
+- you need screening and extraction before prose
+- you want conclusions bounded by bias and heterogeneity
+
+Do not use it when:
+
+- you only need a quick orientation memo
+- you are evaluating one paper rather than a pool
+
+## 4. Stage Flow
+
+| Stage | Purpose | Main outputs |
+|---|---|---|
+| `C0` | initialize workspace and review question | `STATUS.md`, `UNITS.csv`, `DECISIONS.md`, `queries.md` |
+| `C1` | write and approve the protocol | `output/PROTOCOL.md` |
+| `C2` | build the auditable candidate pool | `papers/papers_raw.jsonl`, `papers/papers_dedup.jsonl`, `papers/core_set.csv` |
+| `C3` | screen studies against protocol clauses | `papers/screening_log.csv` |
+| `C4` | extract study fields and bias data | `papers/extraction_table.csv` |
+| `C5` | write and self-check the synthesis | `output/SYNTHESIS.md`, `output/DELIVERABLE_SELFLOOP_TODO.md` |
+
+## 5. Quality Bar
+
+The synthesis should:
+
+- stay traceable to the extraction table
+- separate supported conclusions from weak evidence
+- report limitations and bias explicitly
+- avoid acting like a generic long-form summary
+
+## 6. Recommended Prompt
+
+```text
+Use the evidence-review workflow to run a PRISMA-style review on LLM agents for education, with protocol, screening, extraction, and a bounded synthesis.
+```

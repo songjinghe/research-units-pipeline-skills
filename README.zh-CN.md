@@ -8,16 +8,19 @@
 
 ## 这个仓库当前覆盖什么
 
-目前代码库主要围绕 4 条工作流展开：
+目前代码库主要围绕 7 条工作流展开：
 
 | 工作流 | 适用场景 | 默认交付物 | English | 中文 |
 |---|---|---|---|---|
 | `latex-survey` | 证据优先的文献综述写作，可选 LaTeX/PDF 交付 | `output/DRAFT.md`、`latex/main.tex`、`latex/main.pdf` | [Guide](readme/latex-survey.md) | [说明](readme/latex-survey.zh-CN.md) |
+| `research-brief` | 快速理解一个主题，并产出可读的 research briefing / reading path | `output/SNAPSHOT.md` | [Guide](readme/research-brief.md) | [说明](readme/research-brief.zh-CN.md) |
+| `paper-review` | 对单篇 paper / manuscript 做可追溯的评估、组会 review 或 referee-style critique | `output/REVIEW.md` | [Guide](readme/paper-review.md) | [说明](readme/paper-review.zh-CN.md) |
+| `evidence-review` | 带 protocol、screening、extraction 的证据综述 / evidence synthesis | `output/SYNTHESIS.md` | [Guide](readme/evidence-review.md) | [说明](readme/evidence-review.zh-CN.md) |
 | `idea-brainstorm` | 基于文献的研究方向发现与讨论备忘录 | `output/REPORT.md` | [Guide](readme/idea-brainstorm.md) | [说明](readme/idea-brainstorm.zh-CN.md) |
 | `source-tutorial` | 把网页/PDF/笔记/repo docs 等多源资料重构成 reader-first tutorial，并输出 PDF 与 Beamer slides | `output/TUTORIAL.md`、`latex/main.pdf`、`latex/slides/main.pdf` | [Guide](readme/source-tutorial.md) | [说明](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | 将现有中文毕业论文材料重构为论文工程流程 | pipeline + thesis skills | [Guide](readme/graduate-paper.md) | [说明](readme/graduate-paper.zh-CN.md) |
 
-这四条工作流共享同一套基本架构：
+这七条工作流共享同一套基本架构：
 
 - `pipelines/` 定义阶段合同、目标工件和所需 skills。
 - `.codex/skills/` 存放可复用 skills。（100 个 skills）
@@ -35,6 +38,12 @@
 ## 什么时候该用哪条工作流
 
 当目标是写一篇严肃综述，并且需要显式检索、结构审阅、evidence packs、写作自循环以及可选 PDF 输出时，用 `latex-survey`。
+
+当目标是快速搞懂一个方向、整理关键主题，并给出后续阅读路径时，用 `research-brief`。
+
+当输入是一篇单独的 paper / manuscript，目标是判断 claim、evidence、novelty 和风险时，用 `paper-review`。
+
+当目标是在显式 protocol、screening 和 extraction 之上产出可审计的证据综述时，用 `evidence-review`。
 
 当目标还不是写论文，而是把一个主题转成“适合和导师/PI 讨论的、由文献支撑的研究方向备忘录”时，用 `idea-brainstorm`。
 
@@ -56,6 +65,18 @@ Write a LaTeX survey about embodied AI and show me the outline first.
 ```
 
 ```text
+Use the research-brief workflow to give me a one-page briefing on test-time adaptation for robotics.
+```
+
+```text
+Use the paper-review workflow to critique this manuscript and give me a lab-style review.
+```
+
+```text
+Use the evidence-review workflow to run a PRISMA-style review on LLM agents for education.
+```
+
+```text
 Brainstorm literature-grounded research ideas around embodied agents for home robotics.
 ```
 
@@ -71,6 +92,9 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 
 - [pipelines/arxiv-survey.pipeline.md](pipelines/arxiv-survey.pipeline.md)
 - [pipelines/arxiv-survey-latex.pipeline.md](pipelines/arxiv-survey-latex.pipeline.md)
+- [pipelines/research-brief.pipeline.md](pipelines/research-brief.pipeline.md)
+- [pipelines/paper-review.pipeline.md](pipelines/paper-review.pipeline.md)
+- [pipelines/evidence-review.pipeline.md](pipelines/evidence-review.pipeline.md)
 - [pipelines/idea-brainstorm.pipeline.md](pipelines/idea-brainstorm.pipeline.md)
 - [pipelines/source-tutorial.pipeline.md](pipelines/source-tutorial.pipeline.md)
 - [pipelines/graduate-paper-pipeline.md](pipelines/graduate-paper-pipeline.md)
@@ -89,6 +113,9 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 | 工作流 | English | 中文 |
 |---|---|---|
 | `latex-survey` | [readme/latex-survey.md](readme/latex-survey.md) | [readme/latex-survey.zh-CN.md](readme/latex-survey.zh-CN.md) |
+| `research-brief` | [readme/research-brief.md](readme/research-brief.md) | [readme/research-brief.zh-CN.md](readme/research-brief.zh-CN.md) |
+| `paper-review` | [readme/paper-review.md](readme/paper-review.md) | [readme/paper-review.zh-CN.md](readme/paper-review.zh-CN.md) |
+| `evidence-review` | [readme/evidence-review.md](readme/evidence-review.md) | [readme/evidence-review.zh-CN.md](readme/evidence-review.zh-CN.md) |
 | `idea-brainstorm` | [readme/idea-brainstorm.md](readme/idea-brainstorm.md) | [readme/idea-brainstorm.zh-CN.md](readme/idea-brainstorm.zh-CN.md) |
 | `source-tutorial` | [readme/source-tutorial.md](readme/source-tutorial.md) | [readme/source-tutorial.zh-CN.md](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | [readme/graduate-paper.md](readme/graduate-paper.md) | [readme/graduate-paper.zh-CN.md](readme/graduate-paper.zh-CN.md) |
@@ -103,6 +130,7 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 ## 当前状态
 
 - `latex-survey` 是当前最完整的写作 pipeline，也是需要综述或 PDF 交付时的主路径。
+- `research-brief`、`paper-review` 和 `evidence-review` 现在构成 review-oriented 产品族：分别对应快速理解、单篇评估和 protocol 驱动的证据综述。
 - `idea-brainstorm` 已经结构化并可执行，但它面向的是讨论型 idea memo，不是论文草稿。
 - `source-tutorial` 现在是教程类任务的 canonical 路径：以 source-grounded 的 reader-first tutorial 为主产品，同时把 article PDF 和 Beamer slides 作为正式交付层。
 - `graduate-paper` 现在已经有更清晰的 pipeline 设计和第一批 thesis skills，但目前更适合作为引导式工作流框架，而不是一键全自动毕业论文生成器。

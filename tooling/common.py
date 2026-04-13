@@ -749,6 +749,15 @@ _LEGACY_PIPELINE_ALIASES = {
     "idea-finder.pipeline.md": "idea-brainstorm",
     "pipelines/idea-finder.pipeline.md": "idea-brainstorm",
     "tutorial": "source-tutorial",
+    "lit-snapshot": "research-brief",
+    "lit-snapshot.pipeline.md": "research-brief",
+    "pipelines/lit-snapshot.pipeline.md": "research-brief",
+    "peer-review": "paper-review",
+    "peer-review.pipeline.md": "paper-review",
+    "pipelines/peer-review.pipeline.md": "paper-review",
+    "systematic-review": "evidence-review",
+    "systematic-review.pipeline.md": "evidence-review",
+    "pipelines/systematic-review.pipeline.md": "evidence-review",
 }
 
 

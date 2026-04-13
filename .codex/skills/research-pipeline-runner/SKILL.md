@@ -1,8 +1,8 @@
 ---
 name: research-pipeline-runner
 description: |
-  Run this repo’s Units+Checkpoints research pipelines end-to-end (survey/综述/review/调研/教程/系统综述/审稿), with workspaces + checkpoints.
-  **Trigger**: run pipeline, kickoff, 继续执行, 自动跑, 写一篇, survey/综述/review/调研/教程/系统综述/审稿.
+  Run this repo’s Units+Checkpoints research pipelines end-to-end (survey/brief/paper-review/evidence-review/idea/tutorial/graduate-paper), with workspaces + checkpoints.
+  **Trigger**: run pipeline, kickoff, 继续执行, 自动跑, 写一篇, survey/brief/review/调研/教程/系统综述/审稿.
   **Use when**: 用户希望端到端跑流程（创建 `workspaces/<name>/`、生成/执行 `UNITS.csv`、遇到 HUMAN checkpoint 停下等待）。
   **Skip if**: 用户明确要手工逐条执行（用 `unit-executor`），或你不应自动推进到 prose 阶段。
   **Network**: depends on selected pipeline (arXiv/PDF/citation verification may need network; offline import supported where available).
@@ -43,11 +43,11 @@ This skill is **coordination**:
 User goal → choose:
 - Survey/综述/调研 + Markdown draft → `pipelines/arxiv-survey.pipeline.md`
 - Survey/综述/调研 + PDF output → `pipelines/arxiv-survey-latex.pipeline.md`
+- Research brief / rapid review / 速览 → `pipelines/research-brief.pipeline.md`
+- Paper review / paper critique / 审稿 → `pipelines/paper-review.pipeline.md`
+- Evidence review / systematic review / 系统综述 → `pipelines/evidence-review.pipeline.md`
 - Idea finding / 选题 / 点子 / 找方向 → `pipelines/idea-brainstorm.pipeline.md`
-- Snapshot/速览 → `pipelines/lit-snapshot.pipeline.md`
 - Tutorial/教程 → `pipelines/source-tutorial.pipeline.md`
-- Systematic review/系统综述 → `pipelines/systematic-review.pipeline.md`
-- Peer review/审稿 → `pipelines/peer-review.pipeline.md`
 
 ## Recommended run loop (skills-first)
 

@@ -10,10 +10,11 @@
 |---|---|---|
 | 跑完整研究 pipeline | `research-pipeline-runner` | `workspace-init`、`pipeline-router`、`unit-planner`、`unit-executor` |
 | 写一篇证据优先的 survey / PDF | `pipelines/arxiv-survey*.pipeline.md` | `literature-engineer`、`taxonomy-builder`、`paper-notes`、`evidence-draft`、`subsection-writer`、`latex-compile-qa` |
+| 做 research brief / 快速速览 | `pipelines/research-brief.pipeline.md` | `arxiv-search`、`taxonomy-builder`、`outline-builder`、`snapshot-writer` |
+| 做 paper review / 单篇评估 | `pipelines/paper-review.pipeline.md` | `manuscript-ingest`、`claims-extractor`、`evidence-auditor`、`rubric-writer` |
+| 做 evidence review / 证据综述 | `pipelines/evidence-review.pipeline.md` | `protocol-writer`、`screening-manager`、`extraction-form`、`synthesis-writer` |
 | 做研究方向 brainstorm memo | `pipelines/idea-brainstorm.pipeline.md` | `idea-brief`、`idea-signal-mapper`、`idea-direction-generator`、`idea-memo-writer` |
 | 做 tutorial / 教程 | `pipelines/source-tutorial.pipeline.md` | `source-manifest`、`source-ingest`、`source-tutorial-spec`、`source-tutorial-writer` |
-| 做 systematic review | `pipelines/systematic-review.pipeline.md` | `protocol-writer`、`screening-manager`、`extraction-form`、`synthesis-writer` |
-| 做 peer review / 审稿 | `pipelines/peer-review.pipeline.md` | `manuscript-ingest`、`claims-extractor`、`evidence-auditor`、`rubric-writer` |
 | 重构中文毕业论文 | `pipelines/graduate-paper-pipeline.md` | `thesis-workspace-init`、`thesis-question-list`、`thesis-chapter-reconstructor`、`thesis-tex-writeback` |
 
 ## 2. 运行与仓库基础能力
@@ -96,7 +97,7 @@
 | `draft-polisher` | 对合并稿做去套话与连贯性润色 | 想修整稿的 generator voice，但不改 citations 时 | 更新 `output/DRAFT.md` |
 | `global-reviewer` | 做全局一致性回看 | 想看术语、章节呼应、scope consistency 时 | `output/GLOBAL_REVIEW.md` |
 | `pipeline-auditor` | 对 survey 流程做 PASS/FAIL 审计 | 交付前、回归时、想查模板味/引用健康时 | `output/AUDIT_REPORT.md` |
-| `deliverable-selfloop` | 对最终交付物做诊断→修复→复检循环 | snapshot/tutorial/systematic/peer-review 等成品要收敛到 PASS 时 | `output/DELIVERABLE_SELFLOOP_TODO.md` |
+| `deliverable-selfloop` | 对最终交付物做诊断→修复→复检循环 | research-brief/tutorial/evidence-review/paper-review 等成品要收敛到 PASS 时 | `output/DELIVERABLE_SELFLOOP_TODO.md` |
 | `terminology-normalizer` | 统一术语与同义词策略 | 同一概念在不同章节叫法不一致时 | 更新 draft / sections |
 | `redundancy-pruner` | 去掉跨章节重复 boilerplate | 多个 section 重复同一段结构或免责声明时 | 更新 draft / sections |
 | `style-harmonizer` | 去槽位句式、统一 paper voice | 草稿整体有“生成器节奏”时 | 更新 `sections/*.md` |
@@ -135,17 +136,17 @@
 | `beamer-scaffold` | 从 tutorial 生成 Beamer slides TeX | 准备生成可讲授/可自学的 deck 时 | `latex/slides/main.tex` |
 | `beamer-compile-qa` | 编译 slides PDF 并产出 build report | 需要正式交付 slides PDF 时 | `latex/slides/main.pdf`、`output/SLIDES_BUILD_REPORT.md` |
 
-## 9. Systematic Review / 系统综述
+## 9. Evidence Review / 证据综述
 
 | Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
 |---|---|---|---|
-| `protocol-writer` | 写 systematic review protocol | 系统综述真正开始前，先锁检索/纳排/提取规则时 | `output/PROTOCOL.md` |
+| `protocol-writer` | 写 evidence review / systematic review protocol | 证据综述真正开始前，先锁检索/纳排/提取规则时 | `output/PROTOCOL.md` |
 | `screening-manager` | 记录纳排筛选决策 | protocol 已批准，进入 screening 时 | `papers/screening_log.csv` |
 | `extraction-form` | 按 schema 提取研究信息 | 完成 screening，进入 data extraction 时 | `papers/extraction_table.csv` |
-| `bias-assessor` | 给 extraction table 补偏倚/质量评估 | systematic review 需要 bias / quality 字段时 | 更新 `papers/extraction_table.csv` |
-| `synthesis-writer` | 基于 extraction table 写综合文本 | 数据提取完成，要形成 systematic synthesis 时 | `output/SYNTHESIS.md` |
+| `bias-assessor` | 给 extraction table 补偏倚/质量评估 | evidence review 需要 bias / quality 字段时 | 更新 `papers/extraction_table.csv` |
+| `synthesis-writer` | 基于 extraction table 写综合文本 | 数据提取完成，要形成 evidence synthesis 时 | `output/SYNTHESIS.md` |
 
-## 10. Peer Review / 审稿
+## 10. Paper Review / 单篇评估
 
 | Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
 |---|---|---|---|
@@ -192,11 +193,11 @@
 
 `source-manifest -> source-ingest -> source-tutorial-spec -> concept-graph -> module-planner -> exercise-builder -> module-source-coverage -> tutorial-context-pack -> source-tutorial-writer -> tutorial-selfloop -> beamer-scaffold -> beamer-compile-qa`
 
-### Systematic Review
+### Evidence Review
 
 `protocol-writer -> literature-engineer -> dedupe-rank -> screening-manager -> extraction-form -> bias-assessor -> synthesis-writer`
 
-### Peer Review
+### Paper Review
 
 `manuscript-ingest -> claims-extractor -> evidence-auditor -> novelty-matrix -> rubric-writer`
 

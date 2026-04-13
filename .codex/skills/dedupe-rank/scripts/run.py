@@ -125,8 +125,8 @@ def main() -> int:
     if not core_size_cfg:
         from tooling.common import pipeline_profile
 
-        if pipeline_profile(workspace) == "systematic-review":
-            # Systematic reviews should not silently drop candidates; keep the full deduped pool by default.
+        if pipeline_profile(workspace) in {"evidence-review", "systematic-review"}:
+            # Evidence reviews should not silently drop candidates; keep the full deduped pool by default.
             core_size = max(core_size, len(deduped))
     query_tokens = _query_tokens(workspace)
     pinned = _pinned_records(workspace, deduped)

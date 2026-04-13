@@ -215,6 +215,6 @@ Do not use the survey pipeline when:
 
 Those cases belong to other workflows:
 
-- snapshot: `pipelines/lit-snapshot.pipeline.md`
+- research brief: `pipelines/research-brief.pipeline.md`
 - idea exploration: [readme/idea-brainstorm.md](idea-brainstorm.md)
 - thesis restructuring: [readme/graduate-paper.md](graduate-paper.md)

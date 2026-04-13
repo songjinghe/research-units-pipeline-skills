@@ -163,7 +163,7 @@ flowchart LR
   CMR -.-> SV
 ```
 
-## lit-snapshot (C0–C3)
+## research-brief (C0–C3)
 
 ```mermaid
 flowchart LR
@@ -189,7 +189,7 @@ flowchart LR
     C2A{{Approve C2 (HUMAN)}}:::human
   end
 
-  subgraph "C3 - Snapshot [SHORT PROSE]"
+  subgraph "C3 - Brief delivery [SHORT PROSE]"
     SW[snapshot-writer]
     PW[prose-writer]:::optional
   end
@@ -243,7 +243,7 @@ flowchart LR
   WS --> PR0 --> SM --> SI --> STS --> CG --> MP --> EB --> MSC --> TCP --> C2A --> STW --> TSL --> LS --> LCQ --> BS --> BCQ --> ACA
 ```
 
-## systematic-review (C0–C5)
+## evidence-review (C0–C5)
 
 ```mermaid
 flowchart LR
@@ -276,7 +276,7 @@ flowchart LR
     BA[bias-assessor]
   end
 
-  subgraph "C5 - Synthesis [PROSE]"
+  subgraph "C5 - Evidence synthesis [PROSE]"
     SW[synthesis-writer]
   end
 
@@ -285,7 +285,7 @@ flowchart LR
   AS -.-> DR
 ```
 
-## peer-review (C0–C3)
+## paper-review (C0–C3)
 
 ```mermaid
 flowchart LR
@@ -303,7 +303,7 @@ flowchart LR
     NM[novelty-matrix]
   end
 
-  subgraph "C3 - Rubric write-up"
+  subgraph "C3 - Review write-up"
     RW[rubric-writer]
   end
 

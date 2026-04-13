@@ -17,7 +17,7 @@
 | `source-tutorial` | 把网页/PDF/笔记/repo docs 等多源资料重构成 reader-first tutorial，并输出 PDF 与 Beamer slides | `output/TUTORIAL.md`、`latex/main.pdf`、`latex/slides/main.pdf` | [Guide](readme/source-tutorial.md) | [说明](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | 将现有中文毕业论文材料重构为论文工程流程 | pipeline + thesis skills | [Guide](readme/graduate-paper.md) | [说明](readme/graduate-paper.zh-CN.md) |
 
-这三条工作流共享同一套基本架构：
+这四条工作流共享同一套基本架构：
 
 - `pipelines/` 定义阶段合同、目标工件和所需 skills。
 - `.codex/skills/` 存放可复用 skills。（100 个 skills）
@@ -39,6 +39,8 @@
 当目标还不是写论文，而是把一个主题转成“适合和导师/PI 讨论的、由文献支撑的研究方向备忘录”时，用 `idea-brainstorm`。
 
 当你已经有网页、PDF、笔记、repo docs 或文档站点，想把这些材料重构成一个更适合阅读和讲解的教程时，用 `source-tutorial`。
+
+旧的 `tutorial` 名称仍然可以作为兼容 alias 使用，但现在的 canonical pipeline 名称已经是 `source-tutorial`。
 
 当你已经有毕业论文模板、现有 TeX、Overleaf 草稿、PDF、图表或已有 paper，需要把这些材料重组成一条中文学位论文工作流时，用 `graduate-paper`。这条路径目前也是四者里自动化程度最低的一条。
 

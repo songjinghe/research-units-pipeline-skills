@@ -9,7 +9,7 @@ description: |
   **Guardrail**: 每条 claim 必须带可定位的 source pointer；区分 empirical vs conceptual claims。
 ---
 
-# Claims Extractor (peer review)
+# Claims Extractor (paper review)
 
 Goal: turn a manuscript into an auditable list of claims that downstream skills can check.
 

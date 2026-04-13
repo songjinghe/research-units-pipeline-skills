@@ -10,6 +10,78 @@ def _count_shortlist(md: str) -> int:
     return len(re.findall(r'(?m)^###\s+Direction\s+\d+\.', md or ''))
 
 
+def _brief_gate(workspace: Path) -> tuple[str, list[str], str, str]:
+    path = workspace / 'output' / 'SNAPSHOT.md'
+    issues: list[str] = []
+    text = path.read_text(encoding='utf-8', errors='ignore') if path.exists() else ''
+    if not path.exists() or not text.strip():
+        issues.append('Missing `output/SNAPSHOT.md`.')
+    required_sections = ['## Scope', '## What to read first']
+    for section in required_sections:
+        if text and section not in text:
+            issues.append(f'`output/SNAPSHOT.md` is missing `{section}`.')
+    pointer_count = len(re.findall(r'(?m)^- P[0-9]{4}\b', text))
+    if text and pointer_count < 3:
+        issues.append('`output/SNAPSHOT.md` should include at least 3 explicit paper pointers.')
+    return (
+        'research brief (`output/SNAPSHOT.md`)',
+        issues,
+        'The briefing deliverable is evaluated as a compact orientation memo with explicit reading pointers.',
+        'Fix the missing sections or pointers in `output/SNAPSHOT.md` and rerun this unit.',
+    )
+
+
+def _paper_review_gate(workspace: Path) -> tuple[str, list[str], str, str]:
+    path = workspace / 'output' / 'REVIEW.md'
+    issues: list[str] = []
+    text = path.read_text(encoding='utf-8', errors='ignore') if path.exists() else ''
+    if not path.exists() or not text.strip():
+        issues.append('Missing `output/REVIEW.md`.')
+    required_sections = [
+        '### Summary',
+        '### Novelty',
+        '### Soundness',
+        '### Clarity',
+        '### Impact',
+        '### Major Concerns',
+        '### Minor Comments',
+        '### Recommendation',
+    ]
+    for section in required_sections:
+        if text and section not in text:
+            issues.append(f'`output/REVIEW.md` is missing `{section}`.')
+    return (
+        'paper review (`output/REVIEW.md`)',
+        issues,
+        'The paper-review deliverable is evaluated as a traceable critique with stable rubric sections.',
+        'Fix the missing review sections in `output/REVIEW.md` and rerun this unit.',
+    )
+
+
+def _evidence_review_gate(workspace: Path) -> tuple[str, list[str], str, str]:
+    path = workspace / 'output' / 'SYNTHESIS.md'
+    issues: list[str] = []
+    text = path.read_text(encoding='utf-8', errors='ignore') if path.exists() else ''
+    if not path.exists() or not text.strip():
+        issues.append('Missing `output/SYNTHESIS.md`.')
+    required_sections = [
+        '## Included studies summary',
+        '## Findings by theme',
+        '## Risk of bias',
+        '## Supported conclusions',
+        '## Needs more evidence',
+    ]
+    for section in required_sections:
+        if text and section not in text:
+            issues.append(f'`output/SYNTHESIS.md` is missing `{section}`.')
+    return (
+        'evidence review synthesis (`output/SYNTHESIS.md`)',
+        issues,
+        'The evidence-review deliverable is evaluated as a bounded synthesis grounded in extracted evidence.',
+        'Fix the missing synthesis sections in `output/SYNTHESIS.md` and rerun this unit.',
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--workspace', required=True)
@@ -29,9 +101,10 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.common import atomic_write_text, ensure_dir
+    from tooling.common import atomic_write_text, ensure_dir, pipeline_profile
 
     workspace = Path(args.workspace).resolve()
+    profile = pipeline_profile(workspace)
     signal_table = workspace / 'output' / 'trace' / 'IDEA_SIGNAL_TABLE.md'
     pool = workspace / 'output' / 'trace' / 'IDEA_DIRECTION_POOL.md'
     screening = workspace / 'output' / 'trace' / 'IDEA_SCREENING_TABLE.md'
@@ -43,54 +116,71 @@ def main() -> int:
     ensure_dir(report.parent)
 
     issues: list[str] = []
-    for path in [signal_table, pool, screening, shortlist, report_md, appendix, report_json]:
-        if not path.exists() or path.stat().st_size <= 0:
-            issues.append(f'Missing `{path.relative_to(workspace)}`.')
+    deliverable = ''
+    summary = ''
+    next_step = ''
+    if profile in {'research-brief', 'lit-snapshot'}:
+        deliverable, issues, summary, next_step = _brief_gate(workspace)
+        changes_made = '- Checked required brief sections and whether the deliverable includes explicit paper pointers.'
+    elif profile in {'paper-review', 'peer-review'}:
+        deliverable, issues, summary, next_step = _paper_review_gate(workspace)
+        changes_made = '- Checked the rubric sections and overall review structure for `output/REVIEW.md`.'
+    elif profile in {'evidence-review', 'systematic-review'}:
+        deliverable, issues, summary, next_step = _evidence_review_gate(workspace)
+        changes_made = '- Checked the synthesis structure and bounded-evidence sections for `output/SYNTHESIS.md`.'
+    else:
+        for path in [signal_table, pool, screening, shortlist, report_md, appendix, report_json]:
+            if not path.exists() or path.stat().st_size <= 0:
+                issues.append(f'Missing `{path.relative_to(workspace)}`.')
 
-    shortlist_text = shortlist.read_text(encoding='utf-8', errors='ignore') if shortlist.exists() else ''
-    report_text = report_md.read_text(encoding='utf-8', errors='ignore') if report_md.exists() else ''
-    appendix_text = appendix.read_text(encoding='utf-8', errors='ignore') if appendix.exists() else ''
+        shortlist_text = shortlist.read_text(encoding='utf-8', errors='ignore') if shortlist.exists() else ''
+        report_text = report_md.read_text(encoding='utf-8', errors='ignore') if report_md.exists() else ''
+        appendix_text = appendix.read_text(encoding='utf-8', errors='ignore') if appendix.exists() else ''
 
-    shortlist_n = _count_shortlist(shortlist_text)
-    if shortlist_text and not (3 <= shortlist_n <= 5):
-        issues.append(f'Shortlist size should be 3-5 (found {shortlist_n}).')
+        shortlist_n = _count_shortlist(shortlist_text)
+        if shortlist_text and not (3 <= shortlist_n <= 5):
+            issues.append(f'Shortlist size should be 3-5 (found {shortlist_n}).')
 
-    required_sections = [
-        '## 1. Big-picture takeaways',
-        '## 2. Top directions at a glance',
-        '## 6. Other promising but not prioritized directions',
-        '## 7. Cross-cutting discussion questions',
-        '## 8. Uncertainty and disagreement',
-    ]
-    for section in required_sections:
-        if report_text and section not in report_text:
-            issues.append(f'`output/REPORT.md` is missing `{section}`.')
-    if report_text and '## 3. Direction 1' not in report_text:
-        issues.append('`output/REPORT.md` should expand the top directions into memo sections.')
-    if appendix_text and not all(token in appendix_text for token in ['Anchor paper', 'Why read now', 'What to extract', 'Kill signal']):
-        issues.append('`output/APPENDIX.md` should expose paper-specific reading-guide tables.')
-    for phrase in ['reports a meaningful gain', 'Sharper mechanism question;', 'read it to extract what it really attributes gains to']:
-        if phrase in report_text or phrase in appendix_text:
-            issues.append(f'Found templated memo language: `{phrase}`.')
+        required_sections = [
+            '## 1. Big-picture takeaways',
+            '## 2. Top directions at a glance',
+            '## 6. Other promising but not prioritized directions',
+            '## 7. Cross-cutting discussion questions',
+            '## 8. Uncertainty and disagreement',
+        ]
+        for section in required_sections:
+            if report_text and section not in report_text:
+                issues.append(f'`output/REPORT.md` is missing `{section}`.')
+        if report_text and '## 3. Direction 1' not in report_text:
+            issues.append('`output/REPORT.md` should expand the top directions into memo sections.')
+        if appendix_text and not all(token in appendix_text for token in ['Anchor paper', 'Why read now', 'What to extract', 'Kill signal']):
+            issues.append('`output/APPENDIX.md` should expose paper-specific reading-guide tables.')
+        for phrase in ['reports a meaningful gain', 'Sharper mechanism question;', 'read it to extract what it really attributes gains to']:
+            if phrase in report_text or phrase in appendix_text:
+                issues.append(f'Found templated memo language: `{phrase}`.')
+        deliverable = 'brainstorm memo bundle (`IDEA_SIGNAL_TABLE` -> `IDEA_DIRECTION_POOL` -> `IDEA_SCREENING_TABLE` -> `IDEA_SHORTLIST` -> `REPORT`)'
+        summary = 'The ideation deliverable is evaluated as a memo bundle with a supporting trace chain, not as a symmetric top-3 proposal pack.'
+        next_step = 'Fix the missing or thin memo artifacts and rerun this unit.'
+        changes_made = '- Checked trace presence, shortlist size, and core memo sections for the final `REPORT.md` deliverable.'
 
     status = 'PASS' if not issues else 'FAIL'
     lines = [
         '# Deliverable self-loop',
         '',
         f'- Status: {status}',
-        '- Deliverable: brainstorm memo bundle (`IDEA_SIGNAL_TABLE` -> `IDEA_DIRECTION_POOL` -> `IDEA_SCREENING_TABLE` -> `IDEA_SHORTLIST` -> `REPORT`)',
+        f'- Deliverable: {deliverable}',
         '',
         '## Summary',
-        '- The ideation deliverable is evaluated as a memo bundle with a supporting trace chain, not as a symmetric top-3 proposal pack.',
+        f'- {summary}',
         '',
         '## Changes made',
-        '- Checked trace presence, shortlist size, and core memo sections for the final `REPORT.md` deliverable.',
+        changes_made,
         '',
     ]
     if issues:
         lines.extend(['## Remaining blockers (if FAIL)'])
         lines.extend([f'- {it}' for it in issues])
-        lines.extend(['', '## Next step', '- Fix the missing or thin memo artifacts and rerun this unit.'])
+        lines.extend(['', '## Next step', f'- {next_step}'])
         atomic_write_text(report, '\n'.join(lines).rstrip() + '\n')
         return 2
     lines.extend(['## Remaining blockers (if FAIL)', '- (none)', '', '## Next step', '- Proceed to the next unit.'])

@@ -3,13 +3,13 @@ name: protocol-writer
 description: |
   Write a systematic review protocol into `output/PROTOCOL.md` (databases, queries, inclusion/exclusion, time window, extraction fields).
   **Trigger**: protocol, PRISMA, systematic review, inclusion/exclusion, 检索式, 纳入排除.
-  **Use when**: systematic review pipeline 的起点（C1），需要先锁定 protocol 再开始 screening/extraction。
-  **Skip if**: 不是做 systematic review（或 protocol 已经锁定且不允许修改）。
+  **Use when**: `evidence-review` pipeline 的起点（C1），需要先锁定 protocol 再开始 screening/extraction。
+  **Skip if**: 不是做 evidence/systematic review（或 protocol 已经锁定且不允许修改）。
   **Network**: none.
   **Guardrail**: protocol 必须包含可执行的检索与筛选规则；需要 HUMAN 签字后才能进入 screening。
 ---
 
-# Protocol Writer (systematic review, PRISMA-style)
+# Protocol Writer (evidence review, PRISMA-style)
 
 Goal: produce an executable protocol that a different reviewer could follow and reproduce.
 

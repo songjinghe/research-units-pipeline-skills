@@ -1,0 +1,83 @@
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+
+def _gap_for_claim(claim: dict[str, str]) -> tuple[str, str, str]:
+    text = str(claim.get("claim") or "")
+    low = text.lower()
+    evidence_present = "The extracted claim has a locatable manuscript source pointer."
+    if claim.get("type") == "empirical":
+        if "%" in text or any(token in low for token in ("benchmark", "dataset", "accuracy", "success rate", "metric")):
+            return (
+                evidence_present,
+                "The claim still needs an explicit baseline/protocol check before it can support a strong review judgment.",
+                "Add a comparison table that states dataset, metric, baseline, and evaluation budget for this claim.",
+            )
+        return (
+            evidence_present,
+            "The empirical claim is underspecified: no concrete metric, dataset, or benchmark detail appears in the extracted claim text.",
+            "State the task, metric, baseline, and result in the manuscript section tied to this claim.",
+        )
+    return (
+        evidence_present,
+        "The conceptual claim needs a clearer boundary and stronger relation to prior work.",
+        "Clarify what the claim excludes and tie it to the closest prior work in the related-work section.",
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--workspace", required=True)
+    parser.add_argument("--unit-id", default="")
+    parser.add_argument("--inputs", default="")
+    parser.add_argument("--outputs", default="")
+    parser.add_argument("--checkpoint", default="")
+    args = parser.parse_args()
+
+    repo_root = Path(__file__).resolve()
+    for _ in range(10):
+        if (repo_root / "AGENTS.md").exists():
+            break
+        parent = repo_root.parent
+        if parent == repo_root:
+            break
+        repo_root = parent
+    sys.path.insert(0, str(repo_root))
+
+    from tooling.review_workflows import parse_item_blocks, write_text
+
+    workspace = Path(args.workspace).resolve()
+    claims_path = workspace / "output" / "CLAIMS.md"
+    if not claims_path.exists():
+        raise SystemExit("evidence-auditor requires `output/CLAIMS.md`.")
+
+    claims = parse_item_blocks(claims_path.read_text(encoding="utf-8", errors="ignore"))
+    if not claims:
+        raise SystemExit("No claim blocks found in `output/CLAIMS.md`.")
+
+    lines = ["# Missing Evidence", ""]
+    for idx, claim in enumerate(claims, start=1):
+        evidence_present, gap, fix = _gap_for_claim(claim)
+        severity = "major" if "underspecified" in gap.lower() else "minor"
+        lines.extend(
+            [
+                f"### G{idx:02d}",
+                f"- Claim ID: {claim.get('id', '')}",
+                f"- Claim: {claim.get('claim', '')}",
+                f"- Evidence present: {evidence_present}",
+                f"- Gap / concern: {gap}",
+                f"- Minimal fix: {fix}",
+                f"- Severity: {severity}",
+                "",
+            ]
+        )
+
+    write_text(workspace / "output" / "MISSING_EVIDENCE.md", "\n".join(lines))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

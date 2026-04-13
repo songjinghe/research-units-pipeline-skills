@@ -818,7 +818,139 @@ flowchart LR
 
 ### arxiv-survey-latex
 
-- Missing units template: ``
+```mermaid
+flowchart LR
+  classDef unit fill:#fff3e0,stroke:#fb8c00,color:#e65100;
+  classDef human fill:#ffebee,stroke:#e53935,color:#b71c1c,stroke-width:2px;
+
+  subgraph "C0 - Init"
+    U_U001["`U001`\n`workspace-init`"]:::unit
+    U_U002["`U002`\n`pipeline-router`"]:::unit
+  end
+
+  subgraph "C1 - Retrieval & core set"
+    U_U010["`U010`\n`literature-engineer`"]:::unit
+    U_U020["`U020`\n`dedupe-rank`"]:::unit
+  end
+
+  subgraph "C2 - Structure"
+    U_U030["`U030`\n`taxonomy-builder`"]:::unit
+    U_U035["`U035`\n`chapter-skeleton`"]:::unit
+    U_U037["`U037`\n`section-bindings`"]:::unit
+    U_U038["`U038`\n`section-briefs`"]:::unit
+    U_U040["`U040`\n`outline-builder`"]:::unit
+    U_U050["`U050`\n`section-mapper`"]:::unit
+    U_U051["`U051`\n`outline-refiner`"]:::unit
+    U_U052["`U052`\n`pipeline-router`"]:::unit
+    U_U055["`U055`\n`human-checkpoint`"]:::unit
+    class U_U055 human
+  end
+
+  subgraph "C3 - Evidence"
+    U_U058["`U058`\n`pdf-text-extractor`"]:::unit
+    U_U060["`U060`\n`paper-notes`"]:::unit
+    U_U075["`U075`\n`subsection-briefs`"]:::unit
+    U_U076["`U076`\n`chapter-briefs`"]:::unit
+  end
+
+  subgraph "C4 - Citations + evidence packs"
+    U_U090["`U090`\n`citation-verifier`"]:::unit
+    U_U091["`U091`\n`evidence-binder`"]:::unit
+    U_U092["`U092`\n`evidence-draft`"]:::unit
+    U_U0925["`U0925`\n`table-schema`"]:::unit
+    U_U0926["`U0926`\n`table-filler`"]:::unit
+    U_U0927["`U0927`\n`appendix-table-writer`"]:::unit
+    U_U093["`U093`\n`anchor-sheet`"]:::unit
+    U_U0935["`U0935`\n`schema-normalizer`"]:::unit
+    U_U099["`U099`\n`writer-context-pack`"]:::unit
+    U_U0995["`U0995`\n`evidence-selfloop`"]:::unit
+    U_U094["`U094`\n`claim-matrix-rewriter`"]:::unit
+  end
+
+  subgraph "C5 - Draft + PDF"
+    U_U095["`U095`\n`front-matter-writer`"]:::unit
+    U_U096["`U096`\n`chapter-lead-writer`"]:::unit
+    U_U100["`U100`\n`subsection-writer`"]:::unit
+    U_U1005["`U1005`\n`writer-selfloop`"]:::unit
+    U_U1006["`U1006`\n`style-harmonizer`"]:::unit
+    U_U1007["`U1007`\n`opener-variator`"]:::unit
+    U_U1008["`U1008`\n`evaluation-anchor-checker`"]:::unit
+    U_U102["`U102`\n`section-logic-polisher`"]:::unit
+    U_U1025["`U1025`\n`argument-selfloop`"]:::unit
+    U_U1026["`U1026`\n`paragraph-curator`"]:::unit
+    U_U098["`U098`\n`transition-weaver`"]:::unit
+    U_U101["`U101`\n`section-merger`"]:::unit
+    U_U103["`U103`\n`post-merge-voice-gate`"]:::unit
+    U_U104["`U104`\n`citation-diversifier`"]:::unit
+    U_U1045["`U1045`\n`citation-injector`"]:::unit
+    U_U105["`U105`\n`draft-polisher`"]:::unit
+    U_U108["`U108`\n`global-reviewer`"]:::unit
+    U_U109["`U109`\n`pipeline-auditor`"]:::unit
+    U_U110["`U110`\n`latex-scaffold`"]:::unit
+    U_U120["`U120`\n`latex-compile-qa`"]:::unit
+    U_U130["`U130`\n`artifact-contract-auditor`"]:::unit
+  end
+
+  U_U001 --> U_U002
+  U_U002 --> U_U010
+  U_U010 --> U_U020
+  U_U020 --> U_U030
+  U_U030 --> U_U035
+  U_U035 --> U_U037
+  U_U037 --> U_U038
+  U_U038 --> U_U040
+  U_U040 --> U_U050
+  U_U050 --> U_U051
+  U_U051 --> U_U052
+  U_U052 --> U_U055
+  U_U055 --> U_U058
+  U_U058 --> U_U060
+  U_U060 --> U_U075
+  U_U075 --> U_U076
+  U_U060 --> U_U090
+  U_U090 --> U_U091
+  U_U075 --> U_U091
+  U_U060 --> U_U091
+  U_U091 --> U_U092
+  U_U092 --> U_U0925
+  U_U0925 --> U_U0926
+  U_U093 --> U_U0926
+  U_U0926 --> U_U0927
+  U_U093 --> U_U0927
+  U_U092 --> U_U093
+  U_U093 --> U_U0935
+  U_U0935 --> U_U099
+  U_U076 --> U_U099
+  U_U099 --> U_U0995
+  U_U092 --> U_U094
+  U_U0995 --> U_U095
+  U_U0995 --> U_U096
+  U_U0995 --> U_U100
+  U_U099 --> U_U100
+  U_U076 --> U_U100
+  U_U095 --> U_U1005
+  U_U096 --> U_U1005
+  U_U100 --> U_U1005
+  U_U1026 --> U_U1006
+  U_U1006 --> U_U1007
+  U_U1007 --> U_U1008
+  U_U1005 --> U_U102
+  U_U102 --> U_U1025
+  U_U1025 --> U_U1026
+  U_U1008 --> U_U098
+  U_U100 --> U_U101
+  U_U098 --> U_U101
+  U_U0927 --> U_U101
+  U_U101 --> U_U103
+  U_U103 --> U_U104
+  U_U104 --> U_U1045
+  U_U1045 --> U_U105
+  U_U105 --> U_U108
+  U_U108 --> U_U109
+  U_U109 --> U_U110
+  U_U110 --> U_U120
+  U_U120 --> U_U130
+```
 
 ### arxiv-survey
 
@@ -1207,7 +1339,3 @@ flowchart LR
   U_U050 --> U_U055
   U_U055 --> U_U060
 ```
-
-### tutorial
-
-- Missing units template: ``

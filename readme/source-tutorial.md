@@ -8,8 +8,6 @@
 
 `source-tutorial` is for turning mixed source material into a tutorial that is easier to read, easier to learn from, and easier to teach from.
 
-The older `tutorial` label is still supported as a legacy alias, but the canonical workflow name is `source-tutorial`.
-
 The input is not just a topic. It is a source set:
 
 - webpages

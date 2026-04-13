@@ -40,8 +40,6 @@ Use `idea-brainstorm` when the goal is to generate a literature-backed memo of c
 
 Use `source-tutorial` when you already have webpages, PDFs, notes, repo docs, or documentation sites and want to turn them into a reader-first tutorial rather than a survey or memo.
 
-The older `tutorial` name is still accepted as a legacy alias, but `source-tutorial` is now the canonical pipeline name.
-
 Use `graduate-paper` when you already have thesis materials such as a template, existing TeX, Overleaf drafts, PDFs, figures, or prior papers, and need to reorganize them into a Chinese degree thesis workflow. This path is currently the least automated of the four.
 
 ## How To Use The Repo

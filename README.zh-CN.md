@@ -40,8 +40,6 @@
 
 当你已经有网页、PDF、笔记、repo docs 或文档站点，想把这些材料重构成一个更适合阅读和讲解的教程时，用 `source-tutorial`。
 
-旧的 `tutorial` 名称仍然可以作为兼容 alias 使用，但现在的 canonical pipeline 名称已经是 `source-tutorial`。
-
 当你已经有毕业论文模板、现有 TeX、Overleaf 草稿、PDF、图表或已有 paper，需要把这些材料重组成一条中文学位论文工作流时，用 `graduate-paper`。这条路径目前也是四者里自动化程度最低的一条。
 
 ## 怎么使用这个仓库

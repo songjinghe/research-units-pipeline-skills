@@ -72,8 +72,10 @@ def _render_markdown(*, skills: list[SkillIO], pipelines: list[tuple[Path, dict[
     ]
 
     for pipeline_path, fm, body, spec in pipelines:
+        if spec is not None and spec.docs_hidden:
+            continue
         pipeline_name = str(fm.get("name") or pipeline_path.stem).strip()
-        units_template = str(fm.get("units_template") or "").strip()
+        units_template = str((spec.units_template if spec is not None else fm.get("units_template")) or "").strip()
         stage_titles = _parse_stage_titles(body, spec=spec)
 
         units_path = (REPO_ROOT / units_template).resolve() if units_template else None

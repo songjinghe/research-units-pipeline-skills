@@ -8,8 +8,6 @@
 
 `source-tutorial` 用来把多源资料重构成一个更适合阅读、学习和讲解的教程。
 
-旧的 `tutorial` 这个名字仍然保留为兼容 alias，但现在的 canonical workflow 名称已经是 `source-tutorial`。
-
 输入不是一个裸 topic，而是一组资料：
 
 - 网页

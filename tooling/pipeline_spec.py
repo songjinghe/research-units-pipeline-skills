@@ -45,6 +45,7 @@ class PipelineSpec:
     routing_hints: tuple[str, ...]
     routing_default: bool
     routing_priority: int
+    docs_hidden: bool
     target_artifacts: tuple[str, ...]
     contract_model: str
     structure_mode: str
@@ -74,6 +75,7 @@ class PipelineSpec:
             routing_priority = int(frontmatter.get("routing_priority") or 0)
         except Exception:
             routing_priority = 0
+        docs_hidden = bool(frontmatter.get("docs_hidden"))
         target_artifacts = _string_tuple(frontmatter.get("target_artifacts"), field_name="target_artifacts", path=resolved)
         contract_model = str(frontmatter.get("contract_model") or "").strip()
         structure_mode = str(frontmatter.get("structure_mode") or "").strip()
@@ -106,6 +108,7 @@ class PipelineSpec:
             routing_hints=routing_hints,
             routing_default=routing_default,
             routing_priority=routing_priority,
+            docs_hidden=docs_hidden,
             target_artifacts=target_artifacts,
             contract_model=contract_model,
             structure_mode=structure_mode,

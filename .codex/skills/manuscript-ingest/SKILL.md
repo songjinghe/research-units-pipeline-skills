@@ -1,7 +1,7 @@
 ---
 name: manuscript-ingest
 description: |
-  Ingest a submitted manuscript into plain text (`output/PAPER.md`) so downstream review skills can extract claims with source pointers.
+  Use when `paper-review` needs a canonical manuscript text artifact before claim extraction.
   **Trigger**: ingest paper, manuscript text, provide paper, paper.md, 输入论文, 导入稿件, 审稿输入.
   **Use when**: You are running the `paper-review` pipeline and need `output/PAPER.md` before `claims-extractor`.
   **Skip if**: `output/PAPER.md` already exists and looks like the full manuscript text.
@@ -9,58 +9,44 @@ description: |
   **Guardrail**: Do not summarize or rewrite the paper; store the raw text (or a faithful extraction) so claims stay traceable.
 ---
 
-# Manuscript Ingest (paper -> text)
+# Manuscript Ingest
 
-Goal: create `output/PAPER.md` as the single source of truth for the submitted manuscript text.
-
-Downstream skills (e.g., `claims-extractor`) rely on this file to produce *traceable* claims (section/page/quote pointers).
+Transforms a manuscript source file into the canonical text artifact used by `paper-review`.
 
 ## Inputs
 
-One of the following (choose the simplest):
-- The user pastes the manuscript text in chat (recommended).
-- A local PDF provided by the user (extract to text, then paste into `output/PAPER.md`).
+One manuscript source from the workspace, typically:
+- `inputs/manuscript.md`
+- `inputs/manuscript.txt`
+- `inputs/manuscript.pdf`
 
-Optional context:
-- `GOAL.md` (review focus / constraints)
-
-## Outputs
+## Output
 
 - `output/PAPER.md`
 
-## Procedure
+## Script boundary
 
-1) Decide the input route
-- If `GOAL.md` exists, treat it as the review focus/constraints (but do not rewrite the paper to fit it).
-- If the user can paste text: use that.
-- If only PDF is available: extract text (any faithful extraction is OK; do not paraphrase).
+`scripts/run.py` should:
+- find the simplest available manuscript source
+- extract faithful text
+- write the full text to `output/PAPER.md`
 
-2) Write `output/PAPER.md`
-- Include the full text in order.
-- Preserve section headings if possible.
-- If page numbers are available, keep simple markers like `\n\n[page 7]\n\n` (helps traceability).
+It should not summarize, critique, or reformat the manuscript into a review.
 
-3) Quick sanity check
-- Confirm `output/PAPER.md` contains the paper body (not just title/abstract).
-- Confirm key sections exist (Intro/Method/Experiments/Conclusion), if the paper has them.
+## Contract
+
+The output must preserve:
+- paper body text
+- section headings when available
+- page markers when extractable
 
 ## Acceptance
 
-- `output/PAPER.md` exists.
-- The file contains the full manuscript text (or a faithful extraction), sufficient to quote with pointers.
+- `output/PAPER.md` exists
+- it contains the manuscript body rather than only title/abstract
 
-## Troubleshooting
+## Non-goals
 
-### I only have a PDF and the extracted text is messy
-
-Fix:
-- Keep the messy text anyway, but preserve:
-  - section headings
-  - figure/table captions (if present)
-  - page separators (if present)
-
-### The paper is very long
-
-Fix:
-- Still ingest the full text.
-- If you must split, keep `output/PAPER.md` as the concatenated master file.
+- claim extraction
+- evidence auditing
+- review writing

@@ -1,7 +1,7 @@
 ---
 name: evidence-auditor
 description: |
-  Audit the evidence supporting each claim and write gaps/concerns into `output/MISSING_EVIDENCE.md`.
+  Use when `paper-review` needs a claim-by-claim evidence gap report grounded in an extracted claim ledger.
   **Trigger**: evidence audit, missing evidence, unsupported claims, 审稿证据审计, 证据缺口.
   **Use when**: `paper-review` 流程中，需要逐条检查 claim 的证据链、缺 baseline、评测薄弱点。
   **Skip if**: 缺少 claims 输入（例如还没有 `output/CLAIMS.md`）。
@@ -9,54 +9,43 @@ description: |
   **Guardrail**: 只写“缺口/风险/下一步验证”，不要替作者补写论述或引入新主张。
 ---
 
-# Evidence Auditor (paper review)
+# Evidence Auditor
 
-Goal: for each claim, either (a) point to the supporting evidence in the manuscript, or (b) write a concrete gap with an actionable fix.
+Transforms a claim ledger into a gap report for `paper-review`.
 
-## Inputs
+## Input
 
 - `output/CLAIMS.md`
 
-## Outputs
+## Output
 
 - `output/MISSING_EVIDENCE.md`
 
-## Output format (recommended)
+## Contract
 
-For each claim:
-- `Claim`: copy the claim text
-- `Evidence present`: what the paper provides (experiments/theory/citations)
-- `Gap / concern`: what is missing or weak
-- `Minimal fix`: the smallest additional evidence that would address the gap
-- `Severity`: `major` | `minor` (optional)
+Each gap block should include:
+- claim reference
+- what evidence is already present
+- what is missing or weak
+- minimal fix
+- severity
 
-## Workflow
+## Script boundary
 
-1. Iterate claims in `output/CLAIMS.md`.
-2. For empirical claims, check:
-   - dataset/task definition is clear
-   - baselines are appropriate
-   - evaluation protocol is valid
-   - ablations/sensitivity analyses exist where needed
-3. For conceptual claims, check:
-   - definitions are unambiguous
-   - assumptions are stated
-   - claims do not exceed what is argued
-4. Write `output/MISSING_EVIDENCE.md` as a list of claim-by-claim entries.
+`scripts/run.py` should:
+- iterate existing claims only
+- classify the likely evidence risk
+- write actionable, bounded gap items
 
-## Definition of Done
+It should not invent new claims or rewrite the manuscript.
 
-- [ ] Every claim from `output/CLAIMS.md` has an evidence note or a gap item.
-- [ ] “Fix” items are actionable (what to add, not “more experiments”).
+## Acceptance
 
-## Troubleshooting
+- every claim has a corresponding evidence note or gap item
+- minimal fixes are actionable and concrete
 
-### Issue: you cannot locate the evidence in the paper
+## Non-goals
 
-**Fix**:
-- Mark the claim as “evidence not locatable” and ask for a clearer source pointer (or re-extract claims with better pointers).
-
-### Issue: the audit starts proposing new claims
-
-**Fix**:
-- Stop; only critique what exists in `output/CLAIMS.md` and the manuscript.
+- manuscript rewriting
+- novelty assessment
+- recommendation writing

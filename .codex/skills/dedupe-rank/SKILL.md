@@ -1,7 +1,7 @@
 ---
 name: dedupe-rank
 description: |
-  Dedupe and rank a raw paper set (`papers/papers_raw.jsonl`) to produce `papers/papers_dedup.jsonl` and `papers/core_set.csv`.
+  Use when a broad paper candidate pool needs deterministic deduplication and a stable core set.
   **Trigger**: dedupe, rank, core set, 去重, 排序, 精选论文, 核心集合.
   **Use when**: 检索后需要把广覆盖集合收敛成可管理的 core set（用于 taxonomy/outline/mapping）。
   **Skip if**: 已经有人手工整理了稳定的 `papers/core_set.csv`（无需再次 churn）。
@@ -11,29 +11,7 @@ description: |
 
 # Dedupe + Rank
 
-Turn a broad retrieved set into a smaller **core set** for taxonomy/outline building.
-
-This is a deterministic “curation” step: it should be stable and repeatable.
-
-## Load Order
-
-Always read:
-- `references/domain_pack_overview.md` — how domain packs drive topic-specific behavior
-
-Domain packs (loaded by topic match):
-- `assets/domain_packs/llm_agents.json` — pinned classics, survey detection, ranking signals for LLM agent topics
-
-## Script Boundary
-
-Use `scripts/run.py` only for:
-- title normalization and deduplication logic
-- relevance scoring from query tokens
-- core set CSV generation with stable paper_id values
-
-Do not treat `run.py` as the place for:
-- hardcoded pinned paper IDs (use domain packs)
-- hardcoded survey detection rules (use domain packs)
-- domain-specific topic detection logic (use domain packs)
+Turns a raw candidate pool into a deduped pool and a stable core set.
 
 ## Input
 
@@ -44,68 +22,32 @@ Do not treat `run.py` as the place for:
 - `papers/papers_dedup.jsonl`
 - `papers/core_set.csv`
 
-## Workflow (high level)
+## Script boundary
 
-1. Dedupe by normalized `(title, year)` and keep the richest metadata per duplicate cluster.
-2. Rank by relevance/recency signals (and optionally pin known classics for certain topics). For LLM-agent topics, also ensure a small quota of prior surveys/reviews is present to support a paper-like Related Work section.
-3. Write `papers/core_set.csv` with stable `paper_id` values and useful metadata columns (`arxiv_id`, `pdf_url`, categories).
+`scripts/run.py` should own only:
+- title/year deduplication
+- deterministic ranking
+- stable `paper_id` generation
 
-## Quality checklist
+Use shared domain packs or pipeline contract metadata for topic-specific or product-specific behavior.
 
-- [ ] `papers/papers_dedup.jsonl` exists and is valid JSONL.
-- [ ] `papers/core_set.csv` exists and has a header row.
+## Contract-driven behavior
 
-## Script
+The script should prefer pipeline contract metadata over profile-name branching.
 
-### Quick Start
+Current important field:
+- `quality_contract.candidate_pool_policy.keep_full_deduped_pool`
 
-- `python .codex/skills/dedupe-rank/scripts/run.py --help`
-- `python .codex/skills/dedupe-rank/scripts/run.py --workspace <workspace_dir> --core-size 300`
+If true, the script keeps the full deduped pool in `papers/core_set.csv` unless the user explicitly overrides core size.
 
-### All Options
+## Acceptance
 
-- `--core-size <n>`: target size for `papers/core_set.csv`
-- `queries.md` also supports `core_size` / `core_set_size` / `dedupe_core_size` (overrides default when present)
+- deduped JSONL exists
+- core-set CSV exists
+- reruns are stable for the same inputs
 
-### Examples
+## Non-goals
 
-- Smaller core set for fast iteration (non-A150++):
-  - `python .codex/skills/dedupe-rank/scripts/run.py --workspace <ws> --core-size 25`
-
-### Notes
-
-- This step may annotate `papers/core_set.csv:reason` with tags such as `pinned_classic` and `prior_survey` (deterministic, topic-aware guards for survey writing).
-- Evidence-review default: if the active pipeline is `evidence-review` (or legacy `systematic-review`) and `core_size` is not specified, the script keeps the full deduped pool in `papers/core_set.csv` so screening does not silently drop candidates.
-- This step is deterministic; reruns should be stable for the same inputs.
-
-## Troubleshooting
-
-### Common Issues
-
-#### Issue: `papers/core_set.csv` is too small / empty
-
-**Symptom**:
-- Core set has very few rows.
-
-**Causes**:
-- Input `papers/papers_raw.jsonl` is small, or many rows are missing required fields.
-
-**Solutions**:
-- Broaden retrieval (or provide a richer offline export) and rerun.
-- Lower `--core-size` only if you intentionally want a small core set.
-
-#### Issue: Duplicates still appear after dedupe
-
-**Symptom**:
-- Near-identical titles remain.
-
-**Causes**:
-- Title normalization is defeated by noisy exports.
-
-**Solutions**:
-- Clean title fields in the export (strip prefixes/suffixes, fix encoding) and rerun.
-
-### Recovery Checklist
-
-- [ ] `papers/papers_raw.jsonl` lines contain `title/year/url`.
-- [ ] `papers/core_set.csv` has stable `paper_id` values.
+- retrieval
+- screening
+- manual topic authoring inside the script

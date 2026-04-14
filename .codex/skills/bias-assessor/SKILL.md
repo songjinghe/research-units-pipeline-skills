@@ -1,7 +1,7 @@
 ---
 name: bias-assessor
 description: |
-  Add bias/risk-of-bias assessment fields to an extraction table and populate them consistently.
+  Use when `evidence-review` has an extraction table and needs lightweight risk-of-bias fields.
   **Trigger**: bias, risk-of-bias, RoB, evidence quality, 偏倚评估, 证据质量.
   **Use when**: `evidence-review` 已生成 `papers/extraction_table.csv`，需要在 synthesis 前补齐偏倚/质量字段。
   **Skip if**: 不是 evidence/systematic review，或还没有 `papers/extraction_table.csv`。
@@ -9,23 +9,21 @@ description: |
   **Guardrail**: 使用简单可复核刻度（low/unclear/high）+ 简短 notes；保持字段一致性。
 ---
 
-# Bias Assessor (risk-of-bias, lightweight)
+# Bias Assessor
 
-Goal: make evidence quality explicit in a way that is quick, consistent, and auditable.
+Enriches the extraction table with lightweight risk-of-bias fields for `evidence-review`.
 
-## Inputs
+## Input
 
 - `papers/extraction_table.csv`
 
-## Outputs
+## Output
 
-- Updated `papers/extraction_table.csv`
+- updated `papers/extraction_table.csv`
 
-## Recommended fields
+## Contract
 
-Use a simple 3-level scale (all lowercase): `low | unclear | high`.
-
-Suggested columns to add (if missing):
+The table should expose stable RoB columns:
 - `rob_selection`
 - `rob_measurement`
 - `rob_confounding`
@@ -33,34 +31,25 @@ Suggested columns to add (if missing):
 - `rob_overall`
 - `rob_notes`
 
-## Workflow
+Allowed values are fixed:
+- `low`
+- `unclear`
+- `high`
 
-1. Read `papers/extraction_table.csv` and identify the set of included studies.
-2. If RoB columns are missing, add them (keep names stable once introduced).
-3. For each study, fill each RoB domain:
-   - `low`: design/reporting plausibly controls the bias
-   - `unclear`: not enough information to judge
-   - `high`: clear risk (e.g., missing controls, ambiguous measurement, selective reporting)
-4. Set `rob_overall` conservatively:
-   - `high` if any domain is `high`
-   - `unclear` if no `high` but at least one `unclear`
-   - `low` only if all domains are `low`
-5. Add 1–3 short notes in `rob_notes` that justify the rating.
+## Script boundary
 
-## Definition of Done
+`scripts/run.py` should:
+- add missing RoB columns
+- assign a conservative overall score
+- keep notes brief
 
-- [ ] Every included paper row has all RoB columns filled.
-- [ ] Values are strictly from `low|unclear|high` (no free-form scale drift).
-- [ ] Notes are short and specific (what was missing / what was strong).
+## Acceptance
 
-## Troubleshooting
+- RoB columns exist
+- all included rows have values
+- values stay within the fixed scale
 
-### Issue: the table has mixed or inconsistent RoB column names
+## Non-goals
 
-**Fix**:
-- Normalize to the recommended column names and keep a single set across all rows.
-
-### Issue: the paper lacks enough methodological detail
-
-**Fix**:
-- Prefer `unclear` with a concrete note (“no details on X”) rather than guessing.
+- deep methodological critique
+- rewriting extraction contents

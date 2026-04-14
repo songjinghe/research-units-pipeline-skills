@@ -34,7 +34,7 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.review_workflows import read_csv_rows, write_csv_rows
+    from tooling.review_artifacts import read_csv_rows, write_csv_rows
 
     workspace = Path(args.workspace).resolve()
     table_path = workspace / "papers" / "extraction_table.csv"

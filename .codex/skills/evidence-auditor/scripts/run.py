@@ -47,7 +47,9 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.review_workflows import parse_item_blocks, write_text
+    from tooling.review_artifacts import write_text
+    from tooling.review_render import render_gap_report_markdown
+    from tooling.review_text import parse_item_blocks
 
     workspace = Path(args.workspace).resolve()
     claims_path = workspace / "output" / "CLAIMS.md"
@@ -58,24 +60,22 @@ def main() -> int:
     if not claims:
         raise SystemExit("No claim blocks found in `output/CLAIMS.md`.")
 
-    lines = ["# Missing Evidence", ""]
+    gaps: list[dict[str, str]] = []
     for idx, claim in enumerate(claims, start=1):
         evidence_present, gap, fix = _gap_for_claim(claim)
         severity = "major" if "underspecified" in gap.lower() else "minor"
-        lines.extend(
-            [
-                f"### G{idx:02d}",
-                f"- Claim ID: {claim.get('id', '')}",
-                f"- Claim: {claim.get('claim', '')}",
-                f"- Evidence present: {evidence_present}",
-                f"- Gap / concern: {gap}",
-                f"- Minimal fix: {fix}",
-                f"- Severity: {severity}",
-                "",
-            ]
+        gaps.append(
+            {
+                "id": f"G{idx:02d}",
+                "claim_id": claim.get("id", ""),
+                "claim": claim.get("claim", ""),
+                "evidence_present": evidence_present,
+                "gap": gap,
+                "minimal_fix": fix,
+                "severity": severity,
+            }
         )
-
-    write_text(workspace / "output" / "MISSING_EVIDENCE.md", "\n".join(lines))
+    write_text(workspace / "output" / "MISSING_EVIDENCE.md", render_gap_report_markdown(gaps))
     return 0
 
 

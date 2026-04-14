@@ -37,6 +37,10 @@ overridable_query_fields:
   - time_window.from
   - time_window.to
 quality_contract:
+  deliverable_kind: evidence_review
+  evidence_mode: protocol_driven
+  candidate_pool_policy:
+    keep_full_deduped_pool: true
   evidence_policy:
     primary_deliverable: output/SYNTHESIS.md
     rigor: systematic

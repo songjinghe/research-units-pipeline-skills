@@ -24,7 +24,9 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.review_workflows import parse_item_blocks, write_text
+    from tooling.review_artifacts import write_text
+    from tooling.review_render import render_rubric_review_markdown
+    from tooling.review_text import parse_item_blocks
 
     workspace = Path(args.workspace).resolve()
     claims_path = workspace / "output" / "CLAIMS.md"
@@ -35,57 +37,23 @@ def main() -> int:
 
     claims = parse_item_blocks(claims_path.read_text(encoding="utf-8", errors="ignore"))
     gaps = parse_item_blocks(gaps_path.read_text(encoding="utf-8", errors="ignore"))
-    major = [gap for gap in gaps if str(gap.get("severity") or "").strip().lower() == "major"]
-    novelty_note = "Novelty was assessed conservatively from the available novelty matrix." if matrix_path.exists() else "Novelty matrix was unavailable; novelty is therefore conservative."
-    recommendation = "weak_reject" if major else ("borderline" if gaps else "weak_accept")
-
-    lines = [
-        "# Review",
-        "",
-        "### Summary",
-        f"- The paper claims {len(claims)} main contribution(s) and is reviewed through explicit claim and gap extraction.",
-        "",
-        "### Novelty",
-        f"- {novelty_note}",
-        "",
-        "### Soundness",
-        f"- The review surfaced {len(major)} major and {max(0, len(gaps) - len(major))} minor evidence issues.",
-        "",
-        "### Clarity",
-        "- The main clarity risk is whether each top claim states its protocol, metric, and boundary explicitly.",
-        "",
-        "### Impact",
-        "- If the major issues are fixed, the work could become easier to compare and reproduce.",
-        "",
-        "### Major Concerns",
-    ]
-    if major:
-        for gap in major:
-            lines.extend(
-                [
-                    f"- Problem: {gap.get('gap___concern', gap.get('gap_concern', gap.get('gap','')))}",
-                    "- Why it matters: the current evidence chain is not strong enough for a confident acceptance decision.",
-                    f"- Minimal fix: {gap.get('minimal_fix', '')}",
-                ]
+    major = []
+    for gap in gaps:
+        severity = str(gap.get("severity") or "").strip().lower()
+        if severity == "major":
+            major.append(
+                {
+                    "gap": gap.get("gap___concern", gap.get("gap_concern", gap.get("gap", ""))),
+                    "minimal_fix": gap.get("minimal_fix", ""),
+                }
             )
-    else:
-        lines.append("- (none)")
-
-    lines.extend(["", "### Minor Comments"])
-    for gap in gaps[:3]:
-        lines.append(f"- {gap.get('minimal_fix', gap.get('gap___concern', 'Clarify the supporting evidence.'))}")
-    if not gaps:
-        lines.append("- (none)")
-
-    lines.extend(
-        [
-            "",
-            "### Recommendation",
-            f"- {recommendation}",
-        ]
+    text = render_rubric_review_markdown(
+        claim_count=len(claims),
+        gap_count=len(gaps),
+        major_gaps=major,
+        novelty_available=matrix_path.exists(),
     )
-
-    write_text(workspace / "output" / "REVIEW.md", "\n".join(lines))
+    write_text(workspace / "output" / "REVIEW.md", text)
     return 0
 
 

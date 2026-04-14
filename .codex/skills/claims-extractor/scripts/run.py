@@ -24,7 +24,9 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.review_workflows import classify_claim, pick_claim_candidates, render_claims_markdown, write_text
+    from tooling.review_artifacts import write_text
+    from tooling.review_render import render_claims_markdown
+    from tooling.review_text import classify_claim, pick_claim_candidates
 
     workspace = Path(args.workspace).resolve()
     paper_path = workspace / "output" / "PAPER.md"

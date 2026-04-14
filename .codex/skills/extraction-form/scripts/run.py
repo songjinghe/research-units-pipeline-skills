@@ -24,7 +24,8 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.review_workflows import load_candidate_records, parse_protocol, read_csv_rows, stable_paper_id, write_csv_rows
+    from tooling.review_artifacts import load_candidate_records, read_csv_rows, stable_paper_id, write_csv_rows
+    from tooling.review_protocol import parse_protocol
 
     workspace = Path(args.workspace).resolve()
     screening_path = workspace / "papers" / "screening_log.csv"

@@ -101,10 +101,13 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.common import atomic_write_text, ensure_dir, pipeline_profile
+    from tooling.common import atomic_write_text, ensure_dir, pipeline_profile, pipeline_quality_contract_value
 
     workspace = Path(args.workspace).resolve()
     profile = pipeline_profile(workspace)
+    deliverable_kind = str(
+        pipeline_quality_contract_value(workspace, "deliverable_kind", default="") or ""
+    ).strip()
     signal_table = workspace / 'output' / 'trace' / 'IDEA_SIGNAL_TABLE.md'
     pool = workspace / 'output' / 'trace' / 'IDEA_DIRECTION_POOL.md'
     screening = workspace / 'output' / 'trace' / 'IDEA_SCREENING_TABLE.md'
@@ -119,13 +122,13 @@ def main() -> int:
     deliverable = ''
     summary = ''
     next_step = ''
-    if profile in {'research-brief', 'lit-snapshot'}:
+    if deliverable_kind == 'brief' or profile in {'research-brief', 'lit-snapshot'}:
         deliverable, issues, summary, next_step = _brief_gate(workspace)
         changes_made = '- Checked required brief sections and whether the deliverable includes explicit paper pointers.'
-    elif profile in {'paper-review', 'peer-review'}:
+    elif deliverable_kind == 'paper_review' or profile in {'paper-review', 'peer-review'}:
         deliverable, issues, summary, next_step = _paper_review_gate(workspace)
         changes_made = '- Checked the rubric sections and overall review structure for `output/REVIEW.md`.'
-    elif profile in {'evidence-review', 'systematic-review'}:
+    elif deliverable_kind == 'evidence_review' or profile in {'evidence-review', 'systematic-review'}:
         deliverable, issues, summary, next_step = _evidence_review_gate(workspace)
         changes_made = '- Checked the synthesis structure and bounded-evidence sections for `output/SYNTHESIS.md`.'
     else:

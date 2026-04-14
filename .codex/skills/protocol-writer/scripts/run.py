@@ -35,7 +35,8 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.review_workflows import maybe_parse_queries_md, protocol_markdown, write_text
+    from tooling.review_artifacts import write_text
+    from tooling.review_protocol import maybe_parse_queries_md, protocol_markdown
 
     workspace = Path(args.workspace).resolve()
     goal = _goal_text(workspace / "GOAL.md")

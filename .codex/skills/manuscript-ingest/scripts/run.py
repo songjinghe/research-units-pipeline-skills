@@ -24,7 +24,7 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.review_workflows import extract_pdf_text, find_workspace_text_source, write_text
+    from tooling.review_artifacts import extract_pdf_text, find_workspace_text_source, write_text
 
     workspace = Path(args.workspace).resolve()
     out_path = workspace / "output" / "PAPER.md"

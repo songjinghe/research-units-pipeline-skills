@@ -30,6 +30,10 @@ query_defaults:
 overridable_query_fields:
   - review_style
 quality_contract:
+  deliverable_kind: paper_review
+  evidence_mode: manuscript_traceable
+  candidate_pool_policy:
+    keep_full_deduped_pool: false
   review_policy:
     primary_deliverable: output/REVIEW.md
     traceability_required: true

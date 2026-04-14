@@ -38,6 +38,10 @@ overridable_query_fields:
   - time_window.from
   - time_window.to
 quality_contract:
+  deliverable_kind: brief
+  evidence_mode: light
+  candidate_pool_policy:
+    keep_full_deduped_pool: false
   brief_policy:
     primary_deliverable: output/SNAPSHOT.md
     style: bullets_first

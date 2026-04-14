@@ -53,8 +53,10 @@ def main() -> int:
         repo_root = parent
     sys.path.insert(0, str(repo_root))
 
-    from tooling.review_workflows import choose_candidate_pool_path, load_candidate_records, parse_protocol, stable_paper_id, title_tokens, write_csv_rows
+    from tooling.review_artifacts import choose_candidate_pool_path, load_candidate_records, stable_paper_id, write_csv_rows
     from tooling.common import now_iso_seconds
+    from tooling.review_protocol import parse_protocol
+    from tooling.review_text import text_tokens
 
     workspace = Path(args.workspace).resolve()
     protocol_path = workspace / "output" / "PROTOCOL.md"
@@ -72,7 +74,7 @@ def main() -> int:
     for idx, record in enumerate(records, start=1):
         title = str(record.get("title") or "").strip()
         abstract = str(record.get("abstract") or "").strip()
-        combined_tokens = title_tokens(title) | title_tokens(abstract)
+        combined_tokens = text_tokens(title) | text_tokens(abstract)
         decision = "include" if combined_tokens & include_tokens else "exclude"
         reason_codes = "I1" if decision == "include" else "E1"
         if decision == "exclude" and exclude_tokens & combined_tokens:

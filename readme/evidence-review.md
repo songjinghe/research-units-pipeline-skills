@@ -18,7 +18,17 @@ The main output is:
 
 - `output/SYNTHESIS.md`
 
-## 2. Why This Is Not Just A Bigger Brief
+## 2. Common Starting Inputs
+
+Typical starting inputs are:
+
+- a review question or hypothesis to test against the literature
+- query seeds or database keywords
+- a candidate pool you already exported and want to screen under a protocol
+
+By default, this workflow keeps the full deduped candidate pool in `papers/core_set.csv` unless you explicitly shrink it, so screening does not silently drop studies.
+
+## 3. Why This Is Not Just A Bigger Brief
 
 This workflow is deliberately heavier than `research-brief`.
 
@@ -33,7 +43,25 @@ Its contract includes:
 
 That is why it remains a separate execution contract instead of being folded into a light briefing path.
 
-## 3. When To Use It
+## 4. Data Flow
+
+`review question -> operational protocol -> auditable candidate pool -> screening log -> extraction table + bias fields -> bounded synthesis -> deliverable self-check`
+
+Every downstream artifact should be explainable from the protocol plus screened pool.
+
+## 5. Deliverable Contract
+
+`output/SYNTHESIS.md` should include stable sections:
+
+- `## Included studies summary`
+- `## Findings by theme`
+- `## Risk of bias`
+- `## Supported conclusions`
+- `## Needs more evidence`
+
+The synthesis should stay bounded by the extraction table rather than turning into a generic essay.
+
+## 6. When To Use It
 
 Use `evidence-review` when:
 
@@ -47,7 +75,7 @@ Do not use it when:
 - you only need a quick orientation memo
 - you are evaluating one paper rather than a pool
 
-## 4. Stage Flow
+## 7. Stage Flow
 
 | Stage | Purpose | Main outputs |
 |---|---|---|
@@ -58,7 +86,7 @@ Do not use it when:
 | `C4` | extract study fields and bias data | `papers/extraction_table.csv` |
 | `C5` | write and self-check the synthesis | `output/SYNTHESIS.md`, `output/DELIVERABLE_SELFLOOP_TODO.md` |
 
-## 5. Quality Bar
+## 8. Quality Bar
 
 The synthesis should:
 
@@ -67,7 +95,7 @@ The synthesis should:
 - report limitations and bias explicitly
 - avoid acting like a generic long-form summary
 
-## 6. Recommended Prompt
+## 9. Recommended Prompt
 
 ```text
 Use the evidence-review workflow to run a PRISMA-style review on LLM agents for education, with protocol, screening, extraction, and a bounded synthesis.

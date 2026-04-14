@@ -23,7 +23,7 @@ The codebase currently centers on seven workflows:
 These workflows share the same architecture:
 
 - `pipelines/` defines stage contracts, artifact expectations, and required skills.
-- `.codex/skills/` holds the reusable skills. (100 skills)
+- `.codex/skills/` holds the reusable skills.
 - `workspaces/` stores per-run artifacts and intermediate outputs.
 - `readme/` contains feature-level documentation.
 
@@ -49,7 +49,23 @@ Use `idea-brainstorm` when the goal is to generate a literature-backed memo of c
 
 Use `source-tutorial` when you already have webpages, PDFs, notes, repo docs, or documentation sites and want to turn them into a reader-first tutorial rather than a survey or memo.
 
-Use `graduate-paper` when you already have thesis materials such as a template, existing TeX, Overleaf drafts, PDFs, figures, or prior papers, and need to reorganize them into a Chinese degree thesis workflow. This path is currently the least automated of the four.
+Use `graduate-paper` when you already have thesis materials such as a template, existing TeX, Overleaf drafts, PDFs, figures, or prior papers, and need to reorganize them into a Chinese degree thesis workflow. This path is currently the least automated among the major workflows.
+
+## Three Parallel Review Products
+
+`research-brief`, `paper-review`, and `evidence-review` are now three parallel entry points rather than one workflow with light/heavy modes.
+
+| Workflow | Typical input shape | Internal data flow | Deliverable |
+|---|---|---|---|
+| `research-brief` | topic prompt, small paper pool, or query seed | topic -> small core set -> outline -> compact briefing | `output/SNAPSHOT.md` |
+| `paper-review` | one paper or manuscript | manuscript -> claims -> evidence gaps + novelty matrix -> review | `output/REVIEW.md` |
+| `evidence-review` | review question plus candidate pool | question -> protocol -> screening -> extraction + bias -> synthesis | `output/SYNTHESIS.md` |
+
+They are optimized for different user intents:
+
+- `research-brief`: fast orientation and reading-path generation
+- `paper-review`: single-paper assessment with traceable critique
+- `evidence-review`: auditable many-paper synthesis under an explicit protocol
 
 ## How To Use The Repo
 
@@ -125,7 +141,7 @@ Project references:
 - [SKILL_INDEX.md](SKILL_INDEX.md)
 - [SKILLS_STANDARD.md](SKILLS_STANDARD.md)
 
-Legacy language-specific copies of the older survey-focused README still live under `readme/README.*.md`. They are reference material, not the primary entrypoint.
+Multi-language documentation hubs live under `readme/README.*.md` and mirror the current workflow map.
 
 ## Current Status
 

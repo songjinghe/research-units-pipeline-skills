@@ -16,7 +16,38 @@
 
 - `output/SNAPSHOT.md`
 
-## 2. 什么时候该用它
+## 2. 常见起始输入
+
+这条流程可以从几种不同输入启动：
+
+- 只有一个 topic prompt
+- 手里已经有一个小论文池
+- 已经有 query seed，只想尽快变成 briefing
+
+它优化的是“小而够用”的证据，而不是穷尽式检索。
+
+## 3. 数据流
+
+`topic / small paper pool -> retrieval + dedupe -> small core set -> taxonomy + bullets-only outline -> compact snapshot -> deliverable self-check`
+
+核心不在于覆盖所有论文，而在于能快速回答三件事：
+
+- 这个方向到底在讲什么
+- 关键主题有哪些
+- 接下来先读什么
+
+## 4. 交付合同
+
+`output/SNAPSHOT.md` 应该保持紧凑、以 pointers 为中心。稳定结构是：
+
+- `## Scope`
+- `## Key themes`
+- `## What to read first`
+- `## Open problems / risks`
+
+它应该像一份快速研究交接稿，而不是一篇没写完的综述。
+
+## 5. 什么时候该用它
 
 当你：
 
@@ -32,7 +63,7 @@
 - 你要写正式 survey 或 PDF paper
 - 你要深度评审一篇单独 manuscript
 
-## 3. 它和相邻流程的区别
+## 6. 它和相邻流程的区别
 
 | 工作流 | 主要回答什么问题 |
 |---|---|
@@ -41,7 +72,7 @@
 | `evidence-review` | 在可审计 protocol 下，这批证据到底支持什么？ |
 | `latex-survey` | 能不能把这套证据写成一篇严肃综述？ |
 
-## 4. 阶段流
+## 7. 阶段流
 
 | 阶段 | 目的 | 主要产物 |
 |---|---|---|
@@ -50,7 +81,7 @@
 | `C2` | 锁定主题边界和 bullets-only outline | `outline/taxonomy.yml`、`outline/outline.yml` |
 | `C3` | 写 briefing 并做成品自检 | `output/SNAPSHOT.md`、`output/DELIVERABLE_SELFLOOP_TODO.md` |
 
-## 5. 质量目标
+## 8. 质量目标
 
 这份 brief 应该：
 
@@ -59,7 +90,7 @@
 - 明确告诉读者先读什么
 - 保持紧凑，并带明确 paper pointers
 
-## 6. 推荐 Prompt
+## 9. 推荐 Prompt
 
 ```text
 Use the research-brief workflow to give me a one-page briefing on robot test-time adaptation, with key themes and what to read first.

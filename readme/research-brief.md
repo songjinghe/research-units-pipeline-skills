@@ -16,7 +16,38 @@ The output stays intentionally light:
 
 - `output/SNAPSHOT.md`
 
-## 2. When To Use It
+## 2. Common Starting Inputs
+
+You can start this workflow from any of the following:
+
+- a topic prompt with no paper list yet
+- a small paper pool you already trust
+- a query seed you want the pipeline to expand into a compact briefing
+
+This path is intentionally optimized for small, usable evidence rather than exhaustive retrieval.
+
+## 3. Data Flow
+
+`topic / small paper pool -> retrieval + dedupe -> small core set -> taxonomy + bullets-only outline -> compact snapshot -> deliverable self-check`
+
+What matters is not exhaustive coverage but whether the output can tell a reader:
+
+- what this area is actually about
+- what the main themes are
+- what to read first next
+
+## 4. Deliverable Contract
+
+`output/SNAPSHOT.md` should remain compact and pointer-heavy. The stable sections are:
+
+- `## Scope`
+- `## Key themes`
+- `## What to read first`
+- `## Open problems / risks`
+
+The briefing should feel like a fast research handoff, not like an unfinished survey.
+
+## 5. When To Use It
 
 Use `research-brief` when:
 
@@ -30,7 +61,7 @@ Do not use it when:
 - you need a full survey draft or PDF paper
 - you are evaluating a single manuscript in depth
 
-## 3. How It Differs From Adjacent Workflows
+## 6. How It Differs From Adjacent Workflows
 
 | Workflow | Main question |
 |---|---|
@@ -39,7 +70,7 @@ Do not use it when:
 | `evidence-review` | What does the full candidate pool support under an auditable protocol? |
 | `latex-survey` | Can I turn this evidence base into a serious review paper? |
 
-## 4. Stage Flow
+## 7. Stage Flow
 
 | Stage | Purpose | Main outputs |
 |---|---|---|
@@ -48,7 +79,7 @@ Do not use it when:
 | `C2` | lock topic boundary and bullets-only outline | `outline/taxonomy.yml`, `outline/outline.yml` |
 | `C3` | write and self-check the briefing | `output/SNAPSHOT.md`, `output/DELIVERABLE_SELFLOOP_TODO.md` |
 
-## 5. Quality Bar
+## 8. Quality Bar
 
 The brief should:
 
@@ -57,7 +88,7 @@ The brief should:
 - point the reader to what to read first
 - stay compact and pointer-heavy
 
-## 6. Recommended Prompt
+## 9. Recommended Prompt
 
 ```text
 Use the research-brief workflow to give me a one-page briefing on robot test-time adaptation, with key themes and what to read first.

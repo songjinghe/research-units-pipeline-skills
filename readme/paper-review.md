@@ -19,13 +19,44 @@ The output is:
 
 - `output/REVIEW.md`
 
-## 2. The Core Contract
+## 2. Common Starting Inputs
+
+Typical inputs include:
+
+- a local manuscript in markdown, text, or PDF
+- a pasted paper draft that should become `output/PAPER.md`
+- a paper plus its reference list if you also want overlap/delta positioning
+
+The unit of analysis is always one paper or manuscript, not a topic-wide corpus.
+
+## 3. The Core Contract
 
 `paper/manuscript -> full text ingest -> claims -> evidence gaps + novelty -> review`
 
 The key idea is that critique must stay attached to identifiable claims, not float as generic advice.
 
-## 3. When To Use It
+## 4. Data Flow
+
+`manuscript source -> canonical paper text -> traceable claims -> evidence-gap audit + overlap/delta matrix -> rubric review -> deliverable self-check`
+
+This means the workflow first stabilizes what the paper is actually claiming, then critiques those claims.
+
+## 5. Deliverable Contract
+
+`output/REVIEW.md` should expose stable review sections:
+
+- `### Summary`
+- `### Novelty`
+- `### Soundness`
+- `### Clarity`
+- `### Impact`
+- `### Major Concerns`
+- `### Minor Comments`
+- `### Recommendation`
+
+The final review should read like a bounded, evidence-backed assessment rather than a free-form opinion note.
+
+## 6. When To Use It
 
 Use `paper-review` when:
 
@@ -38,7 +69,7 @@ Do not use it when:
 - you are trying to understand an entire topic area quickly
 - you need a screened evidence synthesis across many studies
 
-## 4. Stage Flow
+## 7. Stage Flow
 
 | Stage | Purpose | Main outputs |
 |---|---|---|
@@ -47,7 +78,7 @@ Do not use it when:
 | `C2` | audit evidence and novelty positioning | `output/MISSING_EVIDENCE.md`, `output/NOVELTY_MATRIX.md` |
 | `C3` | write and self-check the review | `output/REVIEW.md`, `output/DELIVERABLE_SELFLOOP_TODO.md` |
 
-## 5. Quality Bar
+## 8. Quality Bar
 
 The review should:
 
@@ -56,7 +87,7 @@ The review should:
 - prefer concrete next actions over vague complaints
 - stay useful for both lab-internal review and referee-style review
 
-## 6. Recommended Prompt
+## 9. Recommended Prompt
 
 ```text
 Use the paper-review workflow to assess this manuscript and give me a lab-style review with explicit claims, evidence gaps, and novelty concerns.

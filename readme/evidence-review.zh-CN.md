@@ -18,7 +18,17 @@
 
 - `output/SYNTHESIS.md`
 
-## 2. 为什么它不只是“更长一点的 brief”
+## 2. 常见起始输入
+
+常见输入形态有：
+
+- 一个 review question，想拿现有文献去验证
+- 一组 query seed / database keywords
+- 一份已经导出的 candidate pool，想按 protocol 做 screening
+
+默认情况下，这条流程会把完整 deduped candidate pool 保留在 `papers/core_set.csv` 里，除非你显式要求缩小范围，这样 screening 阶段不会悄悄丢研究。
+
+## 3. 为什么它不只是“更长一点的 brief”
 
 这条流程比 `research-brief` 重得多，而且是刻意如此。
 
@@ -33,7 +43,25 @@
 
 所以它必须保持独立执行合同，而不是被折叠成轻量 briefing 路径。
 
-## 3. 什么时候该用它
+## 4. 数据流
+
+`review question -> operational protocol -> auditable candidate pool -> screening log -> extraction table + bias fields -> bounded synthesis -> deliverable self-check`
+
+也就是说，后面的每个工件都应该能从 protocol 和 screened pool 回溯出来。
+
+## 5. 交付合同
+
+`output/SYNTHESIS.md` 应该稳定包含这些部分：
+
+- `## Included studies summary`
+- `## Findings by theme`
+- `## Risk of bias`
+- `## Supported conclusions`
+- `## Needs more evidence`
+
+这份 synthesis 应该被 extraction table 约束，而不是写成一篇泛泛长文。
+
+## 6. 什么时候该用它
 
 当：
 
@@ -49,7 +77,7 @@
 - 你只需要一份快速入门 memo
 - 你评估的是一篇单独 paper，而不是一个候选池
 
-## 4. 阶段流
+## 7. 阶段流
 
 | 阶段 | 目的 | 主要产物 |
 |---|---|---|
@@ -60,7 +88,7 @@
 | `C4` | 提取研究字段和 bias 数据 | `papers/extraction_table.csv` |
 | `C5` | 写 synthesis 并做成品自检 | `output/SYNTHESIS.md`、`output/DELIVERABLE_SELFLOOP_TODO.md` |
 
-## 5. 质量目标
+## 8. 质量目标
 
 这份 synthesis 应该：
 
@@ -69,7 +97,7 @@
 - 显式交代限制与偏倚
 - 不要退化成普通长摘要
 
-## 6. 推荐 Prompt
+## 9. 推荐 Prompt
 
 ```text
 Use the evidence-review workflow to run a PRISMA-style review on LLM agents for education, with protocol, screening, extraction, and a bounded synthesis.

@@ -23,7 +23,7 @@
 这七条工作流共享同一套基本架构：
 
 - `pipelines/` 定义阶段合同、目标工件和所需 skills。
-- `.codex/skills/` 存放可复用 skills。（100 个 skills）
+- `.codex/skills/` 存放可复用 skills。
 - `workspaces/` 存放每次 run 的输出和中间产物。
 - `readme/` 存放按功能拆分的说明文档。
 
@@ -49,7 +49,23 @@
 
 当你已经有网页、PDF、笔记、repo docs 或文档站点，想把这些材料重构成一个更适合阅读和讲解的教程时，用 `source-tutorial`。
 
-当你已经有毕业论文模板、现有 TeX、Overleaf 草稿、PDF、图表或已有 paper，需要把这些材料重组成一条中文学位论文工作流时，用 `graduate-paper`。这条路径目前也是四者里自动化程度最低的一条。
+当你已经有毕业论文模板、现有 TeX、Overleaf 草稿、PDF、图表或已有 paper，需要把这些材料重组成一条中文学位论文工作流时，用 `graduate-paper`。这条路径目前也是主要工作流里自动化程度最低的一条。
+
+## 三条并列的 Review 产品
+
+`research-brief`、`paper-review` 和 `evidence-review` 现在是三条并列入口，不再是一个流程里的轻重档位。
+
+| 工作流 | 常见输入形态 | 内部数据流 | 交付物 |
+|---|---|---|---|
+| `research-brief` | topic prompt、小论文池、queries seed | topic -> small core set -> outline -> compact briefing | `output/SNAPSHOT.md` |
+| `paper-review` | 单篇 paper / manuscript | manuscript -> claims -> evidence gaps + novelty matrix -> review | `output/REVIEW.md` |
+| `evidence-review` | review question + candidate pool | question -> protocol -> screening -> extraction + bias -> synthesis | `output/SYNTHESIS.md` |
+
+它们分别服务三种不同需求：
+
+- `research-brief`：快速入门、快速读懂、快速拿到阅读路径
+- `paper-review`：对单篇论文做可追溯评估
+- `evidence-review`：对一批候选研究做可审计证据综合
 
 ## 怎么使用这个仓库
 
@@ -125,7 +141,7 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 - [SKILL_INDEX.md](SKILL_INDEX.md)
 - [SKILLS_STANDARD.md](SKILLS_STANDARD.md)
 
-更早那套偏 survey 的多语言 README 仍保存在 `readme/README.*.md` 下，现在更适合作为历史参考，而不是新的主入口。
+多语言文档入口页放在 `readme/README.*.md` 下，并已同步到当前这版 workflow 结构。
 
 ## 当前状态
 

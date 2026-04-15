@@ -1,53 +1,49 @@
 ---
 name: exercise-builder
 description: |
-  Add exercises to each tutorial module (inputs, expected outputs, verification steps) and update `outline/module_plan.yml`.
+  Use when a tutorial module plan exists but each module still needs a verifiable teaching loop.
   **Trigger**: exercises, practice, verification checklist, 教程练习, 可验证作业.
-  **Use when**: 已有模块计划（`outline/module_plan.yml`），需要为每个模块补齐至少 1 个可验证练习以形成 teaching loop。
-  **Skip if**: 还没有 module plan（先跑 `module-planner`）。
+  **Use when**: tutorial 的 C2，已有 `outline/module_plan.yml`，需要为每个模块补齐 exercise / expected output / verification steps。
+  **Skip if**: 还没有 module plan。
   **Network**: none.
-  **Guardrail**: 每个练习必须包含 expected output + verification steps；避免只给“思考题”无验收。
+  **Guardrail**: 练习必须可验证，不能只给开放式思考题。
 ---
 
 # Exercise Builder
 
-Goal: attach at least one verifiable exercise to every module so the tutorial has a teaching loop.
+Adds the minimal deterministic exercise contract to each planned tutorial module.
 
-## Inputs
+## Input
 
 - `outline/module_plan.yml`
 
-## Outputs
+## Output
 
-- Updated `outline/module_plan.yml`
+- updated `outline/module_plan.yml`
 
-## Exercise schema (recommended)
+## Contract
 
-For each module, add an `exercises` list. Each exercise should contain:
+Each module must end up with at least one `exercise` containing:
 - `prompt`
 - `expected_output`
-- `verification_steps` (a checklist)
+- `verification_steps`
 
-## Workflow
+## Script boundary
 
-1. Read `outline/module_plan.yml` and enumerate modules.
-2. For each module, design ≥1 exercise that directly verifies the module objectives.
-3. Ensure every exercise has an expected output and a verification checklist.
-4. Update `outline/module_plan.yml` in place.
+`scripts/run.py` should:
+- load the current module plan
+- fill missing exercises deterministically
+- write the plan back in place
 
-## Definition of Done
+Keep exercise phrasing logic in shared tutorial tooling rather than hardcoding it repeatedly in the skill script.
 
-- [ ] Every module in `outline/module_plan.yml` has ≥1 exercise.
-- [ ] Every exercise includes `expected_output` + `verification_steps`.
+## Acceptance
 
-## Troubleshooting
+- every module has `exercises`
+- every exercise includes `expected_output`
+- every exercise includes `verification_steps`
 
-### Issue: exercises are open-ended with no verification
+## Non-goals
 
-**Fix**:
-- Convert them into “do X → observe Y → verify Z” with concrete artifacts.
-
-### Issue: exercises drift from the running example
-
-**Fix**:
-- Re-anchor each exercise to the module’s `running_example_steps` so the tutorial stays coherent.
+- source coverage auditing
+- prose tutorial writing

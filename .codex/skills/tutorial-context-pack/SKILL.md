@@ -1,9 +1,9 @@
 ---
 name: tutorial-context-pack
 description: |
-  Build writer-ready per-module context packs for source-tutorial drafting.
+  Use when module planning and source coverage are done and the run needs writer-ready per-module packs.
   **Trigger**: tutorial context pack, module pack, writer pack, 教程上下文包, 模块写作包.
-  **Use when**: `source-tutorial` 的 C2，想把 module plan 和 source grounding 组织成稳定的写作输入。
+  **Use when**: `source-tutorial` 的 C2，已有 module plan + source coverage，需要组织成稳定写作输入。
   **Skip if**: module/source coverage 还没完成。
   **Network**: none.
   **Guardrail**: 只整理上下文，不直接写教程正文。
@@ -11,9 +11,7 @@ description: |
 
 # Tutorial Context Pack
 
-Goal: combine module plan, source coverage, and provenance snippets into one deterministic pack per module.
-
-The pack builder should pull module structure from `outline/module_plan.yml`, grounding from `outline/source_coverage.jsonl`, and concrete source pointers from `sources/provenance.jsonl`.
+Combines module structure, source coverage, and source snippets into one deterministic JSONL pack per module.
 
 ## Inputs
 
@@ -21,23 +19,36 @@ The pack builder should pull module structure from `outline/module_plan.yml`, gr
 - `outline/source_coverage.jsonl`
 - `sources/provenance.jsonl`
 
-## Outputs
+## Output
 
 - `outline/tutorial_context_packs.jsonl`
 
-## Suggested fields
+## Contract
 
+Each pack must include:
 - `module_id`
 - `title`
 - `objective`
 - `core_concepts`
-- `worked_example_candidates`
-- `pitfalls`
 - `exercise_seed`
 - `source_snippets`
 
-## Definition of Done
+## Script boundary
 
-- One pack per module.
-- Packs mention actual source IDs/snippets.
-- Packs are prose-ready but not reader-facing prose.
+`scripts/run.py` should:
+- read the current module plan and coverage file
+- select source snippets per module
+- write one stable pack per module
+
+Keep snippet ranking and pack synthesis in shared tutorial tooling rather than in the thin wrapper script.
+
+## Acceptance
+
+- one pack per module
+- every pack has `module_id` and `objective`
+- every pack includes actual source-backed snippets
+
+## Non-goals
+
+- final tutorial prose
+- PDF/slides delivery

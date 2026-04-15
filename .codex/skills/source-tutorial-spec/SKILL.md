@@ -1,19 +1,17 @@
 ---
 name: source-tutorial-spec
 description: |
-  Define a tutorial spec from ingested sources rather than from a bare topic prompt.
+  Use when a `source-tutorial` workspace has ingested sources and needs a grounded tutorial contract before structure planning.
   **Trigger**: source tutorial spec, tutorial from sources, learner profile, 教程规格, 从资料生成教程.
-  **Use when**: `source-tutorial` 的 C2，需要根据已 ingest 的 sources 锁定 audience、prerequisites、objectives、non-goals 和 running example 策略。
-  **Skip if**: 还没有完成 source ingest，或 spec 已被人工批准且不允许改动。
+  **Use when**: `source-tutorial` 的 C2，需要根据 `sources/index.jsonl` / `sources/provenance.jsonl` 锁定 audience、prerequisites、learning objectives、source scope 和 running example policy。
+  **Skip if**: source ingest 还没完成，或 tutorial scope 已被人工冻结。
   **Network**: none.
-  **Guardrail**: 不要发明 sources 没支持的内容；如果 running example 不稳，就明确写“无统一 running example”。
+  **Guardrail**: 不要发明 sources 没支持的内容；running example 不稳时要明确写无统一 running example。
 ---
 
 # Source Tutorial Spec
 
-Goal: write a tutorial scope contract grounded in the ingested source corpus.
-
-The spec should explicitly read `sources/index.jsonl` and `sources/provenance.jsonl`, then use `GOAL.md` and `DECISIONS.md` only as framing constraints.
+Builds the C2 tutorial contract from the ingested source corpus, not from a bare topic prompt.
 
 ## Inputs
 
@@ -22,23 +20,41 @@ The spec should explicitly read `sources/index.jsonl` and `sources/provenance.js
 - `GOAL.md`
 - `DECISIONS.md`
 
-## Outputs
+## Output
 
 - `output/TUTORIAL_SPEC.md`
 
-## Required sections
+## Contract
 
-- Audience
-- Prerequisites
-- Learning objectives
-- Non-goals
-- Source scope
-- Running example policy
-- Delivery shape
+The spec must include:
+- `## Audience`
+- `## Prerequisites`
+- `## Learning objectives`
+- `## Non-goals`
+- `## Source scope`
+- `## Running example policy`
+- `## Delivery shape`
 
-## Definition of Done
+It should also embed machine-readable structured data for downstream deterministic planning.
 
-- `output/TUTORIAL_SPEC.md` is structured, not long prose.
-- Objectives are measurable.
-- Source scope names the actual source families being used.
-- Running example is either concrete or explicitly omitted for lack of support.
+## Script boundary
+
+`scripts/run.py` should:
+- read the ingested source bundle
+- derive a grounded tutorial scope
+- write the markdown spec and structured seed block
+
+Keep phrase extraction, concept selection, and source matching in shared tutorial tooling, not in the thin skill wrapper.
+
+## Acceptance
+
+- `output/TUTORIAL_SPEC.md` exists
+- the required sections are present
+- source families are named explicitly
+- running example policy is concrete or explicitly omitted
+
+## Non-goals
+
+- concept DAG construction
+- module sequencing
+- tutorial prose writing

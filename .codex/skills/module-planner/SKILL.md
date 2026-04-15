@@ -1,59 +1,53 @@
 ---
 name: module-planner
 description: |
-  Plan tutorial modules from a concept graph, including module objectives and sequencing, saving as `outline/module_plan.yml`.
+  Use when a tutorial concept DAG exists and the run needs an ordered teaching plan with objectives and outputs.
   **Trigger**: module plan, tutorial modules, course outline, 模块规划, module_plan.yml.
-  **Use when**: tutorial pipeline 的结构阶段（C2），已有 `outline/concept_graph.yml`，需要把概念依赖转成可教学的模块序列。
-  **Skip if**: 还没有 concept graph（先跑 `concept-graph`）。
+  **Use when**: tutorial 的 C2，已有 `outline/concept_graph.yml`，需要把 concept DAG 收敛成模块顺序。
+  **Skip if**: 还没有 concept graph。
   **Network**: none.
-  **Guardrail**: 每模块明确 objectives + outputs（最好含 running example 步骤）；避免 prose 段落。
+  **Guardrail**: 每个模块都要有 objectives、outputs、running-example step；不要写长 prose。
 ---
 
 # Module Planner
 
-Goal: turn a concept DAG into a teachable module sequence with clear objectives and outputs.
+Turns the concept graph into the teachable module sequence used by later tutorial stages.
 
-## Inputs
+## Input
 
 - `outline/concept_graph.yml`
 
-## Outputs
+## Output
 
 - `outline/module_plan.yml`
 
-## Output schema (recommended)
+## Contract
 
-- `modules`: ordered list of modules
-  - `id`, `title`
-  - `objectives` (3–6 measurable bullets)
-  - `concepts` (node ids from `outline/concept_graph.yml`)
-  - `outputs` (what the learner produces)
-  - `running_example_steps` (optional but recommended)
+The module plan must define:
+- ordered `modules`
+- `id`, `title`
+- `objectives`
+- `concepts`
+- `outputs`
+- `running_example_steps`
 
-## Workflow
+## Script boundary
 
-1. Read `outline/concept_graph.yml` and topologically sort concepts.
-2. Cluster concepts into modules (keep module scope coherent; avoid “misc”).
-3. For each module:
-   - write measurable objectives
-   - define concrete outputs (code/artifact)
-   - specify how the running example advances
-4. Write `outline/module_plan.yml`.
+`scripts/run.py` should:
+- topologically order concepts
+- cluster them into coherent modules
+- attach measurable objectives and concrete outputs
 
-## Definition of Done
+Keep graph traversal and clustering heuristics in shared tutorial tooling, not in the wrapper script.
 
-- [ ] `outline/module_plan.yml` exists and modules are ordered by prerequisites.
-- [ ] Every module has objectives + outputs.
-- [ ] Every concept node from `outline/concept_graph.yml` is covered by at least one module.
+## Acceptance
 
-## Troubleshooting
+- `outline/module_plan.yml` exists
+- every concept node is covered by at least one module
+- every module has objectives and outputs
 
-### Issue: modules are too many / too granular
+## Non-goals
 
-**Fix**:
-- Merge adjacent modules with shared prerequisites; target ~5–12 modules for most tutorials.
-
-### Issue: objectives are not verifiable
-
-**Fix**:
-- Rewrite objectives so `exercise-builder` can attach a concrete exercise for each module.
+- source grounding audit
+- exercise writing
+- tutorial drafting

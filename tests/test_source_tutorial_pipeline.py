@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import socket
 import subprocess
@@ -11,6 +12,7 @@ import unittest
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from tooling.common import load_yaml, read_jsonl
 from tooling.common import resolve_pipeline_spec_path
 from tooling.pipeline_spec import PipelineSpec
 
@@ -19,6 +21,183 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class SourceTutorialPipelineTests(unittest.TestCase):
+    def _script_path(self, skill_name: str) -> Path:
+        return REPO_ROOT / ".codex" / "skills" / skill_name / "scripts" / "run.py"
+
+    def _run_script(self, skill_name: str, workspace: Path) -> subprocess.CompletedProcess[str]:
+        script = self._script_path(skill_name)
+        self.assertTrue(script.exists(), f"missing script: {script}")
+        return subprocess.run(
+            [sys.executable, str(script), "--workspace", str(workspace)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def _write_jsonl(self, path: Path, records: list[dict[str, object]]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records),
+            encoding="utf-8",
+        )
+
+    def _scaffold_source_tutorial_workspace(self, workspace: Path, *, approved: bool = False) -> None:
+        (workspace / "sources" / "normalized").mkdir(parents=True, exist_ok=True)
+        (workspace / "output").mkdir(parents=True, exist_ok=True)
+        (workspace / "outline").mkdir(parents=True, exist_ok=True)
+
+        goal_text = textwrap.dedent(
+            """\
+            # Goal
+
+            Build a reader-first tutorial that teaches robotics engineers how to go from behavior cloning basics to dataset design, training, and evaluation.
+            """
+        )
+        (workspace / "GOAL.md").write_text(goal_text, encoding="utf-8")
+
+        decisions_lines = [
+            "# Decisions log",
+            "",
+            "## Approvals (check to unblock)",
+            f"- [{'x' if approved else ' '}] Approve C2",
+            "",
+        ]
+        (workspace / "DECISIONS.md").write_text("\n".join(decisions_lines), encoding="utf-8")
+
+        intro_path = workspace / "sources" / "normalized" / "intro-web.md"
+        intro_path.write_text(
+            textwrap.dedent(
+                """\
+                # Behavior Cloning Primer
+
+                Source: https://example.com/behavior-cloning
+
+                Behavior cloning trains a policy from demonstration trajectories.
+                A useful tutorial should explain observations, actions, datasets, and rollout failure modes.
+                Evaluation should compare held-out imitation accuracy with rollout performance on the real task.
+                """
+            ),
+            encoding="utf-8",
+        )
+
+        repo_dir = workspace / "sources" / "normalized" / "repo-guide"
+        repo_dir.mkdir(parents=True, exist_ok=True)
+        repo_readme = repo_dir / "README.md"
+        repo_readme.write_text(
+            textwrap.dedent(
+                """\
+                # Robot Learning Repo Guide
+
+                Source: https://example.com/repo
+
+                The repo documents dataset schema, training configuration, checkpointing, and evaluation scripts.
+                Readers should learn how to structure demonstrations, launch training, and inspect validation metrics.
+                """
+            ),
+            encoding="utf-8",
+        )
+
+        video_path = workspace / "sources" / "normalized" / "lecture-video.md"
+        video_path.write_text(
+            textwrap.dedent(
+                """\
+                # Debugging Rollouts Lecture
+
+                Source: https://www.youtube.com/watch?v=demo
+
+                The lecture explains rollout inspection, policy failure analysis, and when to revisit data collection.
+                It also demonstrates a compact running example around a pick-and-place robot arm.
+                """
+            ),
+            encoding="utf-8",
+        )
+
+        self._write_jsonl(
+            workspace / "sources" / "index.jsonl",
+            [
+                {
+                    "source_id": "intro-web",
+                    "kind": "webpage",
+                    "status": "success",
+                    "title": "Behavior Cloning Primer",
+                    "canonical_url": "https://example.com/behavior-cloning",
+                    "local_path": "sources/normalized/intro-web.md",
+                    "content_chars": 240,
+                    "extracted_at": "2026-04-15T10:00:00",
+                    "extractor": "fixture",
+                    "warning": "",
+                    "required": True,
+                },
+                {
+                    "source_id": "repo-guide",
+                    "kind": "repo",
+                    "status": "success",
+                    "title": "Robot Learning Repo Guide",
+                    "canonical_url": "https://example.com/repo",
+                    "local_path": "sources/normalized/repo-guide",
+                    "content_chars": 210,
+                    "extracted_at": "2026-04-15T10:00:00",
+                    "extractor": "fixture",
+                    "warning": "",
+                    "required": True,
+                },
+                {
+                    "source_id": "lecture-video",
+                    "kind": "video",
+                    "status": "success",
+                    "title": "Debugging Rollouts Lecture",
+                    "canonical_url": "https://www.youtube.com/watch?v=demo",
+                    "local_path": "sources/normalized/lecture-video.md",
+                    "content_chars": 190,
+                    "extracted_at": "2026-04-15T10:00:00",
+                    "extractor": "fixture",
+                    "warning": "",
+                    "required": False,
+                },
+            ],
+        )
+        self._write_jsonl(
+            workspace / "sources" / "provenance.jsonl",
+            [
+                {
+                    "source_id": "intro-web",
+                    "pointer": "sources/normalized/intro-web.md",
+                    "origin_url_or_path": "https://example.com/behavior-cloning",
+                    "local_path": "sources/normalized/intro-web.md",
+                    "hash": "",
+                    "note": "fixture webpage",
+                },
+                {
+                    "source_id": "repo-guide",
+                    "pointer": "sources/normalized/repo-guide/README.md",
+                    "origin_url_or_path": "https://example.com/repo::README.md",
+                    "local_path": "sources/normalized/repo-guide/README.md",
+                    "hash": "",
+                    "note": "fixture repo docs",
+                },
+                {
+                    "source_id": "lecture-video",
+                    "pointer": "sources/normalized/lecture-video.md",
+                    "origin_url_or_path": "https://www.youtube.com/watch?v=demo",
+                    "local_path": "sources/normalized/lecture-video.md",
+                    "hash": "",
+                    "note": "fixture transcript",
+                },
+            ],
+        )
+
+    def _run_structured_tutorial_flow_until_context_packs(self, workspace: Path) -> None:
+        for skill_name in (
+            "source-tutorial-spec",
+            "concept-graph",
+            "module-planner",
+            "exercise-builder",
+            "module-source-coverage",
+            "tutorial-context-pack",
+        ):
+            proc = self._run_script(skill_name, workspace)
+            self.assertEqual(proc.returncode, 0, msg=f"{skill_name}: {proc.stderr or proc.stdout}")
+
     def test_source_tutorial_pipeline_spec_loads(self) -> None:
         path = resolve_pipeline_spec_path(repo_root=REPO_ROOT, pipeline_value="source-tutorial")
         self.assertIsNotNone(path)
@@ -35,6 +214,135 @@ class SourceTutorialPipelineTests(unittest.TestCase):
         path = resolve_pipeline_spec_path(repo_root=REPO_ROOT, pipeline_value="tutorial")
         self.assertIsNotNone(path)
         self.assertEqual(path.name, "source-tutorial.pipeline.md")
+
+    def test_source_tutorial_spec_script_generates_grounded_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            self._scaffold_source_tutorial_workspace(workspace)
+
+            proc = self._run_script("source-tutorial-spec", workspace)
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+
+            spec_text = (workspace / "output" / "TUTORIAL_SPEC.md").read_text(encoding="utf-8")
+            self.assertIn("## Audience", spec_text)
+            self.assertIn("## Learning objectives", spec_text)
+            self.assertIn("## Source scope", spec_text)
+            self.assertIn("intro-web", spec_text)
+            self.assertIn("repo-guide", spec_text)
+
+    def test_concept_graph_script_builds_dag_from_tutorial_spec(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            self._scaffold_source_tutorial_workspace(workspace)
+            spec_proc = self._run_script("source-tutorial-spec", workspace)
+            self.assertEqual(spec_proc.returncode, 0, msg=spec_proc.stderr or spec_proc.stdout)
+
+            proc = self._run_script("concept-graph", workspace)
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+
+            graph = load_yaml(workspace / "outline" / "concept_graph.yml")
+            self.assertIsInstance(graph, dict)
+            nodes = graph.get("nodes") or []
+            edges = graph.get("edges") or []
+            self.assertGreaterEqual(len(nodes), 4)
+            node_ids = {str(node.get("id") or "") for node in nodes if isinstance(node, dict)}
+            self.assertTrue(all(node_ids))
+            self.assertTrue(all(edge.get("from") != edge.get("to") for edge in edges if isinstance(edge, dict)))
+
+    def test_module_planner_script_covers_all_concepts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            self._scaffold_source_tutorial_workspace(workspace)
+            for skill_name in ("source-tutorial-spec", "concept-graph", "module-planner"):
+                proc = self._run_script(skill_name, workspace)
+                self.assertEqual(proc.returncode, 0, msg=f"{skill_name}: {proc.stderr or proc.stdout}")
+
+            graph = load_yaml(workspace / "outline" / "concept_graph.yml")
+            plan = load_yaml(workspace / "outline" / "module_plan.yml")
+            node_ids = {str(node.get("id") or "") for node in graph.get("nodes") or [] if isinstance(node, dict)}
+            covered = {
+                concept_id
+                for module in plan.get("modules") or []
+                if isinstance(module, dict)
+                for concept_id in module.get("concepts") or []
+                if str(concept_id or "").strip()
+            }
+            self.assertTrue(plan.get("modules"))
+            self.assertTrue(node_ids.issubset(covered))
+            self.assertTrue(all(module.get("objectives") for module in plan.get("modules") or [] if isinstance(module, dict)))
+
+    def test_exercise_builder_script_adds_exercises_to_each_module(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            self._scaffold_source_tutorial_workspace(workspace)
+            for skill_name in ("source-tutorial-spec", "concept-graph", "module-planner", "exercise-builder"):
+                proc = self._run_script(skill_name, workspace)
+                self.assertEqual(proc.returncode, 0, msg=f"{skill_name}: {proc.stderr or proc.stdout}")
+
+            plan = load_yaml(workspace / "outline" / "module_plan.yml")
+            modules = plan.get("modules") or []
+            self.assertTrue(modules)
+            for module in modules:
+                self.assertTrue(module.get("exercises"))
+                exercise = module["exercises"][0]
+                self.assertTrue(exercise.get("expected_output"))
+                self.assertTrue(exercise.get("verification_steps"))
+
+    def test_module_source_coverage_script_records_one_row_per_module(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            self._scaffold_source_tutorial_workspace(workspace)
+            for skill_name in ("source-tutorial-spec", "concept-graph", "module-planner", "exercise-builder", "module-source-coverage"):
+                proc = self._run_script(skill_name, workspace)
+                self.assertEqual(proc.returncode, 0, msg=f"{skill_name}: {proc.stderr or proc.stdout}")
+
+            plan = load_yaml(workspace / "outline" / "module_plan.yml")
+            coverage_records = read_jsonl(workspace / "outline" / "source_coverage.jsonl")
+            self.assertEqual(len(coverage_records), len(plan.get("modules") or []))
+            self.assertTrue(all(record.get("module_id") for record in coverage_records))
+            self.assertTrue(all(("source_ids" in record) or ("gaps" in record) for record in coverage_records))
+
+    def test_tutorial_context_pack_script_builds_module_packs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            self._scaffold_source_tutorial_workspace(workspace)
+            self._run_structured_tutorial_flow_until_context_packs(workspace)
+
+            packs = read_jsonl(workspace / "outline" / "tutorial_context_packs.jsonl")
+            plan = load_yaml(workspace / "outline" / "module_plan.yml")
+            self.assertEqual(len(packs), len(plan.get("modules") or []))
+            self.assertTrue(all(record.get("module_id") for record in packs))
+            self.assertTrue(all(record.get("objective") for record in packs))
+            self.assertTrue(all(record.get("source_snippets") for record in packs))
+
+    def test_source_tutorial_writer_requires_c2_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            self._scaffold_source_tutorial_workspace(workspace, approved=False)
+            self._run_structured_tutorial_flow_until_context_packs(workspace)
+
+            proc = self._run_script("source-tutorial-writer", workspace)
+            self.assertNotEqual(proc.returncode, 0)
+            decisions_text = (workspace / "DECISIONS.md").read_text(encoding="utf-8")
+            self.assertIn("Please tick `Approve C2`", decisions_text)
+
+    def test_source_tutorial_writer_generates_teachable_tutorial(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            self._scaffold_source_tutorial_workspace(workspace, approved=True)
+            self._run_structured_tutorial_flow_until_context_packs(workspace)
+
+            proc = self._run_script("source-tutorial-writer", workspace)
+            self.assertEqual(proc.returncode, 0, msg=proc.stderr or proc.stdout)
+
+            tutorial = (workspace / "output" / "TUTORIAL.md").read_text(encoding="utf-8")
+            self.assertIn("## Who This Is For", tutorial)
+            self.assertIn("## Prerequisites", tutorial)
+            self.assertIn("## What You Will Learn", tutorial)
+            self.assertIn("### Why it matters", tutorial)
+            self.assertIn("### Worked example", tutorial)
+            self.assertIn("### Check yourself", tutorial)
+            self.assertIn("### Source notes", tutorial)
 
     def test_source_manifest_script_scaffolds_and_blocks_until_sources_exist(self) -> None:
         script = REPO_ROOT / ".codex" / "skills" / "source-manifest" / "scripts" / "run.py"

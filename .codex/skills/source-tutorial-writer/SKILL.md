@@ -1,19 +1,17 @@
 ---
 name: source-tutorial-writer
 description: |
-  Write a reader-first tutorial from approved source-grounded module packs.
+  Use when approved tutorial context packs exist and the run needs the final article-first tutorial deliverable.
   **Trigger**: source tutorial writer, tutorial drafting, 教程正文, 从资料写教程.
-  **Use when**: `source-tutorial` 的 C3，`outline/tutorial_context_packs.jsonl` 和 `DECISIONS.md` 的 C2 批准都已就绪。
-  **Skip if**: spec/module plan 还没批准，或 source packs 还没准备好。
+  **Use when**: `source-tutorial` 的 C3，`outline/tutorial_context_packs.jsonl` 已就绪，且 `DECISIONS.md` 已勾选 `Approve C2`。
+  **Skip if**: C2 未批准，或 context packs 还没准备好。
   **Network**: none.
-  **Guardrail**: 正文要以可读性和学习体验为主，但不能写出 sources 没支持的内容。
+  **Guardrail**: 正文必须 reader-first，但不能写出 sources 没支持的内容。
 ---
 
 # Source Tutorial Writer
 
-Goal: turn source-grounded module packs into one coherent tutorial.
-
-The writer should treat `outline/tutorial_context_packs.jsonl` as the primary substrate, use `outline/module_plan.yml` for order/shape, and respect C2 approvals in `DECISIONS.md`.
+Writes the final tutorial markdown from approved module packs and the locked C2 structure.
 
 ## Inputs
 
@@ -21,22 +19,41 @@ The writer should treat `outline/tutorial_context_packs.jsonl` as the primary su
 - `outline/module_plan.yml`
 - `DECISIONS.md`
 
-## Outputs
+## Output
 
 - `output/TUTORIAL.md`
 
-## Required shape
+## Contract
 
-- article-first tutorial
-- clear reader orientation up front
-- module-by-module flow
-- concrete examples
-- pitfalls/check-yourself moments
-- module-end source notes
+The tutorial must:
+- start with reader orientation
+- follow the approved module order
+- keep per-module teaching sections explicit
+- keep source notes visible but lightweight
 
-## Definition of Done
+Per module, the writer should emit:
+- `### Why it matters`
+- `### Key idea`
+- `### Worked example`
+- `### Check yourself`
+- `### Source notes`
 
-- `output/TUTORIAL.md` exists.
-- Modules follow the approved order.
-- Reader guidance is explicit.
-- Source notes remain visible but lightweight.
+## Script boundary
+
+`scripts/run.py` should:
+- block on missing `Approve C2`
+- load module packs in approved order
+- render the deterministic tutorial scaffold/content into `output/TUTORIAL.md`
+
+Keep rendering and pack interpretation in shared tutorial tooling, not in the wrapper.
+
+## Acceptance
+
+- `output/TUTORIAL.md` exists
+- the required reader-orientation sections exist
+- every module includes the required teaching subsections
+
+## Non-goals
+
+- self-loop QA reporting
+- article/slides compilation

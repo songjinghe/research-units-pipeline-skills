@@ -1,19 +1,17 @@
 ---
 name: module-source-coverage
 description: |
-  Audit whether every planned tutorial module is grounded in the ingested source set.
+  Use when a tutorial module plan exists and the run needs an auditable module-to-source grounding file before prose.
   **Trigger**: module coverage, source coverage, tutorial grounding, 模块覆盖, 来源覆盖.
-  **Use when**: `source-tutorial` 的 C2，已有 `outline/module_plan.yml`，需要在 prose 前确认每个模块都能回指到来源。
-  **Skip if**: module plan 还没定，或 source ingest 不完整。
+  **Use when**: `source-tutorial` 的 C2，已有 `outline/module_plan.yml`，需要确认每个模块都能回指到 sources。
+  **Skip if**: module plan 或 source ingest 不完整。
   **Network**: none.
-  **Guardrail**: 只做 coverage audit；不要在这里写教程 prose。
+  **Guardrail**: 只做 grounding audit，不写教程正文。
 ---
 
 # Module Source Coverage
 
-Goal: create an auditable module-to-source grounding file before tutorial prose starts.
-
-The coverage audit should compare each module in `outline/module_plan.yml` against the usable sources surfaced by `sources/index.jsonl` and `sources/provenance.jsonl`.
+Builds `outline/source_coverage.jsonl`, one coverage record per module.
 
 ## Inputs
 
@@ -21,18 +19,33 @@ The coverage audit should compare each module in `outline/module_plan.yml` again
 - `sources/index.jsonl`
 - `sources/provenance.jsonl`
 
-## Outputs
+## Output
 
 - `outline/source_coverage.jsonl`
 
-## Coverage rule
+## Contract
 
-Every module should:
-- map to at least one source ID, or
-- explicitly record why the gap exists
+Each record must include:
+- `module_id`
+- `module_title`
+- `source_ids` and/or explicit `gaps`
 
-## Definition of Done
+## Script boundary
 
-- `outline/source_coverage.jsonl` exists.
-- Every module in `outline/module_plan.yml` appears exactly once.
-- Gaps are explicit, not silently ignored.
+`scripts/run.py` should:
+- score module-to-source relevance
+- choose a small source set per module
+- record explicit grounding gaps when coverage is weak
+
+Keep text matching and snippet scoring in shared tutorial tooling, not in the wrapper.
+
+## Acceptance
+
+- `outline/source_coverage.jsonl` exists
+- every module appears exactly once
+- missing grounding is explicit instead of silent
+
+## Non-goals
+
+- context pack assembly
+- tutorial prose

@@ -38,7 +38,7 @@ The goal is **LLM-first semantic work + deterministic helper scripts**, with a c
 This repo is meant to be driven by **natural-language prompts** (not “run this python command”).
 
 Authoring rule of thumb:
-- A user should be able to say one sentence (e.g., “给我写一个 agent 的 latex-survey”) and the agent can route to a pipeline, create a workspace, and start executing units.
+- A user should be able to say one sentence (e.g., “给我写一个 agent 的 arxiv-survey-latex”) and the agent can route to a pipeline, create a workspace, and start executing units.
 - When you change a pipeline or add new skills, keep the “one-liner” prompts in `README.md` and `SKILL_INDEX.md` up to date.
 - Default HITL: keep a single human approval checkpoint for survey-like pipelines (C2: scope+outline). If you add more checkpoints, justify why.
 

@@ -197,17 +197,17 @@ That means the deck cannot be a pure heading dump, but also cannot become a tran
 - `tutorial-context-pack`
 - `source-tutorial-writer`
 
-### Compatibility
+### Routing cleanup
 
-- `tutorial` remains as a legacy alias pipeline file
-- direct `tutorial` pipeline selection resolves to `source-tutorial`
-- old `pipelines/tutorial.pipeline.md` references still load
+- `source-tutorial` is the only active tutorial pipeline name
+- the old `tutorial` alias has been removed from routing and tests
+- docs and examples should reference `source-tutorial` directly
 
 ## Review Checklist
 
 Reviewers should confirm:
 
-1. The new pipeline is canonical and the old one is clearly legacy.
+1. The pipeline name and routing surface are unambiguous.
 2. The source model is explicit and auditable.
 3. The tutorial remains the main product.
 4. The PDF and slides are first-class but subordinate to the tutorial contract.

@@ -20,7 +20,7 @@ This skill is **coordination**:
 ## Inputs
 
 - User goal (one sentence is enough), e.g.:
-  - “给我写一个 agent 的 latex-survey”
+  - “给我写一个 agent 的 arxiv-survey-latex”
 - Optional:
   - explicit pipeline path (e.g., `pipelines/arxiv-survey-latex.pipeline.md`)
   - constraints (time window, language: EN/中文, evidence_mode: abstract/fulltext)

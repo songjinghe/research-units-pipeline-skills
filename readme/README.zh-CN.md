@@ -6,11 +6,14 @@
 
 这页是当前 workflow 地图的轻量导航页。完整项目说明在仓库根目录 README，这里主要用于快速选入口。
 
+现在请直接使用最新 workflow 名称。旧别名已经不再参与 active routing。
+
 ## Workflow 地图
 
 | 工作流 | 用来做什么 | 默认交付物 | 说明 |
 |---|---|---|---|
-| `latex-survey` | 证据优先的文献综述写作，可选 LaTeX/PDF 交付 | `output/DRAFT.md`、`latex/main.pdf` | [说明](latex-survey.zh-CN.md) |
+| `arxiv-survey` | 证据优先的文献综述写作，先拿 draft，不急着出 PDF | `output/DRAFT.md` | [说明](arxiv-survey.zh-CN.md) |
+| `arxiv-survey-latex` | 同一条综述工作流，但包含 LaTeX/PDF 交付 | `output/DRAFT.md`、`latex/main.pdf` | [说明](arxiv-survey.zh-CN.md) |
 | `research-brief` | 快速理解主题并给出阅读路径 | `output/SNAPSHOT.md` | [说明](research-brief.zh-CN.md) |
 | `paper-review` | 对单篇论文做可追溯评估和 referee-style review | `output/REVIEW.md` | [说明](paper-review.zh-CN.md) |
 | `evidence-review` | 带 protocol、screening、extraction 的证据综合 | `output/SYNTHESIS.md` | [说明](evidence-review.zh-CN.md) |

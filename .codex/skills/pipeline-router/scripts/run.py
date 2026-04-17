@@ -4,20 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
-LEGACY_IDEATION_PIPELINE_NAMES = {"idea-brainstorm", "idea-finder"}
-
-LEGACY_PIPELINE_ALIASES = {
-    "idea-finder": "idea-brainstorm",
-    "idea-finder.pipeline.md": "idea-brainstorm",
-    "pipelines/idea-finder.pipeline.md": "idea-brainstorm",
-    "idea-brainstorm.pipeline.md": "idea-brainstorm",
-    "pipelines/idea-brainstorm.pipeline.md": "idea-brainstorm",
-}
-
-
 def _normalize_pipeline_name(pipeline: str) -> str:
-    value = str(pipeline or "").strip()
-    return LEGACY_PIPELINE_ALIASES.get(value, value)
+    return str(pipeline or "").strip()
 
 
 def main() -> int:
@@ -145,8 +133,6 @@ def _workspace_hint(workspace: Path) -> str:
 
 
 def _c2_review_block(workspace: Path, *, pipeline: str) -> str:
-    # Active contract is `idea-brainstorm`; `idea-finder` remains only as a legacy compatibility shim
-    # so archived workspace locks still route to the ideation-specific C2 review block.
     if _normalize_pipeline_name(pipeline) == "idea-brainstorm":
         return _c2_idea_focus_block(workspace)
 

@@ -8,11 +8,12 @@ It is designed for the space between fragile prompting and overly rigid scriptin
 
 ## What This Repo Covers
 
-The codebase currently centers on seven workflows:
+The codebase currently centers on eight workflow contracts:
 
 | Workflow | Use it for | Default deliverable | English | 中文 |
 |---|---|---|---|---|
-| `latex-survey` | evidence-first literature surveys with optional LaTeX/PDF delivery | `output/DRAFT.md`, `latex/main.tex`, `latex/main.pdf` | [Guide](readme/latex-survey.md) | [说明](readme/latex-survey.zh-CN.md) |
+| `arxiv-survey` | evidence-first literature surveys when you want the draft and evidence stack before PDF delivery | `output/DRAFT.md` | [Guide](readme/arxiv-survey.md) | [说明](readme/arxiv-survey.zh-CN.md) |
+| `arxiv-survey-latex` | the same survey workflow when compile-ready LaTeX/PDF is part of the contract from the start | `output/DRAFT.md`, `latex/main.tex`, `latex/main.pdf` | [Guide](readme/arxiv-survey.md) | [说明](readme/arxiv-survey.zh-CN.md) |
 | `research-brief` | fast topic understanding and reading-path briefs from a small paper set | `output/SNAPSHOT.md` | [Guide](readme/research-brief.md) | [说明](readme/research-brief.zh-CN.md) |
 | `paper-review` | traceable single-paper critique, lab review, or referee-style assessment | `output/REVIEW.md` | [Guide](readme/paper-review.md) | [说明](readme/paper-review.zh-CN.md) |
 | `evidence-review` | protocol-driven evidence synthesis with screening, extraction, and bounded conclusions | `output/SYNTHESIS.md` | [Guide](readme/evidence-review.md) | [说明](readme/evidence-review.zh-CN.md) |
@@ -27,6 +28,8 @@ These workflows share the same architecture:
 - `workspaces/` stores per-run artifacts and intermediate outputs.
 - `readme/` contains feature-level documentation.
 
+Use these workflow names directly. The old alias names have been removed from active routing.
+
 ## Core Concepts
 
 - `Pipeline`: the contract for a workflow. It defines stages, artifacts, checkpoints, and required skills.
@@ -37,7 +40,9 @@ The important design choice is artifact-first execution. The model is not expect
 
 ## When To Use Which Workflow
 
-Use `latex-survey` when the goal is a serious review paper with explicit retrieval, structure review, evidence packs, writing loops, and optional PDF output.
+Use `arxiv-survey` when the goal is a serious review paper with explicit retrieval, structure review, evidence packs, and writing loops, but PDF is not required yet.
+
+Use `arxiv-survey-latex` when the same survey workflow must also deliver compile-ready LaTeX/PDF artifacts.
 
 Use `research-brief` when the goal is to understand a topic quickly, surface the key themes, and produce a reading path rather than a full survey.
 
@@ -128,7 +133,7 @@ Feature guides:
 
 | Workflow | English | 中文 |
 |---|---|---|
-| `latex-survey` | [readme/latex-survey.md](readme/latex-survey.md) | [readme/latex-survey.zh-CN.md](readme/latex-survey.zh-CN.md) |
+| `arxiv-survey` / `arxiv-survey-latex` | [readme/arxiv-survey.md](readme/arxiv-survey.md) | [readme/arxiv-survey.zh-CN.md](readme/arxiv-survey.zh-CN.md) |
 | `research-brief` | [readme/research-brief.md](readme/research-brief.md) | [readme/research-brief.zh-CN.md](readme/research-brief.zh-CN.md) |
 | `paper-review` | [readme/paper-review.md](readme/paper-review.md) | [readme/paper-review.zh-CN.md](readme/paper-review.zh-CN.md) |
 | `evidence-review` | [readme/evidence-review.md](readme/evidence-review.md) | [readme/evidence-review.zh-CN.md](readme/evidence-review.zh-CN.md) |
@@ -145,10 +150,10 @@ Multi-language documentation hubs live under `readme/README.*.md` and mirror the
 
 ## Current Status
 
-- `latex-survey` is the most complete writing pipeline in the repo and the main path when the deliverable is a survey paper or PDF.
+- `arxiv-survey` / `arxiv-survey-latex` are the most complete writing path in the repo and the main survey route, depending on whether PDF is required.
 - `research-brief`, `paper-review`, and `evidence-review` now form the review-oriented product family: quick understanding, single-paper assessment, and protocol-driven synthesis.
 - `idea-brainstorm` is structured and executable, but optimized for discussion-ready idea memos rather than paper drafting.
-- `source-tutorial` is now the canonical tutorial path: source-grounded, tutorial-first, with article PDF and Beamer slides as first-class delivery artifacts.
+- `source-tutorial` is the tutorial path: source-grounded, tutorial-first, with article PDF and Beamer slides as first-class delivery artifacts.
 - `graduate-paper` now has a clearer pipeline design and a first batch of thesis-oriented skills, but it should currently be treated as a guided workflow framework rather than a fully automated thesis runner.
 
 ## Star History

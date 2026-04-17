@@ -744,23 +744,6 @@ def _sanitize_topic_for_query_seed(topic: str) -> str:
     return text or topic
 
 
-_LEGACY_PIPELINE_ALIASES = {
-    "idea-finder": "idea-brainstorm",
-    "idea-finder.pipeline.md": "idea-brainstorm",
-    "pipelines/idea-finder.pipeline.md": "idea-brainstorm",
-    "tutorial": "source-tutorial",
-    "lit-snapshot": "research-brief",
-    "lit-snapshot.pipeline.md": "research-brief",
-    "pipelines/lit-snapshot.pipeline.md": "research-brief",
-    "peer-review": "paper-review",
-    "peer-review.pipeline.md": "paper-review",
-    "pipelines/peer-review.pipeline.md": "paper-review",
-    "systematic-review": "evidence-review",
-    "systematic-review.pipeline.md": "evidence-review",
-    "pipelines/systematic-review.pipeline.md": "evidence-review",
-}
-
-
 def find_repo_root(start: Path | None = None) -> Path:
     """Walk up from *start* (default: this file) looking for AGENTS.md."""
     candidate = (start or Path(__file__)).resolve()
@@ -775,8 +758,7 @@ def find_repo_root(start: Path | None = None) -> Path:
 
 
 def _normalize_pipeline_lock_value(value: str) -> str:
-    raw = str(value or "").strip()
-    return _LEGACY_PIPELINE_ALIASES.get(raw, raw)
+    return str(value or "").strip()
 
 
 def resolve_pipeline_spec_path(*, repo_root: Path, pipeline_value: str) -> Path | None:

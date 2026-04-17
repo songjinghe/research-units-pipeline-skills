@@ -6,11 +6,14 @@
 
 Esta página é uma entrada curta para o mapa atual de workflows. A explicação completa do projeto está no README principal.
 
+Use diretamente os nomes atuais dos workflows. Os aliases antigos não fazem mais parte do roteamento ativo.
+
 ## Mapa de Workflows
 
 | Workflow | Uso principal | Entregável padrão | Guia |
 |---|---|---|---|
-| `latex-survey` | surveys orientados por evidência com saída opcional em LaTeX/PDF | `output/DRAFT.md`, `latex/main.pdf` | [Guide](latex-survey.md) |
+| `arxiv-survey` | surveys orientados por evidência antes da entrega em PDF | `output/DRAFT.md` | [Guide](arxiv-survey.md) |
+| `arxiv-survey-latex` | o mesmo workflow de survey com saída compilável em LaTeX/PDF | `output/DRAFT.md`, `latex/main.pdf` | [Guide](arxiv-survey.md) |
 | `research-brief` | entendimento rápido de um tema e rota de leitura | `output/SNAPSHOT.md` | [Guide](research-brief.md) |
 | `paper-review` | crítica rastreável de um paper ou manuscrito | `output/REVIEW.md` | [Guide](paper-review.md) |
 | `evidence-review` | screening, extração e síntese guiados por protocolo | `output/SYNTHESIS.md` | [Guide](evidence-review.md) |

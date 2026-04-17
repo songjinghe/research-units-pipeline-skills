@@ -23,7 +23,7 @@ target_artifacts:
   - output/RUN_ERRORS.md
   - output/CONTRACT_REPORT.md
 default_checkpoints: [C0,C1,C2,C3]
-units_template: templates/UNITS.lit-snapshot.csv
+units_template: templates/UNITS.research-brief.csv
 contract_model: pipeline.frontmatter/v1
 query_defaults:
   max_results: 300

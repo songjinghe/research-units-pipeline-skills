@@ -1,12 +1,12 @@
-# Latex Survey 使用说明
+# Survey 使用说明
 
-> 语言： [English](latex-survey.md) | **简体中文**
+> 语言： [English](arxiv-survey.md) | **简体中文**
 >
 > 导航： [Project README](../README.md) | [项目主页](../README.zh-CN.md)
 
 ## 1. 这条工作流是做什么的
 
-`latex-survey` 是这个仓库里当前最完整的写作工作流。它适用于这样的目标：不是只想“找几篇论文”，而是想真正产出一篇较完整的文献综述，并且流程里包含：
+这份说明同时覆盖 `arxiv-survey` 和 `arxiv-survey-latex`，它们是这个仓库里当前最完整的 survey 写作工作流。适用目标不是只想“找几篇论文”，而是想真正产出一篇较完整的文献综述，并且流程里包含：
 
 - 显式的检索与去重
 - 在写 prose 之前先审阅 outline
@@ -150,7 +150,7 @@ Use pipelines/arxiv-survey.pipeline.md and draft a survey on test-time adaptatio
 如果你想少停顿一些：
 
 ```text
-Use the latex survey pipeline and auto-approve the outline.
+Use the arxiv-survey-latex pipeline and auto-approve the outline.
 ```
 
 ## 8. 这条工作流背后的核心 skills

@@ -35,7 +35,7 @@ The idea pipeline shares the same artifact-first philosophy as the survey path, 
 
 | Workflow | Main question | Main output |
 |---|---|---|
-| `latex-survey` | how should a literature area be synthesized into a paper | draft and optional PDF |
+| `arxiv-survey` / `arxiv-survey-latex` | how should a literature area be synthesized into a paper | draft and optional PDF |
 | `idea-brainstorm` | what literature-grounded research directions are worth discussing next | memo plus shortlist |
 
 The difference matters:
@@ -162,7 +162,7 @@ Check whether the screener over-weighted novelty language and under-weighted dis
 
 If the real goal is to synthesize the field rather than pick directions, use the survey workflow instead:
 
-- [readme/latex-survey.md](latex-survey.md)
+- [readme/arxiv-survey.md](arxiv-survey.md)
 
 ## 11. When To Use Another Workflow
 
@@ -174,5 +174,5 @@ Do not use `idea-brainstorm` when:
 
 In those cases:
 
-- survey/PDF: [readme/latex-survey.md](latex-survey.md)
+- survey/PDF: [readme/arxiv-survey.md](arxiv-survey.md)
 - thesis restructuring: [readme/graduate-paper.md](graduate-paper.md)

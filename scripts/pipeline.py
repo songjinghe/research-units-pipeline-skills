@@ -12,26 +12,8 @@ from tooling.common import atomic_write_text, copy_tree, resolve_pipeline_spec_p
 from tooling.executor import run_one_unit
 from tooling.pipeline_spec import PipelineSpec
 
-LEGACY_PIPELINE_ALIASES = {
-    "idea-finder": "idea-brainstorm",
-    "idea-finder.pipeline.md": "idea-brainstorm",
-    "pipelines/idea-finder.pipeline.md": "idea-brainstorm",
-    "tutorial": "source-tutorial",
-    "lit-snapshot": "research-brief",
-    "lit-snapshot.pipeline.md": "research-brief",
-    "pipelines/lit-snapshot.pipeline.md": "research-brief",
-    "peer-review": "paper-review",
-    "peer-review.pipeline.md": "paper-review",
-    "pipelines/peer-review.pipeline.md": "paper-review",
-    "systematic-review": "evidence-review",
-    "systematic-review.pipeline.md": "evidence-review",
-    "pipelines/systematic-review.pipeline.md": "evidence-review",
-}
-
-
 def _normalize_pipeline_name(pipeline: str) -> str:
-    value = str(pipeline or "").strip()
-    return LEGACY_PIPELINE_ALIASES.get(value, value)
+    return str(pipeline or "").strip()
 
 
 def main() -> int:
@@ -304,7 +286,6 @@ def main() -> int:
 
 
 def _resolve_pipeline_path(repo_root: Path, pipeline: str) -> Path:
-    # Active contract is `idea-brainstorm`; `idea-finder` is retained only as a legacy compatibility shim.
     normalized = _normalize_pipeline_name(pipeline)
     path = resolve_pipeline_spec_path(repo_root=repo_root, pipeline_value=normalized)
     if path is None:

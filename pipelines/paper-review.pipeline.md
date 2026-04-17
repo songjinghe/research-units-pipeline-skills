@@ -22,7 +22,7 @@ target_artifacts:
   - output/RUN_ERRORS.md
   - output/CONTRACT_REPORT.md
 default_checkpoints: [C0,C1,C2,C3]
-units_template: templates/UNITS.peer-review.csv
+units_template: templates/UNITS.paper-review.csv
 contract_model: pipeline.frontmatter/v1
 query_defaults:
   review_style: lab_review

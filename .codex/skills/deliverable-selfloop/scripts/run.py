@@ -122,13 +122,13 @@ def main() -> int:
     deliverable = ''
     summary = ''
     next_step = ''
-    if deliverable_kind == 'brief' or profile in {'research-brief', 'lit-snapshot'}:
+    if deliverable_kind == 'brief' or profile == 'research-brief':
         deliverable, issues, summary, next_step = _brief_gate(workspace)
         changes_made = '- Checked required brief sections and whether the deliverable includes explicit paper pointers.'
-    elif deliverable_kind == 'paper_review' or profile in {'paper-review', 'peer-review'}:
+    elif deliverable_kind == 'paper_review' or profile == 'paper-review':
         deliverable, issues, summary, next_step = _paper_review_gate(workspace)
         changes_made = '- Checked the rubric sections and overall review structure for `output/REVIEW.md`.'
-    elif deliverable_kind == 'evidence_review' or profile in {'evidence-review', 'systematic-review'}:
+    elif deliverable_kind == 'evidence_review' or profile == 'evidence-review':
         deliverable, issues, summary, next_step = _evidence_review_gate(workspace)
         changes_made = '- Checked the synthesis structure and bounded-evidence sections for `output/SYNTHESIS.md`.'
     else:

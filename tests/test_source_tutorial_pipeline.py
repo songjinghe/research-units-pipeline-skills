@@ -210,10 +210,9 @@ class SourceTutorialPipelineTests(unittest.TestCase):
         self.assertIn("latex/slides/main.tex", spec.target_artifacts)
         self.assertIn("video", spec.quality_contract["source_policy"]["accepted_source_kinds"])
 
-    def test_tutorial_alias_resolves_to_source_tutorial(self) -> None:
+    def test_tutorial_alias_no_longer_resolves(self) -> None:
         path = resolve_pipeline_spec_path(repo_root=REPO_ROOT, pipeline_value="tutorial")
-        self.assertIsNotNone(path)
-        self.assertEqual(path.name, "source-tutorial.pipeline.md")
+        self.assertIsNone(path)
 
     def test_source_tutorial_spec_script_generates_grounded_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

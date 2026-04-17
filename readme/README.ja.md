@@ -6,11 +6,14 @@
 
 このページは現在の workflow マップを素早く見るための軽量ナビゲーションです。詳細な説明はルートの README にあります。
 
+現在の workflow 名をそのまま使ってください。旧 alias 名はアクティブなルーティングから外れています。
+
 ## Workflow マップ
 
 | Workflow | 主な用途 | 既定の成果物 | ガイド |
 |---|---|---|---|
-| `latex-survey` | evidence-first の survey 作成と任意の LaTeX/PDF 出力 | `output/DRAFT.md`, `latex/main.pdf` | [Guide](latex-survey.md) |
+| `arxiv-survey` | PDF 以前の evidence-first survey 作成 | `output/DRAFT.md` | [Guide](arxiv-survey.md) |
+| `arxiv-survey-latex` | 同じ survey workflow で compile-ready な LaTeX/PDF まで必要な場合 | `output/DRAFT.md`, `latex/main.pdf` | [Guide](arxiv-survey.md) |
 | `research-brief` | あるトピックを素早く理解し、読む順番を整理する | `output/SNAPSHOT.md` | [Guide](research-brief.md) |
 | `paper-review` | 単一の paper / manuscript を追跡可能に評価する | `output/REVIEW.md` | [Guide](paper-review.md) |
 | `evidence-review` | protocol に基づく screening・extraction・bounded synthesis | `output/SYNTHESIS.md` | [Guide](evidence-review.md) |

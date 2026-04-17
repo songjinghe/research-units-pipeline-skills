@@ -458,7 +458,7 @@ class ReviewWorkflowSkillScriptTests(unittest.TestCase):
             workspace = Path(tmp)
             (workspace / "output").mkdir(parents=True, exist_ok=True)
             (workspace / "PIPELINE.lock.md").write_text(
-                "pipeline: pipelines/paper-review.pipeline.md\nunits_template: templates/UNITS.peer-review.csv\nlocked_at: 2026-04-13\n",
+                "pipeline: pipelines/paper-review.pipeline.md\nunits_template: templates/UNITS.paper-review.csv\nlocked_at: 2026-04-13\n",
                 encoding="utf-8",
             )
             (workspace / "output" / "REVIEW.md").write_text(
@@ -511,7 +511,7 @@ class ReviewWorkflowSkillScriptTests(unittest.TestCase):
             workspace = Path(tmp)
             (workspace / "output").mkdir(parents=True, exist_ok=True)
             (workspace / "PIPELINE.lock.md").write_text(
-                "pipeline: pipelines/research-brief.pipeline.md\nunits_template: templates/UNITS.lit-snapshot.csv\nlocked_at: 2026-04-13\n",
+                "pipeline: pipelines/research-brief.pipeline.md\nunits_template: templates/UNITS.research-brief.csv\nlocked_at: 2026-04-13\n",
                 encoding="utf-8",
             )
             (workspace / "output" / "SNAPSHOT.md").write_text(
@@ -546,7 +546,7 @@ class ReviewWorkflowSkillScriptTests(unittest.TestCase):
             workspace = Path(tmp)
             (workspace / "output").mkdir(parents=True, exist_ok=True)
             (workspace / "PIPELINE.lock.md").write_text(
-                "pipeline: pipelines/evidence-review.pipeline.md\nunits_template: templates/UNITS.systematic-review.csv\nlocked_at: 2026-04-13\n",
+                "pipeline: pipelines/evidence-review.pipeline.md\nunits_template: templates/UNITS.evidence-review.csv\nlocked_at: 2026-04-13\n",
                 encoding="utf-8",
             )
             (workspace / "output" / "SYNTHESIS.md").write_text(

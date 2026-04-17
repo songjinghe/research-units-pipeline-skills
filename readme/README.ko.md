@@ -6,11 +6,14 @@
 
 이 페이지는 현재 workflow 지도를 빠르게 보는 가벼운 내비게이션입니다. 전체 설명은 루트 README에 있습니다.
 
+이제는 최신 workflow 이름을 그대로 사용하면 됩니다. 예전 alias 이름은 active routing에서 제거되었습니다.
+
 ## Workflow 지도
 
 | Workflow | 주요 용도 | 기본 산출물 | 가이드 |
 |---|---|---|---|
-| `latex-survey` | evidence-first survey 작성과 선택적 LaTeX/PDF 출력 | `output/DRAFT.md`, `latex/main.pdf` | [Guide](latex-survey.md) |
+| `arxiv-survey` | PDF 이전 단계의 evidence-first survey 작성 | `output/DRAFT.md` | [Guide](arxiv-survey.md) |
+| `arxiv-survey-latex` | 같은 survey workflow 에서 compile-ready LaTeX/PDF 까지 필요한 경우 | `output/DRAFT.md`, `latex/main.pdf` | [Guide](arxiv-survey.md) |
 | `research-brief` | 어떤 주제를 빠르게 이해하고 읽기 순서를 정리 | `output/SNAPSHOT.md` | [Guide](research-brief.md) |
 | `paper-review` | 단일 paper / manuscript 를 추적 가능하게 평가 | `output/REVIEW.md` | [Guide](paper-review.md) |
 | `evidence-review` | protocol 기반 screening, extraction, bounded synthesis | `output/SYNTHESIS.md` | [Guide](evidence-review.md) |

@@ -8,11 +8,12 @@
 
 ## 这个仓库当前覆盖什么
 
-目前代码库主要围绕 7 条工作流展开：
+目前代码库主要围绕 8 条 workflow 合同展开：
 
 | 工作流 | 适用场景 | 默认交付物 | English | 中文 |
 |---|---|---|---|---|
-| `latex-survey` | 证据优先的文献综述写作，可选 LaTeX/PDF 交付 | `output/DRAFT.md`、`latex/main.tex`、`latex/main.pdf` | [Guide](readme/latex-survey.md) | [说明](readme/latex-survey.zh-CN.md) |
+| `arxiv-survey` | 证据优先的文献综述写作，先拿 draft 和 evidence stack，不急着出 PDF | `output/DRAFT.md` | [Guide](readme/arxiv-survey.md) | [说明](readme/arxiv-survey.zh-CN.md) |
+| `arxiv-survey-latex` | 同一条 survey 工作流，但从一开始就把 LaTeX/PDF 交付纳入合同 | `output/DRAFT.md`、`latex/main.tex`、`latex/main.pdf` | [Guide](readme/arxiv-survey.md) | [说明](readme/arxiv-survey.zh-CN.md) |
 | `research-brief` | 快速理解一个主题，并产出可读的 research briefing / reading path | `output/SNAPSHOT.md` | [Guide](readme/research-brief.md) | [说明](readme/research-brief.zh-CN.md) |
 | `paper-review` | 对单篇 paper / manuscript 做可追溯的评估、组会 review 或 referee-style critique | `output/REVIEW.md` | [Guide](readme/paper-review.md) | [说明](readme/paper-review.zh-CN.md) |
 | `evidence-review` | 带 protocol、screening、extraction 的证据综述 / evidence synthesis | `output/SYNTHESIS.md` | [Guide](readme/evidence-review.md) | [说明](readme/evidence-review.zh-CN.md) |
@@ -20,12 +21,14 @@
 | `source-tutorial` | 把网页/PDF/笔记/repo docs 等多源资料重构成 reader-first tutorial，并输出 PDF 与 Beamer slides | `output/TUTORIAL.md`、`latex/main.pdf`、`latex/slides/main.pdf` | [Guide](readme/source-tutorial.md) | [说明](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | 将现有中文毕业论文材料重构为论文工程流程 | pipeline + thesis skills | [Guide](readme/graduate-paper.md) | [说明](readme/graduate-paper.zh-CN.md) |
 
-这七条工作流共享同一套基本架构：
+这八条工作流共享同一套基本架构：
 
 - `pipelines/` 定义阶段合同、目标工件和所需 skills。
 - `.codex/skills/` 存放可复用 skills。
 - `workspaces/` 存放每次 run 的输出和中间产物。
 - `readme/` 存放按功能拆分的说明文档。
+
+现在请直接使用这些最新 workflow 名称。旧别名已经不再参与 active routing。
 
 ## 核心概念
 
@@ -37,7 +40,9 @@
 
 ## 什么时候该用哪条工作流
 
-当目标是写一篇严肃综述，并且需要显式检索、结构审阅、evidence packs、写作自循环以及可选 PDF 输出时，用 `latex-survey`。
+当目标是写一篇严肃综述，并且需要显式检索、结构审阅、evidence packs 和写作自循环，但暂时不要求 PDF 时，用 `arxiv-survey`。
+
+当同一条综述流程从一开始就要求最终给出 LaTeX/PDF 交付时，用 `arxiv-survey-latex`。
 
 当目标是快速搞懂一个方向、整理关键主题，并给出后续阅读路径时，用 `research-brief`。
 
@@ -128,7 +133,7 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 
 | 工作流 | English | 中文 |
 |---|---|---|
-| `latex-survey` | [readme/latex-survey.md](readme/latex-survey.md) | [readme/latex-survey.zh-CN.md](readme/latex-survey.zh-CN.md) |
+| `arxiv-survey` / `arxiv-survey-latex` | [readme/arxiv-survey.md](readme/arxiv-survey.md) | [readme/arxiv-survey.zh-CN.md](readme/arxiv-survey.zh-CN.md) |
 | `research-brief` | [readme/research-brief.md](readme/research-brief.md) | [readme/research-brief.zh-CN.md](readme/research-brief.zh-CN.md) |
 | `paper-review` | [readme/paper-review.md](readme/paper-review.md) | [readme/paper-review.zh-CN.md](readme/paper-review.zh-CN.md) |
 | `evidence-review` | [readme/evidence-review.md](readme/evidence-review.md) | [readme/evidence-review.zh-CN.md](readme/evidence-review.zh-CN.md) |
@@ -145,10 +150,10 @@ Use the graduate-paper workflow to reorganize my Chinese thesis materials before
 
 ## 当前状态
 
-- `latex-survey` 是当前最完整的写作 pipeline，也是需要综述或 PDF 交付时的主路径。
+- `arxiv-survey` / `arxiv-survey-latex` 是当前最完整的写作路径；是否需要 PDF 决定具体走哪条 survey 合同。
 - `research-brief`、`paper-review` 和 `evidence-review` 现在构成 review-oriented 产品族：分别对应快速理解、单篇评估和 protocol 驱动的证据综述。
 - `idea-brainstorm` 已经结构化并可执行，但它面向的是讨论型 idea memo，不是论文草稿。
-- `source-tutorial` 现在是教程类任务的 canonical 路径：以 source-grounded 的 reader-first tutorial 为主产品，同时把 article PDF 和 Beamer slides 作为正式交付层。
+- `source-tutorial` 现在就是教程类任务的主路径：以 source-grounded 的 reader-first tutorial 为主产品，同时把 article PDF 和 Beamer slides 作为正式交付层。
 - `graduate-paper` 现在已经有更清晰的 pipeline 设计和第一批 thesis skills，但目前更适合作为引导式工作流框架，而不是一键全自动毕业论文生成器。
 
 ## Star History

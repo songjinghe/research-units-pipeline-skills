@@ -23,7 +23,7 @@
 - `latex/main.pdf`
 - `latex/slides/main.pdf`
 
-## 2. 它和旧 tutorial 的区别
+## 2. 它和一般教程生成器的区别
 
 它不是：
 

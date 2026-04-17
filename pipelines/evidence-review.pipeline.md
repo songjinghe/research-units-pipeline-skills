@@ -25,7 +25,7 @@ target_artifacts:
   - output/RUN_ERRORS.md
   - output/CONTRACT_REPORT.md
 default_checkpoints: [C0,C1,C2,C3,C4,C5]
-units_template: templates/UNITS.systematic-review.csv
+units_template: templates/UNITS.evidence-review.csv
 contract_model: pipeline.frontmatter/v1
 query_defaults:
   rigor: systematic

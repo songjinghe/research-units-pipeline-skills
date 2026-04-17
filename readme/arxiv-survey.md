@@ -1,12 +1,12 @@
-# Latex Survey Guide
+# Survey Guide
 
-> Languages: **English** | [简体中文](latex-survey.zh-CN.md)
+> Languages: **English** | [简体中文](arxiv-survey.zh-CN.md)
 >
 > Navigation: [Project README](../README.md) | [项目主页](../README.zh-CN.md)
 
 ## 1. What This Workflow Is For
 
-`latex-survey` is the main writing workflow in this repository. It is for cases where the target is not just “collect some papers” but to produce a serious literature survey with:
+This guide covers `arxiv-survey` and `arxiv-survey-latex`, the main survey-writing workflows in this repository. Use them when the goal is not just “collect some papers” but to produce a serious literature survey with:
 
 - explicit retrieval and deduplication
 - a reviewable outline before prose
@@ -150,7 +150,7 @@ Use pipelines/arxiv-survey.pipeline.md and draft a survey on test-time adaptatio
 If you want less interruption:
 
 ```text
-Use the latex survey pipeline and auto-approve the outline.
+Use the arxiv-survey-latex pipeline and auto-approve the outline.
 ```
 
 ## 8. Core Skills Behind The Workflow

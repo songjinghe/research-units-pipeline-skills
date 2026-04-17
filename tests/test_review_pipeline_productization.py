@@ -22,6 +22,7 @@ class ReviewPipelineProductizationTests(unittest.TestCase):
         spec = PipelineSpec.load(path)
         self.assertEqual(spec.name, "research-brief")
         self.assertEqual(tuple(spec.default_checkpoints), ("C0", "C1", "C2", "C3"))
+        self.assertEqual(spec.units_template, "templates/UNITS.research-brief.csv")
         self.assertIn("output/SNAPSHOT.md", spec.target_artifacts)
 
     def test_paper_review_pipeline_spec_loads(self) -> None:
@@ -31,6 +32,7 @@ class ReviewPipelineProductizationTests(unittest.TestCase):
         spec = PipelineSpec.load(path)
         self.assertEqual(spec.name, "paper-review")
         self.assertEqual(tuple(spec.default_checkpoints), ("C0", "C1", "C2", "C3"))
+        self.assertEqual(spec.units_template, "templates/UNITS.paper-review.csv")
         self.assertIn("output/REVIEW.md", spec.target_artifacts)
 
     def test_evidence_review_pipeline_spec_loads(self) -> None:
@@ -40,35 +42,20 @@ class ReviewPipelineProductizationTests(unittest.TestCase):
         spec = PipelineSpec.load(path)
         self.assertEqual(spec.name, "evidence-review")
         self.assertEqual(tuple(spec.default_checkpoints), ("C0", "C1", "C2", "C3", "C4", "C5"))
+        self.assertEqual(spec.units_template, "templates/UNITS.evidence-review.csv")
         self.assertIn("output/SYNTHESIS.md", spec.target_artifacts)
 
-    def test_legacy_names_resolve_to_new_canonical_pipelines(self) -> None:
-        self.assertEqual(
-            resolve_pipeline_spec_path(repo_root=REPO_ROOT, pipeline_value="lit-snapshot").name,
-            "research-brief.pipeline.md",
-        )
-        self.assertEqual(
-            resolve_pipeline_spec_path(repo_root=REPO_ROOT, pipeline_value="peer-review").name,
-            "paper-review.pipeline.md",
-        )
-        self.assertEqual(
-            resolve_pipeline_spec_path(repo_root=REPO_ROOT, pipeline_value="systematic-review").name,
-            "evidence-review.pipeline.md",
-        )
+    def test_legacy_names_no_longer_resolve(self) -> None:
+        self.assertIsNone(resolve_pipeline_spec_path(repo_root=REPO_ROOT, pipeline_value="lit-snapshot"))
+        self.assertIsNone(resolve_pipeline_spec_path(repo_root=REPO_ROOT, pipeline_value="peer-review"))
+        self.assertIsNone(resolve_pipeline_spec_path(repo_root=REPO_ROOT, pipeline_value="systematic-review"))
 
-    def test_legacy_pipeline_specs_are_hidden_aliases(self) -> None:
-        snapshot = PipelineSpec.load(REPO_ROOT / "pipelines" / "lit-snapshot.pipeline.md")
-        paper = PipelineSpec.load(REPO_ROOT / "pipelines" / "peer-review.pipeline.md")
-        evidence = PipelineSpec.load(REPO_ROOT / "pipelines" / "systematic-review.pipeline.md")
+    def test_legacy_pipeline_specs_are_removed(self) -> None:
+        self.assertFalse((REPO_ROOT / "pipelines" / "lit-snapshot.pipeline.md").exists())
+        self.assertFalse((REPO_ROOT / "pipelines" / "peer-review.pipeline.md").exists())
+        self.assertFalse((REPO_ROOT / "pipelines" / "systematic-review.pipeline.md").exists())
 
-        self.assertTrue(snapshot.docs_hidden)
-        self.assertTrue(paper.docs_hidden)
-        self.assertTrue(evidence.docs_hidden)
-        self.assertEqual(snapshot.variant_of, "research-brief")
-        self.assertEqual(paper.variant_of, "paper-review")
-        self.assertEqual(evidence.variant_of, "evidence-review")
-
-    def test_generated_skill_graph_hides_legacy_alias_sections(self) -> None:
+    def test_generated_skill_graph_contains_only_canonical_review_sections(self) -> None:
         script = REPO_ROOT / "scripts" / "generate_skill_graph.py"
         self.assertTrue(script.exists(), f"missing script: {script}")
 
@@ -97,7 +84,7 @@ class ReviewPipelineProductizationTests(unittest.TestCase):
             workspace = Path(tmp)
             (workspace / "papers").mkdir(parents=True, exist_ok=True)
             (workspace / "PIPELINE.lock.md").write_text(
-                "pipeline: pipelines/evidence-review.pipeline.md\nunits_template: templates/UNITS.systematic-review.csv\nlocked_at: 2026-04-13\n",
+                "pipeline: pipelines/evidence-review.pipeline.md\nunits_template: templates/UNITS.evidence-review.csv\nlocked_at: 2026-04-13\n",
                 encoding="utf-8",
             )
 

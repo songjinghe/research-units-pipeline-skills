@@ -70,7 +70,7 @@
 | `research-brief` | 这个方向是什么，先该读什么？ |
 | `paper-review` | 这篇 paper 靠不靠谱、值不值得跟？ |
 | `evidence-review` | 在可审计 protocol 下，这批证据到底支持什么？ |
-| `latex-survey` | 能不能把这套证据写成一篇严肃综述？ |
+| `arxiv-survey` / `arxiv-survey-latex` | 能不能把这套证据写成一篇严肃综述？ |
 
 ## 7. 阶段流
 

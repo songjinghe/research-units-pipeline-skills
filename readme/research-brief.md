@@ -68,7 +68,7 @@ Do not use it when:
 | `research-brief` | What is this area, and what should I read first? |
 | `paper-review` | Is this single paper sound, novel, and worth following? |
 | `evidence-review` | What does the full candidate pool support under an auditable protocol? |
-| `latex-survey` | Can I turn this evidence base into a serious review paper? |
+| `arxiv-survey` / `arxiv-survey-latex` | Can I turn this evidence base into a serious review paper? |
 
 ## 7. Stage Flow
 

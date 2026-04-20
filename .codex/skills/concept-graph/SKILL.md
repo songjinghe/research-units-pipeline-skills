@@ -1,49 +1,58 @@
 ---
 name: concept-graph
 description: |
-  Use when an approved tutorial spec exists and the run needs a deterministic prerequisite graph before module planning.
+  Build a concept graph (nodes + prerequisite edges) from a tutorial spec, saving as `outline/concept_graph.yml`.
   **Trigger**: concept graph, prerequisite graph, dependency graph, 概念图, 先修关系.
-  **Use when**: `source-tutorial` 的 C2，已有 `output/TUTORIAL_SPEC.md`，需要把教程概念转成可排序的 DAG。
-  **Skip if**: 还没有 tutorial spec。
+  **Use when**: tutorial pipeline 的结构阶段（C2），需要把教程知识点拆成可排序的依赖图（在写教程 prose 前）。
+  **Skip if**: 还没有 tutorial spec（例如缺少 `output/TUTORIAL_SPEC.md`）。
   **Network**: none.
-  **Guardrail**: 只做结构，不写 reader-facing prose；图必须保持无环。
+  **Guardrail**: 只做结构；避免写长 prose 段落。
 ---
 
-# Concept Graph
+# Concept Graph (prerequisites)
 
-Materializes the tutorial spec's structured concept inventory into `outline/concept_graph.yml`.
+Goal: represent tutorial concepts as a prerequisite DAG so modules can be planned and ordered.
 
-## Input
+## Inputs
 
 - `output/TUTORIAL_SPEC.md`
 
-## Output
+## Outputs
 
 - `outline/concept_graph.yml`
 
-## Contract
+## Output schema (recommended)
 
-The graph must contain:
-- `nodes`: `{id, title, summary, source_ids, objective_refs}`
-- `edges`: `{from, to}` meaning prerequisite order
+A minimal, readable YAML schema:
 
-## Script boundary
+- `nodes`: list of `{id, title, summary}`
+- `edges`: list of `{from, to}` meaning `from` is a prerequisite of `to`
 
-`scripts/run.py` should:
-- load structured spec data
-- emit stable node ids and prerequisite edges
-- fail if the result would be cyclic or empty
+Constraints:
+- Graph should be acyclic (DAG).
+- Prefer 10–30 nodes for a medium tutorial.
 
-Do not duplicate spec-parsing heuristics in multiple places; keep them in shared tutorial tooling.
+## Workflow
 
-## Acceptance
+1. Read `output/TUTORIAL_SPEC.md` and extract the concept list implied by objectives + running example.
+2. Normalize each concept into a node with a stable `id`.
+3. Add prerequisite edges and verify the graph is acyclic.
+4. Write `outline/concept_graph.yml`.
 
-- `outline/concept_graph.yml` exists
-- all nodes have stable ids
-- the graph is a DAG
+## Definition of Done
 
-## Non-goals
+- [ ] `outline/concept_graph.yml` exists and is a DAG.
+- [ ] Nodes cover all learning objectives from `output/TUTORIAL_SPEC.md`.
+- [ ] Node titles are specific (not “misc”).
 
-- module clustering
-- exercise generation
-- tutorial prose
+## Troubleshooting
+
+### Issue: the graph looks like a linear list
+
+**Fix**:
+- Add intermediate prerequisites explicitly (e.g., “data model” before “evaluation protocol”).
+
+### Issue: cycles appear (A → B → A)
+
+**Fix**:
+- Split concepts or redefine edges so prerequisites flow in one direction.

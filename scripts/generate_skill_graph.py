@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import csv
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,9 +13,6 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SKILLS_DIR = REPO_ROOT / ".codex" / "skills"
 PIPELINES_DIR = REPO_ROOT / "pipelines"
-sys.path.insert(0, str(REPO_ROOT))
-
-from tooling.pipeline_spec import PipelineSpec
 
 
 @dataclass(frozen=True)
@@ -55,7 +51,7 @@ def main() -> int:
     return 0
 
 
-def _render_markdown(*, skills: list[SkillIO], pipelines: list[tuple[Path, dict[str, Any], str, PipelineSpec | None]]) -> str:
+def _render_markdown(*, skills: list[SkillIO], pipelines: list[tuple[Path, dict[str, Any], str]]) -> str:
     lines: list[str] = [
         "# SKILL_DEPENDENCIES",
         "",
@@ -71,12 +67,10 @@ def _render_markdown(*, skills: list[SkillIO], pipelines: list[tuple[Path, dict[
         "",
     ]
 
-    for pipeline_path, fm, body, spec in pipelines:
-        if spec is not None and spec.docs_hidden:
-            continue
+    for pipeline_path, fm, body in pipelines:
         pipeline_name = str(fm.get("name") or pipeline_path.stem).strip()
-        units_template = str((spec.units_template if spec is not None else fm.get("units_template")) or "").strip()
-        stage_titles = _parse_stage_titles(body, spec=spec)
+        units_template = str(fm.get("units_template") or "").strip()
+        stage_titles = _parse_stage_titles(body)
 
         units_path = (REPO_ROOT / units_template).resolve() if units_template else None
         if not units_path or not units_path.exists():
@@ -212,25 +206,18 @@ def _render_global_graph(skills: list[SkillIO]) -> list[str]:
     return lines
 
 
-def _load_pipelines(pipelines_dir: Path) -> list[tuple[Path, dict[str, Any], str, PipelineSpec | None]]:
-    out: list[tuple[Path, dict[str, Any], str, PipelineSpec | None]] = []
+def _load_pipelines(pipelines_dir: Path) -> list[tuple[Path, dict[str, Any], str]]:
+    out: list[tuple[Path, dict[str, Any], str]] = []
     for pipeline_path in sorted(pipelines_dir.glob("*.pipeline.md")):
         try:
             fm, body = _split_frontmatter(pipeline_path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        try:
-            spec = PipelineSpec.load(pipeline_path)
-        except Exception:
-            spec = None
-        out.append((pipeline_path, fm, body, spec))
+        out.append((pipeline_path, fm, body))
     return out
 
 
-def _parse_stage_titles(body: str, *, spec: PipelineSpec | None = None) -> dict[str, str]:
-    if spec is not None and spec.stages:
-        return {stage_id: stage.title for stage_id, stage in spec.stages.items()}
-
+def _parse_stage_titles(body: str) -> dict[str, str]:
     titles: dict[str, str] = {}
     for raw in body.splitlines():
         line = raw.strip()

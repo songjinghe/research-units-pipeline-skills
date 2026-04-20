@@ -8,27 +8,20 @@ It is designed for the space between fragile prompting and overly rigid scriptin
 
 ## What This Repo Covers
 
-The codebase currently centers on eight workflow contracts:
+The codebase currently centers on three workflows:
 
 | Workflow | Use it for | Default deliverable | English | 中文 |
 |---|---|---|---|---|
-| `arxiv-survey` | evidence-first literature surveys when you want the draft and evidence stack before PDF delivery | `output/DRAFT.md` | [Guide](readme/arxiv-survey.md) | [说明](readme/arxiv-survey.zh-CN.md) |
-| `arxiv-survey-latex` | the same survey workflow when compile-ready LaTeX/PDF is part of the contract from the start | `output/DRAFT.md`, `latex/main.tex`, `latex/main.pdf` | [Guide](readme/arxiv-survey.md) | [说明](readme/arxiv-survey.zh-CN.md) |
-| `research-brief` | fast topic understanding and reading-path briefs from a small paper set | `output/SNAPSHOT.md` | [Guide](readme/research-brief.md) | [说明](readme/research-brief.zh-CN.md) |
-| `paper-review` | traceable single-paper critique, lab review, or referee-style assessment | `output/REVIEW.md` | [Guide](readme/paper-review.md) | [说明](readme/paper-review.zh-CN.md) |
-| `evidence-review` | protocol-driven evidence synthesis with screening, extraction, and bounded conclusions | `output/SYNTHESIS.md` | [Guide](readme/evidence-review.md) | [说明](readme/evidence-review.zh-CN.md) |
+| `latex-survey` | evidence-first literature surveys with optional LaTeX/PDF delivery | `output/DRAFT.md`, `latex/main.tex`, `latex/main.pdf` | [Guide](readme/latex-survey.md) | [说明](readme/latex-survey.zh-CN.md) |
 | `idea-brainstorm` | literature-grounded research direction discovery and discussion memos | `output/REPORT.md` | [Guide](readme/idea-brainstorm.md) | [说明](readme/idea-brainstorm.zh-CN.md) |
-| `source-tutorial` | transform multi-source materials into a reader-first tutorial with PDF and Beamer slides | `output/TUTORIAL.md`, `latex/main.pdf`, `latex/slides/main.pdf` | [Guide](readme/source-tutorial.md) | [说明](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | restructuring an existing Chinese graduation thesis project into a thesis engineering workflow | pipeline + thesis skill packages | [Guide](readme/graduate-paper.md) | [说明](readme/graduate-paper.zh-CN.md) |
 
 These workflows share the same architecture:
 
 - `pipelines/` defines stage contracts, artifact expectations, and required skills.
-- `.codex/skills/` holds the reusable skills.
+- `.codex/skills/` holds the reusable skills. (100 skills)
 - `workspaces/` stores per-run artifacts and intermediate outputs.
 - `readme/` contains feature-level documentation.
-
-Use these workflow names directly. The old alias names have been removed from active routing.
 
 ## Core Concepts
 
@@ -40,37 +33,11 @@ The important design choice is artifact-first execution. The model is not expect
 
 ## When To Use Which Workflow
 
-Use `arxiv-survey` when the goal is a serious review paper with explicit retrieval, structure review, evidence packs, and writing loops, but PDF is not required yet.
-
-Use `arxiv-survey-latex` when the same survey workflow must also deliver compile-ready LaTeX/PDF artifacts.
-
-Use `research-brief` when the goal is to understand a topic quickly, surface the key themes, and produce a reading path rather than a full survey.
-
-Use `paper-review` when the input is a single paper or manuscript and the goal is to assess its claims, evidence, novelty, and risks.
-
-Use `evidence-review` when the goal is to synthesize a candidate pool under an explicit protocol with screening, extraction, and bounded conclusions.
+Use `latex-survey` when the goal is a serious review paper with explicit retrieval, structure review, evidence packs, writing loops, and optional PDF output.
 
 Use `idea-brainstorm` when the goal is to generate a literature-backed memo of candidate research directions for discussion, not to write a paper yet.
 
-Use `source-tutorial` when you already have webpages, PDFs, notes, repo docs, or documentation sites and want to turn them into a reader-first tutorial rather than a survey or memo.
-
-Use `graduate-paper` when you already have thesis materials such as a template, existing TeX, Overleaf drafts, PDFs, figures, or prior papers, and need to reorganize them into a Chinese degree thesis workflow. This path is currently the least automated among the major workflows.
-
-## Three Parallel Review Products
-
-`research-brief`, `paper-review`, and `evidence-review` are now three parallel entry points rather than one workflow with light/heavy modes.
-
-| Workflow | Typical input shape | Internal data flow | Deliverable |
-|---|---|---|---|
-| `research-brief` | topic prompt, small paper pool, or query seed | topic -> small core set -> outline -> compact briefing | `output/SNAPSHOT.md` |
-| `paper-review` | one paper or manuscript | manuscript -> claims -> evidence gaps + novelty matrix -> review | `output/REVIEW.md` |
-| `evidence-review` | review question plus candidate pool | question -> protocol -> screening -> extraction + bias -> synthesis | `output/SYNTHESIS.md` |
-
-They are optimized for different user intents:
-
-- `research-brief`: fast orientation and reading-path generation
-- `paper-review`: single-paper assessment with traceable critique
-- `evidence-review`: auditable many-paper synthesis under an explicit protocol
+Use `graduate-paper` when you already have thesis materials such as a template, existing TeX, Overleaf drafts, PDFs, figures, or prior papers, and need to reorganize them into a Chinese degree thesis workflow. This path is currently the least automated of the three.
 
 ## How To Use The Repo
 
@@ -86,23 +53,7 @@ Write a LaTeX survey about embodied AI and show me the outline first.
 ```
 
 ```text
-Use the research-brief workflow to give me a one-page briefing on test-time adaptation for robotics.
-```
-
-```text
-Use the paper-review workflow to critique this manuscript and give me a lab-style review.
-```
-
-```text
-Use the evidence-review workflow to run a PRISMA-style review on LLM agents for education.
-```
-
-```text
 Brainstorm literature-grounded research ideas around embodied agents for home robotics.
-```
-
-```text
-Use the source-tutorial pipeline to turn webpages and repo docs about robot learning into a tutorial with PDF and slides.
 ```
 
 ```text
@@ -113,11 +64,7 @@ If you want tighter control, pin the pipeline directly:
 
 - [pipelines/arxiv-survey.pipeline.md](pipelines/arxiv-survey.pipeline.md)
 - [pipelines/arxiv-survey-latex.pipeline.md](pipelines/arxiv-survey-latex.pipeline.md)
-- [pipelines/research-brief.pipeline.md](pipelines/research-brief.pipeline.md)
-- [pipelines/paper-review.pipeline.md](pipelines/paper-review.pipeline.md)
-- [pipelines/evidence-review.pipeline.md](pipelines/evidence-review.pipeline.md)
 - [pipelines/idea-brainstorm.pipeline.md](pipelines/idea-brainstorm.pipeline.md)
-- [pipelines/source-tutorial.pipeline.md](pipelines/source-tutorial.pipeline.md)
 - [pipelines/graduate-paper-pipeline.md](pipelines/graduate-paper-pipeline.md)
 
 ## Recommended Reading Path
@@ -133,12 +80,8 @@ Feature guides:
 
 | Workflow | English | 中文 |
 |---|---|---|
-| `arxiv-survey` / `arxiv-survey-latex` | [readme/arxiv-survey.md](readme/arxiv-survey.md) | [readme/arxiv-survey.zh-CN.md](readme/arxiv-survey.zh-CN.md) |
-| `research-brief` | [readme/research-brief.md](readme/research-brief.md) | [readme/research-brief.zh-CN.md](readme/research-brief.zh-CN.md) |
-| `paper-review` | [readme/paper-review.md](readme/paper-review.md) | [readme/paper-review.zh-CN.md](readme/paper-review.zh-CN.md) |
-| `evidence-review` | [readme/evidence-review.md](readme/evidence-review.md) | [readme/evidence-review.zh-CN.md](readme/evidence-review.zh-CN.md) |
+| `latex-survey` | [readme/latex-survey.md](readme/latex-survey.md) | [readme/latex-survey.zh-CN.md](readme/latex-survey.zh-CN.md) |
 | `idea-brainstorm` | [readme/idea-brainstorm.md](readme/idea-brainstorm.md) | [readme/idea-brainstorm.zh-CN.md](readme/idea-brainstorm.zh-CN.md) |
-| `source-tutorial` | [readme/source-tutorial.md](readme/source-tutorial.md) | [readme/source-tutorial.zh-CN.md](readme/source-tutorial.zh-CN.md) |
 | `graduate-paper` | [readme/graduate-paper.md](readme/graduate-paper.md) | [readme/graduate-paper.zh-CN.md](readme/graduate-paper.zh-CN.md) |
 
 Project references:
@@ -146,14 +89,12 @@ Project references:
 - [SKILL_INDEX.md](SKILL_INDEX.md)
 - [SKILLS_STANDARD.md](SKILLS_STANDARD.md)
 
-Multi-language documentation hubs live under `readme/README.*.md` and mirror the current workflow map.
+Legacy language-specific copies of the older survey-focused README still live under `readme/README.*.md`. They are reference material, not the primary entrypoint.
 
 ## Current Status
 
-- `arxiv-survey` / `arxiv-survey-latex` are the most complete writing path in the repo and the main survey route, depending on whether PDF is required.
-- `research-brief`, `paper-review`, and `evidence-review` now form the review-oriented product family: quick understanding, single-paper assessment, and protocol-driven synthesis.
+- `latex-survey` is the most complete writing pipeline in the repo and the main path when the deliverable is a survey paper or PDF.
 - `idea-brainstorm` is structured and executable, but optimized for discussion-ready idea memos rather than paper drafting.
-- `source-tutorial` is the tutorial path: source-grounded, tutorial-first, with article PDF and Beamer slides as first-class delivery artifacts.
 - `graduate-paper` now has a clearer pipeline design and a first batch of thesis-oriented skills, but it should currently be treated as a guided workflow framework rather than a fully automated thesis runner.
 
 ## Star History

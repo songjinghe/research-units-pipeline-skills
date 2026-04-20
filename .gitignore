@@ -2,7 +2,7 @@ __pycache__/
 *.py[cod]
 
 workspaces/
-/skills/
+skills/
 
 # Local reference corpus (PDFs/text extracts); keep curated id lists/docs tracked.
 ref/**/pdfs/

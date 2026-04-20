@@ -123,17 +123,10 @@ def main() -> int:
 
     core_size = max(1, int(args.core_size))
     if not core_size_cfg:
-        from tooling.common import pipeline_quality_contract_value
+        from tooling.common import pipeline_profile
 
-        if bool(
-            pipeline_quality_contract_value(
-                workspace,
-                "candidate_pool_policy",
-                "keep_full_deduped_pool",
-                default=False,
-            )
-        ):
-            # Some evidence-driven contracts should not silently drop candidates.
+        if pipeline_profile(workspace) == "systematic-review":
+            # Systematic reviews should not silently drop candidates; keep the full deduped pool by default.
             core_size = max(core_size, len(deduped))
     query_tokens = _query_tokens(workspace)
     pinned = _pinned_records(workspace, deduped)

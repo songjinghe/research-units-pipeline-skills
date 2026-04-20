@@ -667,28 +667,12 @@ def check_unit_outputs(*, skill: str, workspace: Path, outputs: list[str]) -> li
         return _check_latex_scaffold(workspace, outputs)
     if skill == "latex-compile-qa":
         return _check_latex_compile_qa(workspace, outputs)
-    if skill == "beamer-scaffold":
-        return _check_beamer_scaffold(workspace, outputs)
-    if skill == "beamer-compile-qa":
-        return _check_beamer_compile_qa(workspace, outputs)
     if skill == "artifact-contract-auditor":
         return _check_contract_report(workspace, outputs)
     if skill == "protocol-writer":
         return _check_protocol(workspace, outputs)
-    if skill == "source-manifest":
-        return _check_source_manifest(workspace, outputs)
-    if skill == "source-ingest":
-        return _check_source_ingest(workspace, outputs)
-    if skill == "source-tutorial-spec":
-        return _check_source_tutorial_spec(workspace, outputs)
-    if skill == "module-source-coverage":
-        return _check_module_source_coverage(workspace, outputs)
-    if skill == "tutorial-context-pack":
-        return _check_tutorial_context_packs(workspace, outputs)
     if skill == "tutorial-spec":
         return _check_tutorial_spec(workspace, outputs)
-    if skill == "tutorial-selfloop":
-        return _check_tutorial_selfloop_report(workspace, outputs)
     if skill == "idea-signal-mapper":
         return _check_idea_signal_table(workspace, outputs)
     if skill == "idea-direction-generator":
@@ -5760,141 +5744,6 @@ def _check_tutorial_spec(workspace: Path, outputs: list[str]) -> list[QualityIss
     return issues
 
 
-def _check_source_manifest(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
-    from tooling.common import load_yaml
-
-    out_rel = outputs[0] if outputs else "sources/manifest.yml"
-    path = workspace / out_rel
-    if not path.exists():
-        return [QualityIssue(code="missing_source_manifest", message=f"`{out_rel}` does not exist.")]
-    try:
-        data = load_yaml(path)
-    except Exception as exc:
-        return [QualityIssue(code="invalid_source_manifest_yaml", message=f"`{out_rel}` is not valid YAML ({type(exc).__name__}: {exc}).")]
-    sources = data.get("sources") if isinstance(data, dict) else None
-    if not isinstance(sources, list) or not sources:
-        return [QualityIssue(code="empty_source_manifest", message=f"`{out_rel}` must contain a non-empty `sources` list.")]
-    invalid = 0
-    for rec in sources:
-        if not isinstance(rec, dict):
-            invalid += 1
-            continue
-        if not rec.get("source_id") or not rec.get("kind") or not rec.get("locator") or not rec.get("label"):
-            invalid += 1
-            continue
-    if invalid:
-        return [QualityIssue(code="source_manifest_missing_fields", message=f"`{out_rel}` has {invalid} invalid source record(s).")]
-    text = path.read_text(encoding="utf-8", errors="ignore").lower()
-    if "example-source" in text or "replace this scaffold" in text:
-        return [QualityIssue(code="source_manifest_placeholders", message=f"`{out_rel}` still contains scaffold placeholders.")]
-    return []
-
-
-def _check_source_ingest(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
-    from tooling.common import read_jsonl
-
-    index_rel = outputs[0] if outputs else "sources/index.jsonl"
-    prov_rel = outputs[1] if len(outputs) > 1 else "sources/provenance.jsonl"
-    index_path = workspace / index_rel
-    prov_path = workspace / prov_rel
-    if not index_path.exists():
-        return [QualityIssue(code="missing_source_index", message=f"`{index_rel}` does not exist.")]
-    if not prov_path.exists():
-        return [QualityIssue(code="missing_source_provenance", message=f"`{prov_rel}` does not exist.")]
-    records = read_jsonl(index_path)
-    if not records:
-        return [QualityIssue(code="empty_source_index", message=f"`{index_rel}` is empty.")]
-    success = 0
-    bad = 0
-    for rec in records:
-        if not isinstance(rec, dict):
-            bad += 1
-            continue
-        if not rec.get("source_id") or not rec.get("kind") or not rec.get("status"):
-            bad += 1
-            continue
-        if str(rec.get("status") or "").strip() == "success":
-            success += 1
-    if bad:
-        return [QualityIssue(code="source_index_missing_fields", message=f"`{index_rel}` has {bad} invalid record(s).")]
-    if success == 0:
-        return [QualityIssue(code="source_ingest_no_success", message=f"`{index_rel}` contains no successful ingests.")]
-    prov_records = read_jsonl(prov_path)
-    if not prov_records:
-        return [QualityIssue(code="empty_source_provenance", message=f"`{prov_rel}` is empty.")]
-    return []
-
-
-def _check_source_tutorial_spec(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
-    out_rel = outputs[0] if outputs else "output/TUTORIAL_SPEC.md"
-    path = workspace / out_rel
-    if not path.exists():
-        return [QualityIssue(code="missing_source_tutorial_spec", message=f"`{out_rel}` does not exist.")]
-    text = path.read_text(encoding="utf-8", errors="ignore")
-    if _check_placeholder_markers(text):
-        return [QualityIssue(code="source_tutorial_spec_placeholders", message=f"`{out_rel}` contains placeholders.")]
-    low = text.lower()
-    needed = ["audience", "prerequisites", "learning objectives", "source scope", "running example", "delivery"]
-    missing = [item for item in needed if item not in low]
-    if missing:
-        return [QualityIssue(code="source_tutorial_spec_missing_sections", message=f"`{out_rel}` is missing key sections: {', '.join(missing)}.")]
-    return []
-
-
-def _check_module_source_coverage(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
-    from tooling.common import read_jsonl
-
-    out_rel = outputs[0] if outputs else "outline/source_coverage.jsonl"
-    path = workspace / out_rel
-    if not path.exists():
-        return [QualityIssue(code="missing_source_coverage", message=f"`{out_rel}` does not exist.")]
-    records = read_jsonl(path)
-    if not records:
-        return [QualityIssue(code="empty_source_coverage", message=f"`{out_rel}` is empty.")]
-    bad = 0
-    for rec in records:
-        if not rec.get("module_id"):
-            bad += 1
-            continue
-        if "source_ids" not in rec and "gaps" not in rec:
-            bad += 1
-    if bad:
-        return [QualityIssue(code="source_coverage_missing_fields", message=f"`{out_rel}` has {bad} invalid coverage record(s).")]
-    return []
-
-
-def _check_tutorial_context_packs(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
-    from tooling.common import read_jsonl
-
-    out_rel = outputs[0] if outputs else "outline/tutorial_context_packs.jsonl"
-    path = workspace / out_rel
-    if not path.exists():
-        return [QualityIssue(code="missing_tutorial_context_packs", message=f"`{out_rel}` does not exist.")]
-    records = read_jsonl(path)
-    if not records:
-        return [QualityIssue(code="empty_tutorial_context_packs", message=f"`{out_rel}` is empty.")]
-    bad = 0
-    for rec in records:
-        if not rec.get("module_id") or not rec.get("objective"):
-            bad += 1
-    if bad:
-        return [QualityIssue(code="tutorial_context_packs_missing_fields", message=f"`{out_rel}` has {bad} invalid context pack(s).")]
-    return []
-
-
-def _check_tutorial_selfloop_report(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
-    out_rel = outputs[0] if outputs else "output/TUTORIAL_SELFLOOP_TODO.md"
-    path = workspace / out_rel
-    if not path.exists() or path.stat().st_size == 0:
-        return [QualityIssue(code="missing_tutorial_selfloop_report", message=f"`{out_rel}` is missing or empty.")]
-    text = path.read_text(encoding="utf-8", errors="ignore")
-    if _check_placeholder_markers(text) or "…" in text:
-        return [QualityIssue(code="tutorial_selfloop_placeholders", message=f"`{out_rel}` contains placeholders/ellipsis.")]
-    if "- Status: PASS" not in text:
-        return [QualityIssue(code="tutorial_selfloop_not_pass", message=f"`{out_rel}` is not PASS.")]
-    return []
-
-
 
 
 def _split_h3_blocks(text: str) -> list[tuple[str, str]]:
@@ -5944,15 +5793,11 @@ def _check_latex_scaffold(workspace: Path, outputs: list[str]) -> list[QualityIs
     if not path.exists():
         return [QualityIssue(code="missing_main_tex", message=f"`{out_rel}` does not exist.")]
     text = path.read_text(encoding="utf-8", errors="ignore")
-    profile = pipeline_profile(workspace)
-    bib_path = workspace / "citations" / "ref.bib"
 
     issues: list[QualityIssue] = []
-    if profile not in {"source-tutorial"} and "\\begin{abstract}" not in text:
+    if "\\begin{abstract}" not in text:
         issues.append(QualityIssue(code="latex_missing_abstract", message="LaTeX output has no `\\begin{abstract}` block."))
-    if bib_path.exists() and "\\bibliography{../citations/ref}" not in text:
-        issues.append(QualityIssue(code="latex_missing_bib", message="LaTeX output does not reference `../citations/ref.bib`."))
-    if not bib_path.exists() and profile not in {"source-tutorial"} and "\\bibliography{../citations/ref}" not in text:
+    if "\\bibliography{../citations/ref}" not in text:
         issues.append(QualityIssue(code="latex_missing_bib", message="LaTeX output does not reference `../citations/ref.bib`."))
     # Heuristics: markdown artifacts should not leak into TeX.
     if "[@" in text:
@@ -5979,7 +5824,6 @@ def _check_latex_compile_qa(workspace: Path, outputs: list[str]) -> list[Quality
 
     report_text = report_path.read_text(encoding="utf-8", errors="ignore")
     issues: list[QualityIssue] = []
-    profile = pipeline_profile(workspace)
 
     if "Status: SUCCESS" not in report_text and "- Status: SUCCESS" not in report_text:
         issues.append(
@@ -6062,12 +5906,12 @@ def _check_latex_compile_qa(workspace: Path, outputs: list[str]) -> list[Quality
             )
             return issues
 
-    min_pages = 4 if profile == "source-tutorial" else 8
-    if pages < min_pages:
+
+    if pages < 8:
         issues.append(
             QualityIssue(
                 code="pdf_too_short",
-                message=f"`{pdf_rel}` is too short ({pages} pages); expand the draft until the compiled PDF has >= {min_pages} pages.",
+                message=f"`{pdf_rel}` is too short ({pages} pages); expand the draft until the compiled PDF has >= 8 pages.",
             )
         )
 
@@ -6080,37 +5924,6 @@ def _check_latex_compile_qa(workspace: Path, outputs: list[str]) -> list[Quality
         )
 
     return issues
-
-
-def _check_beamer_scaffold(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
-    out_rel = outputs[0] if outputs else "latex/slides/main.tex"
-    path = workspace / out_rel
-    if not path.exists():
-        return [QualityIssue(code="missing_beamer_tex", message=f"`{out_rel}` does not exist.")]
-    text = path.read_text(encoding="utf-8", errors="ignore")
-    issues: list[QualityIssue] = []
-    if "\\documentclass" not in text or "beamer" not in text:
-        issues.append(QualityIssue(code="beamer_missing_class", message=f"`{out_rel}` is not a Beamer document."))
-    if "\\begin{frame}" not in text:
-        issues.append(QualityIssue(code="beamer_missing_frames", message=f"`{out_rel}` has no frame structure."))
-    if "## " in text or "### " in text:
-        issues.append(QualityIssue(code="beamer_markdown_headings", message=f"`{out_rel}` still contains markdown headings."))
-    return issues
-
-
-def _check_beamer_compile_qa(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
-    pdf_rel = outputs[0] if outputs else "latex/slides/main.pdf"
-    report_rel = outputs[1] if len(outputs) > 1 else "output/SLIDES_BUILD_REPORT.md"
-    pdf_path = workspace / pdf_rel
-    report_path = workspace / report_rel
-    if not pdf_path.exists():
-        return [QualityIssue(code="missing_beamer_pdf", message=f"`{pdf_rel}` does not exist.")]
-    if not report_path.exists():
-        return [QualityIssue(code="missing_slides_build_report", message=f"`{report_rel}` does not exist.")]
-    text = report_path.read_text(encoding="utf-8", errors="ignore")
-    if "- Status: PASS" not in text and "Status: PASS" not in text:
-        return [QualityIssue(code="beamer_build_not_pass", message=f"`{report_rel}` is not PASS.")]
-    return []
 
 def _check_contract_report(workspace: Path, outputs: list[str]) -> list[QualityIssue]:
     out_rel = next((p for p in outputs if p.endswith('CONTRACT_REPORT.md')), 'output/CONTRACT_REPORT.md')

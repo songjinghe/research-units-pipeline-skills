@@ -10,11 +10,10 @@
 |---|---|---|
 | 跑完整研究 pipeline | `research-pipeline-runner` | `workspace-init`、`pipeline-router`、`unit-planner`、`unit-executor` |
 | 写一篇证据优先的 survey / PDF | `pipelines/arxiv-survey*.pipeline.md` | `literature-engineer`、`taxonomy-builder`、`paper-notes`、`evidence-draft`、`subsection-writer`、`latex-compile-qa` |
-| 做 research brief / 快速速览 | `pipelines/research-brief.pipeline.md` | `arxiv-search`、`taxonomy-builder`、`outline-builder`、`snapshot-writer` |
-| 做 paper review / 单篇评估 | `pipelines/paper-review.pipeline.md` | `manuscript-ingest`、`claims-extractor`、`evidence-auditor`、`rubric-writer` |
-| 做 evidence review / 证据综述 | `pipelines/evidence-review.pipeline.md` | `protocol-writer`、`screening-manager`、`extraction-form`、`synthesis-writer` |
 | 做研究方向 brainstorm memo | `pipelines/idea-brainstorm.pipeline.md` | `idea-brief`、`idea-signal-mapper`、`idea-direction-generator`、`idea-memo-writer` |
-| 做 tutorial / 教程 | `pipelines/source-tutorial.pipeline.md` | `source-manifest`、`source-ingest`、`source-tutorial-spec`、`source-tutorial-writer` |
+| 做 tutorial / 教程 | `pipelines/tutorial.pipeline.md` | `tutorial-spec`、`concept-graph`、`module-planner`、`tutorial-module-writer` |
+| 做 systematic review | `pipelines/systematic-review.pipeline.md` | `protocol-writer`、`screening-manager`、`extraction-form`、`synthesis-writer` |
+| 做 peer review / 审稿 | `pipelines/peer-review.pipeline.md` | `manuscript-ingest`、`claims-extractor`、`evidence-auditor`、`rubric-writer` |
 | 重构中文毕业论文 | `pipelines/graduate-paper-pipeline.md` | `thesis-workspace-init`、`thesis-question-list`、`thesis-chapter-reconstructor`、`thesis-tex-writeback` |
 
 ## 2. 运行与仓库基础能力
@@ -97,7 +96,7 @@
 | `draft-polisher` | 对合并稿做去套话与连贯性润色 | 想修整稿的 generator voice，但不改 citations 时 | 更新 `output/DRAFT.md` |
 | `global-reviewer` | 做全局一致性回看 | 想看术语、章节呼应、scope consistency 时 | `output/GLOBAL_REVIEW.md` |
 | `pipeline-auditor` | 对 survey 流程做 PASS/FAIL 审计 | 交付前、回归时、想查模板味/引用健康时 | `output/AUDIT_REPORT.md` |
-| `deliverable-selfloop` | 对最终交付物做诊断→修复→复检循环 | research-brief/tutorial/evidence-review/paper-review 等成品要收敛到 PASS 时 | `output/DELIVERABLE_SELFLOOP_TODO.md` |
+| `deliverable-selfloop` | 对最终交付物做诊断→修复→复检循环 | snapshot/tutorial/systematic/peer-review 等成品要收敛到 PASS 时 | `output/DELIVERABLE_SELFLOOP_TODO.md` |
 | `terminology-normalizer` | 统一术语与同义词策略 | 同一概念在不同章节叫法不一致时 | 更新 draft / sections |
 | `redundancy-pruner` | 去掉跨章节重复 boilerplate | 多个 section 重复同一段结构或免责声明时 | 更新 draft / sections |
 | `style-harmonizer` | 去槽位句式、统一 paper voice | 草稿整体有“生成器节奏”时 | 更新 `sections/*.md` |
@@ -119,34 +118,27 @@
 | `idea-shortlist-curator` | 收敛成 3-5 个 shortlist directions | 已有 screening table，要形成可讨论 shortlist 时 | `output/trace/IDEA_SHORTLIST.md` |
 | `idea-memo-writer` | 把 shortlist 写成最终 memo | 已确定 shortlist，准备形成最终 discussion memo 时 | `output/REPORT.md`、`output/APPENDIX.md`、`output/REPORT.json` |
 
-## 8. Source Tutorial / 教程重构
+## 8. Tutorial / 教程
 
 | Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
 |---|---|---|---|
-| `source-manifest` | 把用户提供的 URL / 文件整理成 source manifest | source-tutorial 的 intake 起点 | `sources/manifest.yml` |
-| `source-ingest` | 抽取并归一化网页/PDF/repo/docs | source 已确认，准备进入教学重构前 | `sources/index.jsonl`、`sources/provenance.jsonl` |
-| `source-tutorial-spec` | 从已 ingest 的 sources 锁定 tutorial scope | 不再从裸 topic 写 spec，而是从 sources 推导时 | `output/TUTORIAL_SPEC.md` |
+| `tutorial-spec` | 定义教程目标、受众、先修、running example | tutorial 起步阶段，先锁 scope 时 | `output/TUTORIAL_SPEC.md` |
 | `concept-graph` | 生成概念依赖图 | 想把知识点排序成 prerequisite graph 时 | `outline/concept_graph.yml` |
 | `module-planner` | 把概念图变成模块序列 | 已有 concept graph，要形成教学模块时 | `outline/module_plan.yml` |
 | `exercise-builder` | 为每个模块补可验证练习 | 模块有了，但还没有“做什么、怎么验收”时 | 更新 `outline/module_plan.yml` |
-| `module-source-coverage` | 审计每个模块是否有来源支撑 | prose 前想确认教学结构没有脱离 sources 时 | `outline/source_coverage.jsonl` |
-| `tutorial-context-pack` | 生成每模块的写作上下文包 | 准备把 source-grounded module 变成 tutorial 正文时 | `outline/tutorial_context_packs.jsonl` |
-| `source-tutorial-writer` | 写完整教程内容 | spec 和 module plan 已批准，准备写 source-grounded tutorial 时 | `output/TUTORIAL.md` |
-| `tutorial-selfloop` | 对 tutorial 本体跑 PASS/FAIL gate | tutorial 写完后想确认它像教程而不是长文时 | `output/TUTORIAL_SELFLOOP_TODO.md` |
-| `beamer-scaffold` | 从 tutorial 生成 Beamer slides TeX | 准备生成可讲授/可自学的 deck 时 | `latex/slides/main.tex` |
-| `beamer-compile-qa` | 编译 slides PDF 并产出 build report | 需要正式交付 slides PDF 时 | `latex/slides/main.pdf`、`output/SLIDES_BUILD_REPORT.md` |
+| `tutorial-module-writer` | 写完整教程内容 | spec 和 module plan 已批准，准备写教程正文时 | `output/TUTORIAL.md` |
 
-## 9. Evidence Review / 证据综述
+## 9. Systematic Review / 系统综述
 
 | Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
 |---|---|---|---|
-| `protocol-writer` | 写 evidence review / systematic review protocol | 证据综述真正开始前，先锁检索/纳排/提取规则时 | `output/PROTOCOL.md` |
+| `protocol-writer` | 写 systematic review protocol | 系统综述真正开始前，先锁检索/纳排/提取规则时 | `output/PROTOCOL.md` |
 | `screening-manager` | 记录纳排筛选决策 | protocol 已批准，进入 screening 时 | `papers/screening_log.csv` |
 | `extraction-form` | 按 schema 提取研究信息 | 完成 screening，进入 data extraction 时 | `papers/extraction_table.csv` |
-| `bias-assessor` | 给 extraction table 补偏倚/质量评估 | evidence review 需要 bias / quality 字段时 | 更新 `papers/extraction_table.csv` |
-| `synthesis-writer` | 基于 extraction table 写综合文本 | 数据提取完成，要形成 evidence synthesis 时 | `output/SYNTHESIS.md` |
+| `bias-assessor` | 给 extraction table 补偏倚/质量评估 | systematic review 需要 bias / quality 字段时 | 更新 `papers/extraction_table.csv` |
+| `synthesis-writer` | 基于 extraction table 写综合文本 | 数据提取完成，要形成 systematic synthesis 时 | `output/SYNTHESIS.md` |
 
-## 10. Paper Review / 单篇评估
+## 10. Peer Review / 审稿
 
 | Skill | 做什么 | 什么时候用 | 主要产物 / 备注 |
 |---|---|---|---|
@@ -191,13 +183,13 @@
 
 ### Tutorial
 
-`source-manifest -> source-ingest -> source-tutorial-spec -> concept-graph -> module-planner -> exercise-builder -> module-source-coverage -> tutorial-context-pack -> source-tutorial-writer -> tutorial-selfloop -> beamer-scaffold -> beamer-compile-qa`
+`tutorial-spec -> concept-graph -> module-planner -> exercise-builder -> tutorial-module-writer`
 
-### Evidence Review
+### Systematic Review
 
 `protocol-writer -> literature-engineer -> dedupe-rank -> screening-manager -> extraction-form -> bias-assessor -> synthesis-writer`
 
-### Paper Review
+### Peer Review
 
 `manuscript-ingest -> claims-extractor -> evidence-auditor -> novelty-matrix -> rubric-writer`
 

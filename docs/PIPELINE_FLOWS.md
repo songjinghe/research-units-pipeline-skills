@@ -163,7 +163,7 @@ flowchart LR
   CMR -.-> SV
 ```
 
-## research-brief (C0–C3)
+## lit-snapshot (C0–C3)
 
 ```mermaid
 flowchart LR
@@ -189,7 +189,7 @@ flowchart LR
     C2A{{Approve C2 (HUMAN)}}:::human
   end
 
-  subgraph "C3 - Brief delivery [SHORT PROSE]"
+  subgraph "C3 - Snapshot [SHORT PROSE]"
     SW[snapshot-writer]
     PW[prose-writer]:::optional
   end
@@ -200,7 +200,7 @@ flowchart LR
   C2A -.-> PW
 ```
 
-## source-tutorial (C0–C4)
+## tutorial (C0–C3)
 
 ```mermaid
 flowchart LR
@@ -212,38 +212,25 @@ flowchart LR
     PR0[pipeline-router]
   end
 
-  subgraph "C1 - Source intake"
-    SM[source-manifest]
-    SI[source-ingest]
+  subgraph "C1 - Spec"
+    TS[tutorial-spec]
   end
 
   subgraph "C2 - Structure [NO PROSE]"
-    STS[source-tutorial-spec]
     CG[concept-graph]
     MP[module-planner]
     EB[exercise-builder]
-    MSC[module-source-coverage]
-    TCP[tutorial-context-pack]
     C2A{{Approve C2 (HUMAN)}}:::human
   end
 
   subgraph "C3 - Writing [PROSE]"
-    STW[source-tutorial-writer]
-    TSL[tutorial-selfloop]
+    TMW[tutorial-module-writer]
   end
 
-  subgraph "C4 - Delivery"
-    LS[latex-scaffold]
-    LCQ[latex-compile-qa]
-    BS[beamer-scaffold]
-    BCQ[beamer-compile-qa]
-    ACA[artifact-contract-auditor]
-  end
-
-  WS --> PR0 --> SM --> SI --> STS --> CG --> MP --> EB --> MSC --> TCP --> C2A --> STW --> TSL --> LS --> LCQ --> BS --> BCQ --> ACA
+  WS --> PR0 --> TS --> CG --> MP --> EB --> C2A --> TMW
 ```
 
-## evidence-review (C0–C5)
+## systematic-review (C0–C5)
 
 ```mermaid
 flowchart LR
@@ -276,7 +263,7 @@ flowchart LR
     BA[bias-assessor]
   end
 
-  subgraph "C5 - Evidence synthesis [PROSE]"
+  subgraph "C5 - Synthesis [PROSE]"
     SW[synthesis-writer]
   end
 
@@ -285,7 +272,7 @@ flowchart LR
   AS -.-> DR
 ```
 
-## paper-review (C0–C3)
+## peer-review (C0–C3)
 
 ```mermaid
 flowchart LR
@@ -303,7 +290,7 @@ flowchart LR
     NM[novelty-matrix]
   end
 
-  subgraph "C3 - Review write-up"
+  subgraph "C3 - Rubric write-up"
     RW[rubric-writer]
   end
 
